@@ -205,3 +205,66 @@ source_modules =
     topo_tools.core.schema_map
 forbidden_modules =
     topo_tools.core.dissolve
+
+[importlinter:contract:core-package_polygons-is-leaf]
+name = core.package_polygons must not depend on any tool package
+type = forbidden
+source_modules =
+    topo_tools.core.package_polygons
+forbidden_modules =
+    topo_tools.core.edge_extend
+    topo_tools.core.edge_match
+    topo_tools.core.topo_clean
+    topo_tools.core.change
+    topo_tools.core.edge_mosaic
+
+[importlinter:contract:core-package_points-is-leaf]
+name = core.package_points must not depend on any tool package
+type = forbidden
+source_modules =
+    topo_tools.core.package_points
+forbidden_modules =
+    topo_tools.core.edge_extend
+    topo_tools.core.edge_match
+    topo_tools.core.topo_clean
+    topo_tools.core.change
+    topo_tools.core.edge_mosaic
+
+[importlinter:contract:core-package_lines-is-leaf]
+name = core.package_lines must not depend on any tool package
+type = forbidden
+source_modules =
+    topo_tools.core.package_lines
+forbidden_modules =
+    topo_tools.core.edge_extend
+    topo_tools.core.edge_match
+    topo_tools.core.topo_clean
+    topo_tools.core.change
+    topo_tools.core.edge_mosaic
+
+[importlinter:contract:package_polygons-may-use-dissolve-and-schema_map-not-reverse]
+name = package_polygons may depend on dissolve and schema_map; neither may depend on package_polygons
+type = forbidden
+source_modules =
+    topo_tools.core.dissolve
+    topo_tools.core.schema_map
+forbidden_modules =
+    topo_tools.core.package_polygons
+
+[importlinter:contract:package_points-may-use-dissolve-and-schema_map-not-reverse]
+name = package_points may depend on dissolve and schema_map; neither may depend on package_points
+type = forbidden
+source_modules =
+    topo_tools.core.dissolve
+    topo_tools.core.schema_map
+forbidden_modules =
+    topo_tools.core.package_points
+
+[importlinter:contract:package_lines-may-use-dissolve-and-schema_map-not-reverse]
+name = package_lines may depend on dissolve and schema_map; neither may depend on package_lines
+type = forbidden
+source_modules =
+    topo_tools.core.dissolve
+    topo_tools.core.schema_map
+forbidden_modules =
+    topo_tools.core.package_lines

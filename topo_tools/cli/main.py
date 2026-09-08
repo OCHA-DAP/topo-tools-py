@@ -7,18 +7,21 @@ from pathlib import Path
 import click
 
 from topo_tools.api import change as _change
-from topo_tools.api import dissolve as _dissolve
 from topo_tools.api import edge_clip as _edge_clip
 from topo_tools.api import edge_extend as _edge_extend
 from topo_tools.api import edge_match as _edge_match
 from topo_tools.api import edge_mosaic as _edge_mosaic
 from topo_tools.api import edge_stitch as _edge_stitch
+from topo_tools.api import package as _package
 from topo_tools.api import schema_crosswalk as _schema_crosswalk
 from topo_tools.api import schema_fill as _schema_fill
 from topo_tools.api import schema_map as _schema_map
 from topo_tools.api import schema_refactor as _schema_refactor
 from topo_tools.api import topo_clean as _topo_clean
 from topo_tools.api import topo_detect as _topo_detect
+from topo_tools.api.package_lines import package_lines as _package_lines
+from topo_tools.api.package_points import package_points as _package_points
+from topo_tools.api.package_polygons import package_polygons as _package_polygons
 from topo_tools.core.change._constants import TAU_MATCH_DEFAULT, TAU_SAME_DEFAULT
 
 basicConfig(level=INFO, format="%(asctime)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
@@ -281,38 +284,21 @@ def topo_detect(  # noqa: PLR0913, PLR0917
         raise click.ClickException(str(e)) from e
 
 
-@cli.command()
+@cli.command(name="package-polygons")
 @click.argument("input_file", envvar="INPUT_FILE")
 @click.argument("output_file", envvar="OUTPUT_FILE", required=False, default=None)
 @click.option(
-    "--group-by",
-    "group_by",
-    envvar="GROUP_BY",
-    required=True,
-    multiple=True,
-    help="Column name(s) to group by [may be repeated, and each value MAY be "
-    "comma-separated].",
-)
-@click.option(
-    "--exclude",
-    "exclude",
-    envvar="EXCLUDE",
-    multiple=True,
-    help="Column name(s) to drop unconditionally, before the constancy check "
-    "[may be repeated, and each value MAY be comma-separated].",
+    "--issues-file",
+    envvar="ISSUES_FILE",
+    default=None,
+    help="Issues report path template. Defaults to each level's own output "
+    'with an "_issues" suffix.',
 )
 @click.option(
     "--target-schema",
     envvar="TARGET_SCHEMA",
     default=None,
-    help="Target-schema YAML path; auto-excludes every column at a level finer "
-    "than --group-by's own detected level.",
-)
-@click.option(
-    "--issues-file",
-    envvar="ISSUES_FILE",
-    default=None,
-    help='Issues report path. Defaults to OUTPUT_FILE with an "_issues" suffix.',
+    help="Target-schema YAML path used to detect every admin level present.",
 )
 @click.option(
     "--overwrite",
@@ -344,61 +330,285 @@ def topo_detect(  # noqa: PLR0913, PLR0917
     default=None,
     help="Run only one named stage.",
 )
-def dissolve(  # noqa: PLR0913, PLR0917
+def package_polygons(  # noqa: PLR0913, PLR0917
     input_file: str,
     output_file: str | None,
-    group_by: tuple[str, ...],
-    exclude: tuple[str, ...],
-    target_schema: str | None,
     issues_file: str | None,
+    target_schema: str | None,
     overwrite: bool,  # noqa: FBT001
     threads: int | None,
     debug: bool,  # noqa: FBT001
     tmp_dir: str | None,
     step: str | None,
 ) -> None:
-    r"""Aggregate a polygon layer into a coarser one by grouping on attribute columns.
+    r"""Dissolve a polygon layer into every detected coarser admin level.
 
-    OUTPUT_FILE defaults to INPUT_FILE with a "_dissolved" suffix if omitted.
-    Every column not in --group-by is kept via any_value if it's actually
-    constant within every group, dropped (with a warning) if not. A NULL
-    value in a --group-by column forms its own group like any other value,
-    matching GDAL's `combine --group-by`. --exclude and --target-schema both
-    drop columns unconditionally, before that constancy check ever runs.
+    OUTPUT_FILE, if given, MUST contain a literal "{n}" placeholder, formatted
+    per level; if omitted, each level defaults to INPUT_FILE with an
+    "_admin{n}" suffix. The finest detected level is skipped when its
+    computed path resolves to INPUT_FILE itself.
 
     \b
     Examples:
-      # Dissolve admin3 into admin2; ancestor columns constant per group
-      # (e.g. adm1_name) are kept automatically, adm3's own columns are
-      # dropped automatically since they vary within each admin2 group
-      topo-tools dissolve adm3.geojson --group-by adm2_pcode
+      # Default naming: input_admin1.geojson, input_admin2.geojson, ...
+      topo-tools package-polygons admin3.geojson --target-schema schema.yaml
 
       \b
-      # Drop a known all-NULL finer-level column explicitly
-      topo-tools dissolve adm3.geojson --group-by adm2_pcode \
-        --exclude adm3_name1,adm3_name2
-
-      \b
-      # Auto-exclude every column finer than each call's own group-by level
-      topo-tools dissolve adm3.geojson adm2.geojson --group-by adm2_pcode \
-        --target-schema schema.yaml
-      topo-tools dissolve adm3.geojson adm1.geojson --group-by adm1_pcode \
+      # Explicit {n} template
+      topo-tools package-polygons admin3.geojson "level_{n}.geojson" \
         --target-schema schema.yaml
     """
     logger.info("--debug=%s", debug)
     try:
-        _dissolve(
+        _package_polygons(
             input_file,
-            Path(output_file) if output_file is not None else None,
-            Path(issues_file) if issues_file is not None else None,
-            group_by=_split_commas(group_by),
-            exclude=_split_commas(exclude) or None,
+            output_file,
+            issues_file,
             target_schema_path=target_schema,
             threads=threads,
             tmp_dir=tmp_dir,
             overwrite=overwrite,
             debug=debug,
             step=step,
+        )
+    except (FileExistsError, RuntimeError, ValueError) as e:
+        raise click.ClickException(str(e)) from e
+
+
+@cli.command(name="package-points")
+@click.argument("input_file", envvar="INPUT_FILE")
+@click.argument("output_file", envvar="OUTPUT_FILE", required=False, default=None)
+@click.option(
+    "--target-schema",
+    envvar="TARGET_SCHEMA",
+    default=None,
+    help="Target-schema YAML path used to detect every admin level present.",
+)
+@click.option(
+    "--depth-column",
+    envvar="DEPTH_COLUMN",
+    default="adm_lvl",
+    show_default=True,
+    help="Column name stamped with each point's own admin level.",
+)
+@click.option(
+    "--overwrite",
+    envvar="OVERWRITE",
+    type=bool,
+    default=True,
+    show_default=True,
+    help="Overwrite an existing output; pass --overwrite=false to error instead.",
+)
+@click.option(
+    "--threads", envvar="THREADS", type=int, default=None, help="DuckDB thread count."
+)
+@click.option(
+    "--debug",
+    envvar="DEBUG",
+    is_flag=True,
+    help="Keep intermediate tables, export to Parquet, log timing/memory per query.",
+)
+@click.option(
+    "--tmp-dir",
+    envvar="TMP_DIR",
+    default=None,
+    help="Intermediate DuckDB + Parquet location.",
+)
+@click.option(
+    "--step",
+    envvar="STEP",
+    type=click.Choice(["inputs", "points", "outputs"]),
+    default=None,
+    help="Run only one named stage.",
+)
+def package_points(  # noqa: PLR0913, PLR0917
+    input_file: str,
+    output_file: str | None,
+    target_schema: str | None,
+    depth_column: str,
+    overwrite: bool,  # noqa: FBT001
+    threads: int | None,
+    debug: bool,  # noqa: FBT001
+    tmp_dir: str | None,
+    step: str | None,
+) -> None:
+    r"""One pole-of-inaccessibility label point per admin unit, every level combined.
+
+    OUTPUT_FILE defaults to INPUT_FILE with a "_points" suffix if omitted.
+
+    \b
+    Examples:
+      topo-tools package-points admin3.geojson --target-schema schema.yaml
+    """
+    logger.info("--debug=%s", debug)
+    try:
+        _package_points(
+            input_file,
+            Path(output_file) if output_file is not None else None,
+            target_schema,
+            depth_column=depth_column,
+            threads=threads,
+            tmp_dir=tmp_dir,
+            overwrite=overwrite,
+            debug=debug,
+            step=step,
+        )
+    except (FileExistsError, RuntimeError, ValueError) as e:
+        raise click.ClickException(str(e)) from e
+
+
+@cli.command(name="package-lines")
+@click.argument("input_file", envvar="INPUT_FILE")
+@click.argument("output_file", envvar="OUTPUT_FILE", required=False, default=None)
+@click.option(
+    "--target-schema",
+    envvar="TARGET_SCHEMA",
+    default=None,
+    help="Target-schema YAML path used to detect every admin level present.",
+)
+@click.option(
+    "--depth-column",
+    envvar="DEPTH_COLUMN",
+    default="adm_lvl",
+    show_default=True,
+    help="Column name stamped with each boundary's own coarsest admin level.",
+)
+@click.option(
+    "--overwrite",
+    envvar="OVERWRITE",
+    type=bool,
+    default=True,
+    show_default=True,
+    help="Overwrite an existing output; pass --overwrite=false to error instead.",
+)
+@click.option(
+    "--threads", envvar="THREADS", type=int, default=None, help="DuckDB thread count."
+)
+@click.option(
+    "--debug",
+    envvar="DEBUG",
+    is_flag=True,
+    help="Keep intermediate tables, export to Parquet, log timing/memory per query.",
+)
+@click.option(
+    "--tmp-dir",
+    envvar="TMP_DIR",
+    default=None,
+    help="Intermediate DuckDB + Parquet location.",
+)
+@click.option(
+    "--step",
+    envvar="STEP",
+    type=click.Choice(["inputs", "boundaries", "outputs"]),
+    default=None,
+    help="Run only one named stage.",
+)
+def package_lines(  # noqa: PLR0913, PLR0917
+    input_file: str,
+    output_file: str | None,
+    target_schema: str | None,
+    depth_column: str,
+    overwrite: bool,  # noqa: FBT001
+    threads: int | None,
+    debug: bool,  # noqa: FBT001
+    tmp_dir: str | None,
+    step: str | None,
+) -> None:
+    r"""Deduplicated shared+exterior boundary lines, classified by admin level.
+
+    OUTPUT_FILE defaults to INPUT_FILE with a "_lines" suffix if omitted.
+
+    \b
+    Examples:
+      topo-tools package-lines admin3.geojson --target-schema schema.yaml
+    """
+    logger.info("--debug=%s", debug)
+    try:
+        _package_lines(
+            input_file,
+            Path(output_file) if output_file is not None else None,
+            target_schema,
+            depth_column=depth_column,
+            threads=threads,
+            tmp_dir=tmp_dir,
+            overwrite=overwrite,
+            debug=debug,
+            step=step,
+        )
+    except (FileExistsError, RuntimeError, ValueError) as e:
+        raise click.ClickException(str(e)) from e
+
+
+@cli.command()
+@click.argument("input_file", envvar="INPUT_FILE")
+@click.option(
+    "--output",
+    "output",
+    envvar="OUTPUT",
+    default=None,
+    help='Output path template containing a literal "{x}" placeholder, '
+    'substituted per sub-tool ("admin{n}"/"points"/"lines"). Omit for defaults.',
+)
+@click.option(
+    "--target-schema",
+    envvar="TARGET_SCHEMA",
+    default=None,
+    help="Target-schema YAML path used to detect every admin level present.",
+)
+@click.option(
+    "--overwrite",
+    envvar="OVERWRITE",
+    type=bool,
+    default=True,
+    show_default=True,
+    help="Overwrite an existing output; pass --overwrite=false to error instead.",
+)
+@click.option(
+    "--threads", envvar="THREADS", type=int, default=None, help="DuckDB thread count."
+)
+@click.option(
+    "--debug",
+    envvar="DEBUG",
+    is_flag=True,
+    help="Keep intermediate tables, export to Parquet, log timing/memory per query.",
+)
+@click.option(
+    "--tmp-dir",
+    envvar="TMP_DIR",
+    default=None,
+    help="Intermediate DuckDB + Parquet location.",
+)
+def package(  # noqa: PLR0913, PLR0917
+    input_file: str,
+    output: str | None,
+    target_schema: str | None,
+    overwrite: bool,  # noqa: FBT001
+    threads: int | None,
+    debug: bool,  # noqa: FBT001
+    tmp_dir: str | None,
+) -> None:
+    r"""Run package-polygons, package-points, and package-lines against one input.
+
+    \b
+    Examples:
+      # Defaults for all three outputs
+      topo-tools package admin3.geojson --target-schema schema.yaml
+
+      \b
+      # Explicit {x} template
+      topo-tools package admin3.geojson --output "web/{x}.geojson" \
+        --target-schema schema.yaml
+    """
+    logger.info("--debug=%s", debug)
+    try:
+        _package(
+            input_file,
+            output,
+            target_schema,
+            threads=threads,
+            tmp_dir=tmp_dir,
+            overwrite=overwrite,
+            debug=debug,
         )
     except (FileExistsError, RuntimeError, ValueError) as e:
         raise click.ClickException(str(e)) from e

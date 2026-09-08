@@ -5,9 +5,11 @@ import pytest
 import yaml
 from click.testing import CliRunner
 
-from topo_tools.api.dissolve import dissolve
 from topo_tools.api.schema_fill import fill
 from topo_tools.cli.main import cli
+from topo_tools.core.dissolve import _01_inputs as _dissolve_inputs
+from topo_tools.core.dissolve import _02_dissolve as _dissolve_stage
+from topo_tools.core.io import export_geometry_table
 from topo_tools.core.schema_map._target_schema import DEFAULT_TARGET_SCHEMA_PATH
 
 _STEPS = ["inputs", "fill", "outputs"]
@@ -326,9 +328,12 @@ def test_dissolve_after_fill_keeps_lvl_column(leaf_input, tmp_path):
     fill(leaf_input, output_path=filled_path, overwrite=True)
 
     adm2_path = tmp_path / "adm2.parquet"
-    dissolve(
-        filled_path, adm2_path, group_by=["adm2_code", "adm1_code"], overwrite=True
-    )
+    with duckdb.connect() as conn:
+        conn.execute("LOAD spatial")
+        group_by = ["adm2_code", "adm1_code"]
+        _dissolve_inputs.main(conn, "t", filled_path, group_by=group_by)
+        _dissolve_stage.main(conn, "t_01", "t_02", group_by=group_by)
+        export_geometry_table(conn, "t_02", adm2_path)
 
     with duckdb.connect() as conn:
         conn.execute("LOAD spatial")

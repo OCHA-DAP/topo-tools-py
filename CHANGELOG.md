@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `package-polygons`, `package-points`, `package-lines`, and `package`
+  (API and CLI): a family of cartographic-derivative tools for web maps.
+  `package-polygons` dissolves a polygon layer into every detected coarser
+  admin level in one call; `package-points` produces one pole-of-
+  inaccessibility label point per admin unit per level; `package-lines`
+  produces one deduplicated boundary-line network (shared + exterior)
+  tagged by adjacency and admin depth; `package` runs all three against
+  one input in a single call. Levels are always auto-detected from a
+  target-schema YAML (the same mechanism `schema-map`/`schema-fill` use).
+
+### Removed
+
+- **Breaking:** the standalone `dissolve` tool (API `dissolve()` and CLI
+  `dissolve`) is removed, replaced by `package-polygons`. `--group-by`
+  (arbitrary-column grouping) is dropped along with it: `package-polygons`
+  always auto-detects every admin level from a target-schema YAML instead.
+  A caller using `dissolve --group-by adm2_pcode,adm1_pcode` should build
+  a `schema-map` target-schema YAML for their column naming convention and
+  run `package-polygons` instead, which produces every coarser level in
+  one call rather than one `--group-by` at a time.
+
 ## [0.5.6] - 2026-09-01
 
 ### Fixed

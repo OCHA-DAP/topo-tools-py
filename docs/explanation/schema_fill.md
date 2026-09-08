@@ -26,18 +26,19 @@ from an admin1 row whose admin3 columns were only ever filled down; a
 caller inspecting the leaf table alone cannot tell the two cases apart.
 
 `schema-fill` closes that gap directly: once a leaf table is properly
-attributed (every row's real depth stamped), `dissolve` needs no
-special-casing at all to build every level 1..N. `dissolve`'s existing,
-unmodified auto-keep-constant-column behavior (any column constant within
-a group is kept via `any_value`) is what makes the depth column survive
-automatically through a chain of per-level `dissolve` calls, with zero new
-code in `dissolve` itself: dissolving to admin2 keeps `adm_lvl` at
-whatever depth was genuine for each resulting group (e.g. `3` if any
-admin3 unit existed under it, `2` if it never went deeper). An earlier
-design considered a single composite `dissolve-hierarchy` tool that
-filled and dissolved every level in one call; it was dropped once it
-became clear `schema-fill` (fill) followed by plain `dissolve`, called
-once per level, needs no bespoke tool at all (see `docs/adr/0075`).
+attributed (every row's real depth stamped), `package-polygons`'s own
+per-level dissolve loop needs no special-casing to build every level
+1..N. The underlying `core.dissolve` primitive's existing, unmodified
+auto-keep-constant-column behavior (any column constant within a group is
+kept via `any_value`) is what makes the depth column survive automatically
+through that per-level loop, with zero new code in `core.dissolve` itself:
+dissolving to admin2 keeps `adm_lvl` at whatever depth was genuine for
+each resulting group (e.g. `3` if any admin3 unit existed under it, `2` if
+it never went deeper). `schema-fill` (fill) and `package-polygons`
+(dissolve every level in one call) stay separate tools since fill is an
+attribute concern and `package-polygons` is a geometry-aggregation
+concern that works on any already-attributed input, not only a
+freshly-filled one (see `docs/adr/0075`).
 
 ## Pipeline order: run after mosaic/stitch, not before
 
@@ -80,8 +81,8 @@ from yet.
 
 ## Level detection
 
-`detect_levels()` (`core/schema_map/_levels.py`, shared with `dissolve`'s
-`target_schema` option, see `docs/explanation/dissolve.md`) reuses the schema's own
+`detect_levels()` (`core/schema_map/_levels.py`, shared with
+`package-polygons`, see `docs/explanation/package_polygons.md`) reuses the schema's own
 `code_field` prefix (the literal text before its `{n}` placeholder, e.g.
 `"adm"`) to find every present level via a regex match against the
 table's columns, then requires every level in `1..max_level` to have its
