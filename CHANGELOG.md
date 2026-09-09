@@ -16,8 +16,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   inaccessibility label point per admin unit per level; `package-lines`
   produces one deduplicated boundary-line network (shared + exterior)
   tagged by adjacency and admin depth; `package` runs all three against
-  one input in a single call. Levels are always auto-detected from a
-  target-schema YAML (the same mechanism `schema-map`/`schema-fill` use).
+  one input in a single call. Levels are auto-detected structurally by
+  default (`core.schema_map`'s cardinality/containment matcher, no naming
+  convention assumed), or via an explicit `--name-field`/`--code-field`
+  pair or target-schema YAML.
+- `schema-fill` also gains structural auto-detection of every admin level
+  and its own code column, replacing the requirement for an explicit
+  target-schema YAML; `--name-field`/`--code-field`/`--target-schema`
+  remain available to force a specific naming convention.
+- `core.dissolve` (and every tool built on it) sums a numeric column that
+  varies within a group instead of dropping it, unless overridden per
+  column via `--aggregation column=function` (`sum`, `min`, `max`, `avg`,
+  `first`).
 
 ### Removed
 
