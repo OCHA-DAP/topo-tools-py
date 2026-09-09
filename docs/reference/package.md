@@ -29,6 +29,9 @@ See `docs/reference/README.md` for the MUST/SHOULD/MAY convention.
 - `package` MUST process exactly one input file per call.
 - `overwrite`, `threads`, `tmp_dir`, `debug`, `name_field`, and `code_field`
   MUST be passed through unchanged to all three sub-calls.
+- `aggregations` (CLI: repeatable `--aggregation column=function`) MUST be
+  passed through to `package-polygons` only; `package-points` and
+  `package-lines` have no equivalent override.
 - `package` MUST NOT expose `depth_column`: `package-points` and
   `package-lines` each run with their own default (`adm_lvl`). An input
   that already has its own `adm_lvl` column (raising `ValueError` in

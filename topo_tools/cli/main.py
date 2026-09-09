@@ -38,6 +38,20 @@ def _split_columns(value: str | None) -> list[str] | None:
     return value.split(",") if value is not None else None
 
 
+def _parse_aggregations(values: tuple[str, ...]) -> dict[str, str] | None:
+    """Parse repeated --aggregation 'column=function' values into a dict."""
+    if not values:
+        return None
+    aggregations = {}
+    for raw in values:
+        column, sep, function = raw.partition("=")
+        if not sep:
+            msg = f"--aggregation must be 'column=function', got {raw!r}"
+            raise click.BadParameter(msg)
+        aggregations[column] = function
+    return aggregations
+
+
 _MERGE_OPTIONS = (
     click.option(
         "--merge",
@@ -316,6 +330,15 @@ def topo_detect(  # noqa: PLR0913, PLR0917
     "default: structural auto-detection).",
 )
 @click.option(
+    "--aggregation",
+    "aggregations",
+    envvar="AGGREGATIONS",
+    multiple=True,
+    help="'column=function' override for a column that varies within a group "
+    "(function is one of sum, min, max, avg, first; default: sum if numeric, "
+    "else dropped) [may be repeated].",
+)
+@click.option(
     "--overwrite",
     envvar="OVERWRITE",
     type=bool,
@@ -351,6 +374,7 @@ def package_polygons(  # noqa: PLR0913, PLR0917
     issues_file: str | None,
     name_field: str | None,
     code_field: str | None,
+    aggregations: tuple[str, ...],
     overwrite: bool,  # noqa: FBT001
     threads: int | None,
     debug: bool,  # noqa: FBT001
@@ -382,6 +406,7 @@ def package_polygons(  # noqa: PLR0913, PLR0917
             issues_file,
             name_field=name_field,
             code_field=code_field,
+            aggregations=_parse_aggregations(aggregations),
             threads=threads,
             tmp_dir=tmp_dir,
             overwrite=overwrite,
@@ -601,6 +626,15 @@ def package_lines(  # noqa: PLR0913, PLR0917
     "default: structural auto-detection).",
 )
 @click.option(
+    "--aggregation",
+    "aggregations",
+    envvar="AGGREGATIONS",
+    multiple=True,
+    help="'column=function' override for package-polygons, for a column that "
+    "varies within a group (function is one of sum, min, max, avg, first; "
+    "default: sum if numeric, else dropped) [may be repeated].",
+)
+@click.option(
     "--overwrite",
     envvar="OVERWRITE",
     type=bool,
@@ -628,6 +662,7 @@ def package(  # noqa: PLR0913, PLR0917
     output: str | None,
     name_field: str | None,
     code_field: str | None,
+    aggregations: tuple[str, ...],
     overwrite: bool,  # noqa: FBT001
     threads: int | None,
     debug: bool,  # noqa: FBT001
@@ -651,6 +686,7 @@ def package(  # noqa: PLR0913, PLR0917
             output,
             name_field,
             code_field,
+            aggregations=_parse_aggregations(aggregations),
             threads=threads,
             tmp_dir=tmp_dir,
             overwrite=overwrite,
