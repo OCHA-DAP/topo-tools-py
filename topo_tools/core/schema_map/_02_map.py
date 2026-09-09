@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 from duckdb import DuckDBPyConnection
 
-from topo_tools.core.constants import is_noise_column, is_numeric_duckdb_type
+from topo_tools.core.constants import is_noise_column
 from topo_tools.core.duckdb_utils import quote_identifier
 from topo_tools.core.schema_map._constants import (
     CONFIDENCE_AMBIGUOUS,
@@ -39,14 +39,12 @@ class _Row:
 
 
 def _candidate_columns(conn: DuckDBPyConnection, table: str) -> list[str]:
-    """List columns eligible for hierarchy detection, excluding numeric-typed ids."""
+    """List columns eligible for hierarchy detection, of any type."""
     rows = conn.execute(f'DESCRIBE "{table}"').fetchall()
     return [
         r[0]
         for r in rows
-        if r[0] not in _EXCLUDED_COLUMNS
-        and not is_noise_column(r[0])
-        and not is_numeric_duckdb_type(r[1])
+        if r[0] not in _EXCLUDED_COLUMNS and not is_noise_column(r[0])
     ]
 
 
@@ -142,6 +140,7 @@ def _containment_holds(
 
 
 _MIN_JOINT_EVIDENCE_FOR_BIJECTION = 2
+_MIN_ROOT_EVIDENCE_COLUMNS = 2
 _LEVEL_DIGIT_RE = re.compile(r"\d+")
 
 
@@ -559,6 +558,10 @@ def resolve_columns(
     level_groups = _build_level_groups(conn, table, chainable_columns, counts)
     level_groups = _order_groups_by_containment(conn, table, level_groups)
     chain = _build_chain(conn, table, level_groups)
+    # A lone level with a lone column has no parent to embed and no sibling
+    # to pair with, indistinguishable from an arbitrary non-hierarchy column.
+    if len(chain) == 1 and len(chain[0][1]) < _MIN_ROOT_EVIDENCE_COLUMNS:
+        chain = []
 
     rows = _assign_chain_roles(conn, table, chain, schema, counts)
 
