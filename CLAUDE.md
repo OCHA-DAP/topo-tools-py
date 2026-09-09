@@ -18,7 +18,7 @@ reused internally by the composite tools below them:
 - **edge-clip**: assigns each child to its parent (always `assign-one`), then clips it to that parent's geometry, one `parent_fid` at a time in its own subprocess; a strict one-children-file/one-parent-file/one-output primitive (`edge-mosaic` owns batching many children files against one shared parent load, see `docs/adr/0080`). See `docs/explanation/edge_clip.md`.
 - **edge-stitch**: closes seams in an already-tiled layer with one whole-table `ST_CoverageClean` pass. See `docs/explanation/edge_stitch.md`.
 - **topo-detect**: scans a single polygon layer for gap/overlap coverage defects and reports them, without fixing anything. See `docs/explanation/topo_detect.md`.
-- **package-polygons**: dissolves a polygon layer into every detected coarser admin level in a single call, levels auto-detected from a target-schema YAML, reusing the `core.dissolve` leaf's stage functions directly, once per level. See `docs/explanation/package_polygons.md`.
+- **package-polygons**: dissolves a polygon layer into every detected coarser admin level in a single call, levels auto-detected structurally by default (or via an explicit `--name-field`/`--code-field` pair), reusing the `core.dissolve` leaf's stage functions directly, once per level. See `docs/explanation/package_polygons.md`.
 - **package-points**: one label point per admin unit per detected level, using the pole of inaccessibility (always interior, unlike a centroid), combined into a single output file. See `docs/explanation/package_points.md`.
 - **package-lines**: one deduplicated line network of admin boundaries (shared between two units, or exterior to all of them), tagged by adjacency and the coarsest admin level each segment belongs to. See `docs/explanation/package_lines.md`.
 - **package**: runs `package-polygons`, `package-points`, and `package-lines` against one input in a single call, for the common case of wanting the full cartographic bundle at once. See `docs/explanation/package.md`.
@@ -29,7 +29,7 @@ reused internally by the composite tools below them:
 - **schema-map**: maps a source-column → target-schema crosswalk by inferring the admin hierarchy structurally (cardinality/containment, never column names) and classifying code vs. name by value shape, deterministically, no LLM; never renames anything itself. See `docs/explanation/schema_map.md`.
 - **schema-refactor**: renames/drops columns per a crosswalk from `schema-map` (likely hand-edited first). See `docs/explanation/schema_refactor.md`.
 - **schema-crosswalk**: `schema-map` → `schema-refactor`, in one call, so a user can see mapped values right away and iterate by hand-editing the written crosswalk and re-running `schema-refactor` on it. See `docs/explanation/schema_crosswalk.md`.
-- **schema-fill**: stamps a new `adm_lvl` column (overridable via `--depth-column`) with each row's real depth, then cascades each admin-hierarchy column down to that depth, pinned per row so a genuine NULL at a row's own real depth is never backfilled from a shallower ancestor; levels derived from a `schema-map` target schema; run against an already-clipped/stitched layer, then `package-polygons` to dissolve every level normally. See `docs/explanation/schema_fill.md`.
+- **schema-fill**: stamps a new `adm_lvl` column (overridable via `--depth-column`) with each row's real depth, then cascades each admin-hierarchy column down to that depth, pinned per row so a genuine NULL at a row's own real depth is never backfilled from a shallower ancestor; levels derived structurally by default, or via an explicit `--name-field`/`--code-field` pair; run against an already-clipped/stitched layer, then `package-polygons` to dissolve every level normally. See `docs/explanation/schema_fill.md`.
 
 ## Deployment Targets
 
@@ -70,8 +70,9 @@ split):
   carve-out below. `core.schema_map` is not a neutral leaf but MAY be
   imported by `core.schema_fill`, `core.dissolve`, `core.package_polygons`,
   `core.package_points`, and `core.package_lines` specifically (the
-  target-schema YAML/level-detection mechanism,
-  `core/schema_map/_levels.py`), never the reverse (see `docs/adr/0075`,
+  `name_field`/`code_field`/level-detection mechanism,
+  `core/schema_map/_levels.py`, `core/schema_map/_level_columns.py`), never
+  the reverse (see `docs/adr/0075`,
   `docs/adr/0092`); `schema-fill` does not call `core.dissolve` itself, a
   caller runs `package-polygons` separately after filling (see
   `docs/explanation/schema_fill.md`).
@@ -144,8 +145,8 @@ per-tool table names are in `docs/explanation/{tool}.md`.
 - **`topo-clean`'s `--maximum-gap-width`/`--snapping-distance` are decimal degrees, not meters** (`_01` is always EPSG:4326). See `docs/explanation/topo_clean.md`.
 - **A read-role file argument MAY be an `http://`/`https://` URL to a `.parquet` file**, resolved via `core.io.resolve_input_path()`/`input_basename()`, never plain `Path()` (which mangles a URL's `//`); output-role arguments always stay local paths (see `docs/adr/0043`).
 - **`schema-crosswalk` reuses `schema-map`'s and `schema-refactor`'s stage functions directly rather than re-implementing matching or renaming**, the same primitive-reuse pattern as `topo-clean`/`topo-detect` (`docs/adr/0028`), but split across two independent `name` sub-namespaces (`{name}` for `schema-map`'s tables, `f"{name}_apply"` for `schema-refactor`'s) since both hardcode `"{name}_02"` for different data. The apply namespace's `_01` table is a DuckDB **view** over the already-loaded input, not a copy, per this project's memory-constrained deployment targets; it MUST be dropped before any `DROP TABLE IF EXISTS` targets that name, since DuckDB raises a Catalog Error dropping a view as a table even with `IF EXISTS`. See `docs/explanation/schema_crosswalk.md`.
-- **`schema-fill` derives every hierarchy level from a `schema-map` target-schema YAML, never a hardcoded column-naming convention**, matching `name_field` and `code_field` independently by their own prefixes (they need not match), and stamps a depth column (`adm_lvl` by default, overridable via `depth_column`/`--depth-column`) from the *original* (pre-fill) code columns so a caller can tell a genuine leaf-depth row from one only ever filled down; every level past a row's own stamped depth is pinned to that row's own value at (or nearest below) that depth, per row, never a shared file-wide level, so a genuine NULL at a row's own real depth is left untouched rather than backfilled from a shallower ancestor (see `docs/adr/0075`, `docs/adr/0093`); `package-polygons`'s own unmodified per-level `core.dissolve` call then carries the depth column through automatically via its existing auto-keep-constant-column behavior.
-- **`package-polygons`/`package-points`/`package-lines` all auto-detect every admin level from a `schema-map` target schema (`detect_levels()`), never a hardcoded column count**, and reuse `core.dissolve`'s stage functions directly rather than re-implementing aggregation, the same primitive-reuse pattern `edge-match` uses on `edge-extend` (see `docs/explanation/package_polygons.md`, `docs/explanation/package_points.md`, `docs/explanation/package_lines.md`).
+- **`schema-fill`/`package-polygons`/`package-points`/`package-lines`/`package` all detect every hierarchy level structurally by default (`core.schema_map`'s cardinality/containment matcher, no naming convention assumed), never a hardcoded column-naming convention or column count**, or via an explicit `name_field`/`code_field` pair (`--name-field`/`--code-field`, given together or not at all). Structural auto-detection groups each level's columns by a shared naming anchor (`_level_anchors()`, `core/schema_map/_level_columns.py`): the text every level's own code column shares with every other level's, as a common prefix and (of what's left) a common suffix, so the differing middle part (a digit like `1`/`2`/`3`, or a whole word like `state`/`county`) can anchor a sibling column at either end (`is_level_identity_column()`), never assuming a digit or a fixed position. `schema-fill` stamps a depth column (`adm_lvl` by default, overridable via `depth_column`/`--depth-column`) from the *original* (pre-fill) code columns so a caller can tell a genuine leaf-depth row from one only ever filled down; every level past a row's own stamped depth is pinned to that row's own value at (or nearest below) that depth, per row, never a shared file-wide level, so a genuine NULL at a row's own real depth is left untouched rather than backfilled from a shallower ancestor (see `docs/adr/0075`, `docs/adr/0093`); `package-polygons`'s own unmodified per-level `core.dissolve` call then carries the depth column through automatically via its existing auto-keep-constant-column behavior.
+- **`package-polygons`/`package-points`/`package-lines` reuse `core.dissolve`'s stage functions directly rather than re-implementing aggregation**, the same primitive-reuse pattern `edge-match` uses on `edge-extend` (see `docs/explanation/package_polygons.md`, `docs/explanation/package_points.md`, `docs/explanation/package_lines.md`).
 
 ### Supported Formats
 
@@ -176,14 +177,17 @@ uv run topo-tools topo-detect example.geojson
 uv run topo-tools schema-fill admin4.geojson
 
 # Run the package-polygons tool (dissolve into every detected coarser admin level)
-uv run topo-tools package-polygons admin3.geojson --target-schema schema.yaml
+uv run topo-tools package-polygons admin3.geojson
 
 # Run the package-points/package-lines tools (label points / deduplicated boundary lines)
-uv run topo-tools package-points admin3.geojson --target-schema schema.yaml
-uv run topo-tools package-lines admin3.geojson --target-schema schema.yaml
+uv run topo-tools package-points admin3.geojson
+uv run topo-tools package-lines admin3.geojson
 
 # Run the package tool (package-polygons + package-points + package-lines in one call)
-uv run topo-tools package admin3.geojson --target-schema schema.yaml
+uv run topo-tools package admin3.geojson
+
+# Override auto-detected level naming with an explicit pair (any tool above)
+uv run topo-tools package-polygons admin3.geojson --name-field adm{n}_name --code-field adm{n}_pcode
 
 # Run the topo-clean tool (topo-detect, then fix gaps+overlaps, reporting the outcome in the issues file)
 uv run topo-tools topo-clean example.geojson

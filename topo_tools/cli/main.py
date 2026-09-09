@@ -105,16 +105,23 @@ _FILL_OPTIONS = (
         help=(
             "Cascade admin-hierarchy columns down and stamp each row's real "
             "depth, right before export. Narrow the target schema with "
-            "--target-schema; rename the stamped depth column with "
-            "--depth-column."
+            "--name-field/--code-field; rename the stamped depth column "
+            "with --depth-column."
         ),
     ),
     click.option(
-        "--target-schema",
-        envvar="TARGET_SCHEMA",
+        "--name-field",
+        envvar="NAME_FIELD",
         default=None,
-        help="Target-schema YAML path (requires --fill-schema; default: "
-        "the bundled generic schema).",
+        help="Name-field template, e.g. 'adm{n}_name' (requires --fill-schema "
+        "and --code-field; default: structural auto-detection).",
+    ),
+    click.option(
+        "--code-field",
+        envvar="CODE_FIELD",
+        default=None,
+        help="Code-field template, e.g. 'adm{n}_code' (requires --fill-schema "
+        "and --name-field; default: structural auto-detection).",
     ),
     click.option(
         "--depth-column",
@@ -295,10 +302,18 @@ def topo_detect(  # noqa: PLR0913, PLR0917
     'with an "_issues" suffix.',
 )
 @click.option(
-    "--target-schema",
-    envvar="TARGET_SCHEMA",
+    "--name-field",
+    envvar="NAME_FIELD",
     default=None,
-    help="Target-schema YAML path used to detect every admin level present.",
+    help="Name-field template, e.g. 'adm{n}_name' (requires --code-field; "
+    "default: structural auto-detection).",
+)
+@click.option(
+    "--code-field",
+    envvar="CODE_FIELD",
+    default=None,
+    help="Code-field template, e.g. 'adm{n}_code' (requires --name-field; "
+    "default: structural auto-detection).",
 )
 @click.option(
     "--overwrite",
@@ -334,7 +349,8 @@ def package_polygons(  # noqa: PLR0913, PLR0917
     input_file: str,
     output_file: str | None,
     issues_file: str | None,
-    target_schema: str | None,
+    name_field: str | None,
+    code_field: str | None,
     overwrite: bool,  # noqa: FBT001
     threads: int | None,
     debug: bool,  # noqa: FBT001
@@ -351,12 +367,12 @@ def package_polygons(  # noqa: PLR0913, PLR0917
     \b
     Examples:
       # Default naming: input_admin1.geojson, input_admin2.geojson, ...
-      topo-tools package-polygons admin3.geojson --target-schema schema.yaml
+      topo-tools package-polygons admin3.geojson
 
       \b
       # Explicit {n} template
       topo-tools package-polygons admin3.geojson "level_{n}.geojson" \
-        --target-schema schema.yaml
+        --name-field adm{n}_name --code-field adm{n}_pcode
     """
     logger.info("--debug=%s", debug)
     try:
@@ -364,7 +380,8 @@ def package_polygons(  # noqa: PLR0913, PLR0917
             input_file,
             output_file,
             issues_file,
-            target_schema_path=target_schema,
+            name_field=name_field,
+            code_field=code_field,
             threads=threads,
             tmp_dir=tmp_dir,
             overwrite=overwrite,
@@ -379,10 +396,18 @@ def package_polygons(  # noqa: PLR0913, PLR0917
 @click.argument("input_file", envvar="INPUT_FILE")
 @click.argument("output_file", envvar="OUTPUT_FILE", required=False, default=None)
 @click.option(
-    "--target-schema",
-    envvar="TARGET_SCHEMA",
+    "--name-field",
+    envvar="NAME_FIELD",
     default=None,
-    help="Target-schema YAML path used to detect every admin level present.",
+    help="Name-field template, e.g. 'adm{n}_name' (requires --code-field; "
+    "default: structural auto-detection).",
+)
+@click.option(
+    "--code-field",
+    envvar="CODE_FIELD",
+    default=None,
+    help="Code-field template, e.g. 'adm{n}_code' (requires --name-field; "
+    "default: structural auto-detection).",
 )
 @click.option(
     "--depth-column",
@@ -424,7 +449,8 @@ def package_polygons(  # noqa: PLR0913, PLR0917
 def package_points(  # noqa: PLR0913, PLR0917
     input_file: str,
     output_file: str | None,
-    target_schema: str | None,
+    name_field: str | None,
+    code_field: str | None,
     depth_column: str,
     overwrite: bool,  # noqa: FBT001
     threads: int | None,
@@ -438,14 +464,15 @@ def package_points(  # noqa: PLR0913, PLR0917
 
     \b
     Examples:
-      topo-tools package-points admin3.geojson --target-schema schema.yaml
+      topo-tools package-points admin3.geojson
     """
     logger.info("--debug=%s", debug)
     try:
         _package_points(
             input_file,
             Path(output_file) if output_file is not None else None,
-            target_schema,
+            name_field,
+            code_field,
             depth_column=depth_column,
             threads=threads,
             tmp_dir=tmp_dir,
@@ -461,10 +488,18 @@ def package_points(  # noqa: PLR0913, PLR0917
 @click.argument("input_file", envvar="INPUT_FILE")
 @click.argument("output_file", envvar="OUTPUT_FILE", required=False, default=None)
 @click.option(
-    "--target-schema",
-    envvar="TARGET_SCHEMA",
+    "--name-field",
+    envvar="NAME_FIELD",
     default=None,
-    help="Target-schema YAML path used to detect every admin level present.",
+    help="Name-field template, e.g. 'adm{n}_name' (requires --code-field; "
+    "default: structural auto-detection).",
+)
+@click.option(
+    "--code-field",
+    envvar="CODE_FIELD",
+    default=None,
+    help="Code-field template, e.g. 'adm{n}_code' (requires --name-field; "
+    "default: structural auto-detection).",
 )
 @click.option(
     "--depth-column",
@@ -506,7 +541,8 @@ def package_points(  # noqa: PLR0913, PLR0917
 def package_lines(  # noqa: PLR0913, PLR0917
     input_file: str,
     output_file: str | None,
-    target_schema: str | None,
+    name_field: str | None,
+    code_field: str | None,
     depth_column: str,
     overwrite: bool,  # noqa: FBT001
     threads: int | None,
@@ -520,14 +556,15 @@ def package_lines(  # noqa: PLR0913, PLR0917
 
     \b
     Examples:
-      topo-tools package-lines admin3.geojson --target-schema schema.yaml
+      topo-tools package-lines admin3.geojson
     """
     logger.info("--debug=%s", debug)
     try:
         _package_lines(
             input_file,
             Path(output_file) if output_file is not None else None,
-            target_schema,
+            name_field,
+            code_field,
             depth_column=depth_column,
             threads=threads,
             tmp_dir=tmp_dir,
@@ -550,10 +587,18 @@ def package_lines(  # noqa: PLR0913, PLR0917
     'substituted per sub-tool ("admin{n}"/"points"/"lines"). Omit for defaults.',
 )
 @click.option(
-    "--target-schema",
-    envvar="TARGET_SCHEMA",
+    "--name-field",
+    envvar="NAME_FIELD",
     default=None,
-    help="Target-schema YAML path used to detect every admin level present.",
+    help="Name-field template, e.g. 'adm{n}_name' (requires --code-field; "
+    "default: structural auto-detection).",
+)
+@click.option(
+    "--code-field",
+    envvar="CODE_FIELD",
+    default=None,
+    help="Code-field template, e.g. 'adm{n}_code' (requires --name-field; "
+    "default: structural auto-detection).",
 )
 @click.option(
     "--overwrite",
@@ -581,7 +626,8 @@ def package_lines(  # noqa: PLR0913, PLR0917
 def package(  # noqa: PLR0913, PLR0917
     input_file: str,
     output: str | None,
-    target_schema: str | None,
+    name_field: str | None,
+    code_field: str | None,
     overwrite: bool,  # noqa: FBT001
     threads: int | None,
     debug: bool,  # noqa: FBT001
@@ -592,19 +638,19 @@ def package(  # noqa: PLR0913, PLR0917
     \b
     Examples:
       # Defaults for all three outputs
-      topo-tools package admin3.geojson --target-schema schema.yaml
+      topo-tools package admin3.geojson
 
       \b
       # Explicit {x} template
-      topo-tools package admin3.geojson --output "web/{x}.geojson" \
-        --target-schema schema.yaml
+      topo-tools package admin3.geojson --output "web/{x}.geojson"
     """
     logger.info("--debug=%s", debug)
     try:
         _package(
             input_file,
             output,
-            target_schema,
+            name_field,
+            code_field,
             threads=threads,
             tmp_dir=tmp_dir,
             overwrite=overwrite,
@@ -1004,7 +1050,8 @@ def edge_match(  # noqa: PLR0913, PLR0917
     prefer: str | None,
     multi_parent: bool,  # noqa: FBT001
     fill_schema: bool,  # noqa: FBT001
-    target_schema: str | None,
+    name_field: str | None,
+    code_field: str | None,
     depth_column: str,
 ) -> None:
     r"""Match one or more children layers to parents by largest overlap.
@@ -1080,7 +1127,8 @@ def edge_match(  # noqa: PLR0913, PLR0917
             prefer=prefer,
             multi_parent=multi_parent,
             fill_schema=fill_schema,
-            target_schema_path=target_schema,
+            name_field=name_field,
+            code_field=code_field,
             depth_column=depth_column,
         )
     except (FileExistsError, RuntimeError, ValueError) as e:
@@ -1182,7 +1230,8 @@ def edge_mosaic(  # noqa: PLR0913, PLR0917
     child_exclude: str | None,
     prefer: str | None,
     fill_schema: bool,  # noqa: FBT001
-    target_schema: str | None,
+    name_field: str | None,
+    code_field: str | None,
     depth_column: str,
 ) -> None:
     r"""Fit an already-extended children layer into a new parent/clip layer.
@@ -1255,7 +1304,8 @@ def edge_mosaic(  # noqa: PLR0913, PLR0917
             child_exclude=_split_columns(child_exclude),
             prefer=prefer,
             fill_schema=fill_schema,
-            target_schema_path=target_schema,
+            name_field=name_field,
+            code_field=code_field,
             depth_column=depth_column,
         )
     except (FileExistsError, RuntimeError, ValueError) as e:
@@ -1323,7 +1373,8 @@ def edge_stitch(  # noqa: PLR0913, PLR0917
     tmp_dir: str | None,
     step: str | None,
     fill_schema: bool,  # noqa: FBT001
-    target_schema: str | None,
+    name_field: str | None,
+    code_field: str | None,
     depth_column: str,
 ) -> None:
     r"""Close seams in an already-tiled polygon layer via coverage-clean.
@@ -1379,7 +1430,8 @@ def edge_stitch(  # noqa: PLR0913, PLR0917
             debug=debug,
             step=step,
             fill_schema=fill_schema,
-            target_schema_path=target_schema,
+            name_field=name_field,
+            code_field=code_field,
             depth_column=depth_column,
         )
     except (FileExistsError, RuntimeError, ValueError) as e:
@@ -1388,10 +1440,21 @@ def edge_stitch(  # noqa: PLR0913, PLR0917
 
 @cli.command(name="schema-fill")
 @click.argument("input_file", envvar="INPUT_FILE")
-@click.argument(
-    "target_schema_file", envvar="TARGET_SCHEMA_FILE", required=False, default=None
-)
 @click.argument("output_file", envvar="OUTPUT_FILE", required=False, default=None)
+@click.option(
+    "--name-field",
+    envvar="NAME_FIELD",
+    default=None,
+    help="Name-field template, e.g. 'adm{n}_name' (requires --code-field; "
+    "default: structural auto-detection).",
+)
+@click.option(
+    "--code-field",
+    envvar="CODE_FIELD",
+    default=None,
+    help="Code-field template, e.g. 'adm{n}_code' (requires --name-field; "
+    "default: structural auto-detection).",
+)
 @click.option(
     "--overwrite",
     envvar="OVERWRITE",
@@ -1431,8 +1494,9 @@ def edge_stitch(  # noqa: PLR0913, PLR0917
 )
 def schema_fill(  # noqa: PLR0913, PLR0917
     input_file: str,
-    target_schema_file: str | None,
     output_file: str | None,
+    name_field: str | None,
+    code_field: str | None,
     overwrite: bool,  # noqa: FBT001
     threads: int | None,
     debug: bool,  # noqa: FBT001
@@ -1448,8 +1512,9 @@ def schema_fill(  # noqa: PLR0913, PLR0917
     try:
         _schema_fill(
             input_file,
-            target_schema_file,
             Path(output_file) if output_file is not None else None,
+            name_field=name_field,
+            code_field=code_field,
             threads=threads,
             tmp_dir=tmp_dir,
             overwrite=overwrite,
@@ -1463,10 +1528,21 @@ def schema_fill(  # noqa: PLR0913, PLR0917
 
 @cli.command(name="schema-map")
 @click.argument("input_file", envvar="INPUT_FILE")
-@click.argument(
-    "target_schema_file", envvar="TARGET_SCHEMA_FILE", required=False, default=None
-)
 @click.argument("output_file", envvar="OUTPUT_FILE", required=False, default=None)
+@click.option(
+    "--name-field",
+    envvar="NAME_FIELD",
+    default=None,
+    help="Name-field template, e.g. 'adm{n}_name' (requires --code-field; "
+    "default: 'adm{n}_name').",
+)
+@click.option(
+    "--code-field",
+    envvar="CODE_FIELD",
+    default=None,
+    help="Code-field template, e.g. 'adm{n}_code' (requires --name-field; "
+    "default: 'adm{n}_code').",
+)
 @click.option(
     "--layer",
     envvar="LAYER",
@@ -1507,8 +1583,9 @@ def schema_fill(  # noqa: PLR0913, PLR0917
 )
 def schema_map(  # noqa: PLR0913, PLR0917
     input_file: str,
-    target_schema_file: str | None,
     output_file: str | None,
+    name_field: str | None,
+    code_field: str | None,
     layer: str | None,
     overwrite: bool,  # noqa: FBT001
     threads: int | None,
@@ -1518,27 +1595,28 @@ def schema_map(  # noqa: PLR0913, PLR0917
 ) -> None:
     r"""Map a source-column -> target-schema crosswalk for one input file.
 
-    TARGET_SCHEMA_FILE is a YAML config of canonical target fields; if
-    omitted, defaults to the bundled generic schema
-    (topo_tools/core/schema_map/data/default.yaml). OUTPUT_FILE defaults to
-    INPUT_FILE with a "_crosswalk.csv" name if omitted. Never renames
-    anything itself; review/edit the crosswalk, then run schema-refactor.
+    Rendered target names default to "adm{n}_name"/"adm{n}_code"; override
+    with --name-field/--code-field. OUTPUT_FILE defaults to INPUT_FILE with
+    a "_crosswalk.csv" name if omitted. Never renames anything itself;
+    review/edit the crosswalk, then run schema-refactor.
 
     \b
     Examples:
-      # Basic run: default (generic) schema, output name chosen automatically
+      # Basic run: default naming, output name chosen automatically
       topo-tools schema-map example.geojson
 
       \b
-      # Custom target schema
-      topo-tools schema-map example.geojson target-schema.yaml
+      # Custom target field naming
+      topo-tools schema-map example.geojson --name-field adm{n}_name \
+        --code-field adm{n}_pcode
     """
     logger.info("--debug=%s", debug)
     try:
         _schema_map(
             input_file,
-            target_schema_file,
             Path(output_file) if output_file is not None else None,
+            name_field=name_field,
+            code_field=code_field,
             layer=layer,
             threads=threads,
             tmp_dir=tmp_dir,
@@ -1628,11 +1706,22 @@ def schema_refactor(  # noqa: PLR0913, PLR0917
 
 @cli.command(name="schema-crosswalk")
 @click.argument("input_file", envvar="INPUT_FILE")
-@click.argument(
-    "target_schema_file", envvar="TARGET_SCHEMA_FILE", required=False, default=None
-)
 @click.argument("output_file", envvar="OUTPUT_FILE", required=False, default=None)
 @click.argument("crosswalk_file", envvar="CROSSWALK_FILE", required=False, default=None)
+@click.option(
+    "--name-field",
+    envvar="NAME_FIELD",
+    default=None,
+    help="Name-field template, e.g. 'adm{n}_name' (requires --code-field; "
+    "default: 'adm{n}_name').",
+)
+@click.option(
+    "--code-field",
+    envvar="CODE_FIELD",
+    default=None,
+    help="Code-field template, e.g. 'adm{n}_code' (requires --name-field; "
+    "default: 'adm{n}_code').",
+)
 @click.option(
     "--layer",
     envvar="LAYER",
@@ -1673,9 +1762,10 @@ def schema_refactor(  # noqa: PLR0913, PLR0917
 )
 def schema_crosswalk(  # noqa: PLR0913, PLR0917
     input_file: str,
-    target_schema_file: str | None,
     output_file: str | None,
     crosswalk_file: str | None,
+    name_field: str | None,
+    code_field: str | None,
     layer: str | None,
     overwrite: bool,  # noqa: FBT001
     threads: int | None,
@@ -1685,29 +1775,31 @@ def schema_crosswalk(  # noqa: PLR0913, PLR0917
 ) -> None:
     r"""Map a crosswalk, then apply it (schema-map + schema-refactor, combined).
 
-    TARGET_SCHEMA_FILE defaults to the bundled generic schema. OUTPUT_FILE
-    defaults to INPUT_FILE with a "_mapped" suffix; CROSSWALK_FILE defaults
-    to INPUT_FILE with a "_crosswalk.csv" name. To iterate, hand-edit the
-    written crosswalk CSV and re-run schema-refactor on it, not schema-crosswalk
-    again (which always maps fresh).
+    Rendered target names default to "adm{n}_name"/"adm{n}_code"; override
+    with --name-field/--code-field. OUTPUT_FILE defaults to INPUT_FILE with
+    a "_mapped" suffix; CROSSWALK_FILE defaults to INPUT_FILE with a
+    "_crosswalk.csv" name. To iterate, hand-edit the written crosswalk CSV
+    and re-run schema-refactor on it, not schema-crosswalk again (which
+    always maps fresh).
 
     \b
     Examples:
-      # Basic run: default (generic) schema, output names chosen automatically
+      # Basic run: default naming, output names chosen automatically
       topo-tools schema-crosswalk example.geojson
 
       \b
-      # Custom target schema, explicit outputs
-      topo-tools schema-crosswalk example.geojson target-schema.yaml \
-          example_mapped.geojson example_crosswalk.csv
+      # Custom target field naming, explicit outputs
+      topo-tools schema-crosswalk example.geojson example_mapped.geojson \
+          example_crosswalk.csv --name-field adm{n}_name --code-field adm{n}_pcode
     """
     logger.info("--debug=%s", debug)
     try:
         _schema_crosswalk(
             input_file,
-            target_schema_file,
             Path(output_file) if output_file is not None else None,
             Path(crosswalk_file) if crosswalk_file is not None else None,
+            name_field=name_field,
+            code_field=code_field,
             layer=layer,
             threads=threads,
             tmp_dir=tmp_dir,

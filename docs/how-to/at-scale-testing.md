@@ -23,10 +23,10 @@ session scratchpad or `/tmp`), never back into `portolan/`.
 each level, already carrying `adm{0..4}_pcode`/`adm{0..4}_name` columns and
 its own `adm_lvl` real-depth stamp; `global/admin4/admin4.parquet` (the
 finest, 217,223 rows) is the right single input for any of these tools,
-combining every level's rows in one file. Use a target-schema YAML with
-`code_field: "adm{n}_pcode"` (the default schema ships `adm{n}_code`,
-which doesn't match this catalog's own naming). Since the file already has
-its own `adm_lvl` column, pass `--depth-column` set to something else
+combining every level's rows in one file. Structural auto-detection (the
+default, no `--name-field`/`--code-field` needed) finds every level
+regardless of naming convention, `_pcode` included. Since the file already
+has its own `adm_lvl` column, pass `--depth-column` set to something else
 (e.g. `pkg_lvl`) to `package-points`/`package-lines`, or they raise
 `ValueError` on the name collision rather than silently overwriting it.
 `iso3` filters down to one country's rows for a smaller/faster run (e.g.

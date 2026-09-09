@@ -10,13 +10,13 @@ top of each other.
 ## Usage
 
 ```sh
-topo-tools package-lines admin3.geojson --target-schema schema.yaml
+topo-tools package-lines admin3.geojson
 ```
 
 ```python
 from topo_tools import package_lines
 
-package_lines("admin3.parquet", target_schema_path="schema.yaml")
+package_lines("admin3.parquet")
 ```
 
 `OUTPUT_FILE` (positional, optional) defaults to `INPUT_FILE` with a

@@ -2,7 +2,6 @@
 
 import duckdb
 import pytest
-import yaml
 from click.testing import CliRunner
 
 from topo_tools.api.package_polygons import package_polygons
@@ -67,23 +66,11 @@ def _describe_columns(path) -> set[str]:
         }
 
 
-def _write_schema(path, name_field, code_field):
-    path.write_text(yaml.dump({"name_field": name_field, "code_field": code_field}))
-    return path
-
-
 @pytest.fixture
 def admin2_input(tmp_path):
     path = tmp_path / "admin2.parquet"
     _write_synthetic(path, _BASE_ROWS)
     return path
-
-
-@pytest.fixture
-def pcode_target_schema(tmp_path):
-    return _write_schema(
-        tmp_path / "schema.yaml", name_field="adm{n}_name", code_field="adm{n}_pcode"
-    )
 
 
 def test_cli_help():
@@ -93,9 +80,12 @@ def test_cli_help():
     assert "Examples:" in result.output
 
 
-def test_default_naming_produces_one_file_per_level(admin2_input, pcode_target_schema):
+def test_default_naming_produces_one_file_per_level(admin2_input):
     package_polygons(
-        admin2_input, target_schema_path=pcode_target_schema, overwrite=True
+        admin2_input,
+        name_field="adm{n}_name",
+        code_field="adm{n}_pcode",
+        overwrite=True,
     )
 
     admin1_out = admin2_input.with_stem(admin2_input.stem + "_admin1")
@@ -112,76 +102,83 @@ def test_default_naming_produces_one_file_per_level(admin2_input, pcode_target_s
     assert admin1_count == expected_admin1_count
 
 
-def test_finest_level_skipped_when_path_equals_input(pcode_target_schema, tmp_path):
+def test_finest_level_skipped_when_path_equals_input(tmp_path):
     input_path = tmp_path / "admin2.parquet"
     _write_synthetic(input_path, _BASE_ROWS)
     template = str(tmp_path / "admin{n}.parquet")
 
     package_polygons(
-        input_path, template, target_schema_path=pcode_target_schema, overwrite=True
+        input_path,
+        template,
+        name_field="adm{n}_name",
+        code_field="adm{n}_pcode",
+        overwrite=True,
     )
 
     assert (tmp_path / "admin1.parquet").exists()
     assert input_path.exists()  # untouched, not overwritten by its own dissolve
 
 
-def test_output_path_template_used_per_level(
-    admin2_input, pcode_target_schema, tmp_path
-):
+def test_output_path_template_used_per_level(admin2_input, tmp_path):
     template = str(tmp_path / "level_{n}.parquet")
     package_polygons(
-        admin2_input, template, target_schema_path=pcode_target_schema, overwrite=True
+        admin2_input,
+        template,
+        name_field="adm{n}_name",
+        code_field="adm{n}_pcode",
+        overwrite=True,
     )
     assert (tmp_path / "level_1.parquet").exists()
     assert (tmp_path / "level_2.parquet").exists()
 
 
-def test_output_path_missing_n_raises(admin2_input, pcode_target_schema, tmp_path):
+def test_output_path_missing_n_raises(admin2_input, tmp_path):
     with pytest.raises(ValueError, match="literal '\\{n\\}'"):
         package_polygons(
             admin2_input,
             str(tmp_path / "flat.parquet"),
-            target_schema_path=pcode_target_schema,
+            name_field="adm{n}_name",
+            code_field="adm{n}_pcode",
             overwrite=True,
         )
 
 
-def test_finest_level_written_when_path_resolves_elsewhere(
-    admin2_input, pcode_target_schema, tmp_path
-):
+def test_finest_level_written_when_path_resolves_elsewhere(admin2_input, tmp_path):
     template = str(tmp_path / "out_{n}.parquet")
     package_polygons(
-        admin2_input, template, target_schema_path=pcode_target_schema, overwrite=True
+        admin2_input,
+        template,
+        name_field="adm{n}_name",
+        code_field="adm{n}_pcode",
+        overwrite=True,
     )
     finest_out = tmp_path / "out_2.parquet"
     assert finest_out.exists()
     assert _describe_columns(finest_out) & {"adm2_pcode", "adm1_pcode"}
 
 
-def test_overwrite_false_raises_on_existing_coarser_output(
-    admin2_input, pcode_target_schema, tmp_path
-):
+def test_overwrite_false_raises_on_existing_coarser_output(admin2_input, tmp_path):
     template = str(tmp_path / "out_{n}.parquet")
     (tmp_path / "out_1.parquet").touch()
     with pytest.raises(FileExistsError, match="already exists"):
         package_polygons(
             admin2_input,
             template,
-            target_schema_path=pcode_target_schema,
+            name_field="adm{n}_name",
+            code_field="adm{n}_pcode",
             overwrite=False,
         )
 
 
-def test_issues_path_follows_same_n_template(
-    admin2_input, pcode_target_schema, tmp_path
-):
+def test_issues_path_follows_same_n_template(admin2_input, tmp_path):
     output_template = str(tmp_path / "out_{n}.parquet")
     issues_template = str(tmp_path / "issues_{n}.parquet")
     package_polygons(
         admin2_input,
         output_template,
         issues_template,
-        target_schema_path=pcode_target_schema,
+        name_field="adm{n}_name",
+        code_field="adm{n}_pcode",
         overwrite=True,
     )
     assert (tmp_path / "out_1.parquet").exists()
@@ -189,14 +186,16 @@ def test_issues_path_follows_same_n_template(
     # issues-table convention), so only assert the output side here.
 
 
-def test_cli_default_naming(admin2_input, pcode_target_schema):
+def test_cli_default_naming(admin2_input):
     result = CliRunner().invoke(
         cli,
         [
             "package-polygons",
             str(admin2_input),
-            "--target-schema",
-            str(pcode_target_schema),
+            "--name-field",
+            "adm{n}_name",
+            "--code-field",
+            "adm{n}_pcode",
         ],
     )
     assert result.exit_code == 0, result.output

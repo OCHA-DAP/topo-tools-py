@@ -4,7 +4,6 @@ import csv
 
 import duckdb
 import pytest
-import yaml
 from click.testing import CliRunner
 
 from topo_tools.api.schema_map import map  # noqa: A004
@@ -33,11 +32,6 @@ def _write_table(path, col_names, rows):
         conn.execute(f"COPY synth TO '{path}'")
 
 
-def _write_schema(path, name_field, code_field):
-    path.write_text(yaml.dump({"name_field": name_field, "code_field": code_field}))
-    return path
-
-
 def _unit_square(i):
     return f"POLYGON(({i} 0, {i + 1} 0, {i + 1} 1, {i} 1, {i} 0))"
 
@@ -48,13 +42,9 @@ def _crosswalk(path):
 
 
 @pytest.fixture
-def chain_schema(tmp_path):
+def chain_schema():
     """Naming templates decoupled from source names, level != source level."""
-    return _write_schema(
-        tmp_path / "chain_schema.yaml",
-        name_field="level{n}_name",
-        code_field="level{n}_pcode",
-    )
+    return {"name_field": "level{n}_name", "code_field": "level{n}_pcode"}
 
 
 @pytest.fixture
@@ -102,7 +92,7 @@ def test_cli_help():
 
 def test_code_and_name_tiers(chain_input, chain_schema, tmp_path):
     out = tmp_path / "crosswalk.csv"
-    map(chain_input, chain_schema, out, overwrite=True)
+    map(chain_input, out, **chain_schema, overwrite=True)
 
     rows = _crosswalk(out)
     assert rows["adm0_pcode"]["target_column"] == ""
@@ -152,7 +142,7 @@ def test_output_ordering_level_desc_name_before_code_unmatched_last(
     chain_input, chain_schema, tmp_path
 ):
     out = tmp_path / "crosswalk.csv"
-    map(chain_input, chain_schema, out, overwrite=True)
+    map(chain_input, out, **chain_schema, overwrite=True)
 
     with out.open(newline="") as f:
         ordered = [row["source_column"] for row in csv.DictReader(f)]
@@ -193,31 +183,23 @@ def test_cli_target_schema_defaults_to_bundled_default(tmp_path):
     assert rows["adm0_pcode"]["target_column"] == ""
 
 
-def test_target_schema_missing_keys_raises(chain_input, tmp_path):
-    schema_path = tmp_path / "bad_schema.yaml"
-    schema_path.write_text(yaml.dump({"name_field": "adm{n}_name"}))
-    with pytest.raises(
-        ValueError, match="top-level 'name_field' and 'code_field' keys"
-    ):
-        map(chain_input, schema_path, overwrite=True)
+def test_name_field_code_field_must_be_given_together_raises(chain_input):
+    with pytest.raises(ValueError, match="must be given together"):
+        map(chain_input, name_field="adm{n}_name", overwrite=True)
 
 
-def test_target_schema_missing_placeholder_raises(chain_input, tmp_path):
-    schema_path = tmp_path / "bad_schema.yaml"
-    schema_path.write_text(
-        yaml.dump({"name_field": "adm_name", "code_field": "adm{n}_pcode"})
-    )
+def test_target_schema_missing_placeholder_raises(chain_input):
     with pytest.raises(ValueError, match="must both contain a"):
-        map(chain_input, schema_path, overwrite=True)
-
-
-def test_target_schema_not_a_file_raises(chain_input, tmp_path):
-    with pytest.raises(ValueError, match="target schema file not found"):
-        map(chain_input, tmp_path, overwrite=True)
+        map(
+            chain_input,
+            name_field="adm_name",
+            code_field="adm{n}_pcode",
+            overwrite=True,
+        )
 
 
 def test_default_output_path(chain_input, chain_schema):
-    map(chain_input, chain_schema, overwrite=True)
+    map(chain_input, **chain_schema, overwrite=True)
 
     expected = chain_input.with_stem(chain_input.stem + "_crosswalk").with_suffix(
         ".csv"
@@ -233,8 +215,11 @@ def test_cli_error_on_existing_output(chain_input, chain_schema, tmp_path):
         [
             "schema-map",
             str(chain_input),
-            str(chain_schema),
             str(out),
+            "--name-field",
+            chain_schema["name_field"],
+            "--code-field",
+            chain_schema["code_field"],
             "--overwrite=false",
         ],
     )
@@ -248,8 +233,8 @@ def test_map_steps(chain_input, chain_schema, tmp_path):
     for step in _STEPS:
         map(
             chain_input,
-            chain_schema,
             out,
+            **chain_schema,
             tmp_dir=work_dir,
             step=step,
             overwrite=True,
@@ -266,13 +251,14 @@ def test_constant_bare_letter_code_reclassified(tmp_path):
         (_unit_square(3), "MG", "MG12", "Beta"),
     ]
     _write_table(path, ["geom", "adm0_pcode", "adm1_pcode", "adm1_name"], rows)
-    schema = _write_schema(
-        tmp_path / "bare_schema.yaml",
+    out = tmp_path / "crosswalk.csv"
+    map(
+        path,
+        out,
         name_field="adm{n}_name",
         code_field="adm{n}_pcode",
+        overwrite=True,
     )
-    out = tmp_path / "crosswalk.csv"
-    map(path, schema, out, overwrite=True)
 
     rows_out = _crosswalk(out)
     assert rows_out["adm1_pcode"]["note"] == ""
@@ -292,13 +278,14 @@ def test_name_bracket_group_numbers_multiple_name_candidates(tmp_path):
     _write_table(
         path, ["geom", "adm0_pcode", "adm1_pcode", "adm1_name", "tied_name"], rows
     )
-    schema = _write_schema(
-        tmp_path / "tie_schema.yaml",
+    out = tmp_path / "crosswalk.csv"
+    map(
+        path,
+        out,
         name_field="level{n}_name",
         code_field="level{n}_pcode",
+        overwrite=True,
     )
-    out = tmp_path / "crosswalk.csv"
-    map(path, schema, out, overwrite=True)
 
     rows_out = _crosswalk(out)
     assert rows_out["adm1_name"]["target_column"] == "level1_name"
@@ -316,13 +303,14 @@ def test_admin_level_zero_never_resolved(tmp_path):
     _write_table(
         path, ["geom", "adm0_pcode", "adm0_name", "adm1_pcode", "adm1_name"], rows
     )
-    schema = _write_schema(
-        tmp_path / "level_zero_schema.yaml",
+    out = tmp_path / "crosswalk.csv"
+    map(
+        path,
+        out,
         name_field="adm{n}_name",
         code_field="adm{n}_pcode",
+        overwrite=True,
     )
-    out = tmp_path / "crosswalk.csv"
-    map(path, schema, out, overwrite=True)
 
     rows_out = _crosswalk(out)
     assert rows_out["adm0_pcode"]["target_column"] == ""
@@ -348,13 +336,14 @@ def test_exact_bijective_match_wins_over_looser_function_match(tmp_path):
         ["geom", "adm0_pcode", "adm1_pcode", "adm1_name", "region_group"],
         rows,
     )
-    schema = _write_schema(
-        tmp_path / "exact_match_schema.yaml",
+    out = tmp_path / "crosswalk.csv"
+    map(
+        path,
+        out,
         name_field="level{n}_name",
         code_field="level{n}_pcode",
+        overwrite=True,
     )
-    out = tmp_path / "crosswalk.csv"
-    map(path, schema, out, overwrite=True)
 
     rows_out = _crosswalk(out)
     assert rows_out["adm1_name"]["target_column"] == "level1_name"
@@ -380,21 +369,22 @@ def _write_twenty_unit_table(tmp_path, name, cand_values):
         ["geom", "adm0_pcode", "adm1_pcode", "adm1_name", "alt_name"],
         _twenty_unit_rows(cand_values),
     )
-    schema = _write_schema(
-        tmp_path / f"{name}_schema.yaml",
-        name_field="level{n}_name",
-        code_field="level{n}_pcode",
-    )
-    return path, schema
+    return path
 
 
 def test_near_bijective_alt_name_becomes_numbered_sibling(tmp_path):
     """A 5%-collapse candidate (1 coincidental duplicate) still numbers as name1."""
     values = [f"Nom{i}" for i in range(1, 21)]
     values[1] = values[0]  # Nom1 reused for unit 2: 19/20 distinct, 5% collapse.
-    path, schema = _write_twenty_unit_table(tmp_path, "near_bijective", values)
+    path = _write_twenty_unit_table(tmp_path, "near_bijective", values)
     out = tmp_path / "crosswalk.csv"
-    map(path, schema, out, overwrite=True)
+    map(
+        path,
+        out,
+        name_field="level{n}_name",
+        code_field="level{n}_pcode",
+        overwrite=True,
+    )
 
     rows_out = _crosswalk(out)
     assert rows_out["adm1_name"]["target_column"] == "level1_name"
@@ -405,9 +395,15 @@ def test_near_bijective_alt_name_becomes_numbered_sibling(tmp_path):
 def test_collapse_over_threshold_stays_supplemental(tmp_path):
     """A 65%-collapse candidate (Algeria-shaped) is still a coarser grouping."""
     values = [f"Group{(i - 1) % 7}" for i in range(1, 21)]  # 7/20 distinct, 65%.
-    path, schema = _write_twenty_unit_table(tmp_path, "coarse_collapse", values)
+    path = _write_twenty_unit_table(tmp_path, "coarse_collapse", values)
     out = tmp_path / "crosswalk.csv"
-    map(path, schema, out, overwrite=True)
+    map(
+        path,
+        out,
+        name_field="level{n}_name",
+        code_field="level{n}_pcode",
+        overwrite=True,
+    )
 
     rows_out = _crosswalk(out)
     assert rows_out["alt_name"]["target_column"] == ""
@@ -421,16 +417,28 @@ def test_collapse_near_threshold_boundary(tmp_path):
     0.30000000000000004, an unreliable equality to assert against.
     """
     numbered_values = [f"Nom{(i - 1) % 15}" for i in range(1, 21)]  # 15/20, 25%.
-    path, schema = _write_twenty_unit_table(tmp_path, "under_boundary", numbered_values)
+    path = _write_twenty_unit_table(tmp_path, "under_boundary", numbered_values)
     out = tmp_path / "crosswalk.csv"
-    map(path, schema, out, overwrite=True)
+    map(
+        path,
+        out,
+        name_field="level{n}_name",
+        code_field="level{n}_pcode",
+        overwrite=True,
+    )
     rows_out = _crosswalk(out)
     assert rows_out["alt_name"]["target_column"] == "level1_name1"
 
     over_values = [f"Nom{(i - 1) % 13}" for i in range(1, 21)]  # 13/20, 35%.
-    path2, schema2 = _write_twenty_unit_table(tmp_path, "over_boundary", over_values)
+    path2 = _write_twenty_unit_table(tmp_path, "over_boundary", over_values)
     out2 = tmp_path / "crosswalk2.csv"
-    map(path2, schema2, out2, overwrite=True)
+    map(
+        path2,
+        out2,
+        name_field="level{n}_name",
+        code_field="level{n}_pcode",
+        overwrite=True,
+    )
     rows_out2 = _crosswalk(out2)
     assert rows_out2["alt_name"]["target_column"] == ""
     assert rows_out2["alt_name"]["note"] == "supplemental, superset of level 1"
@@ -450,13 +458,14 @@ def test_two_tolerated_siblings_get_sequential_numbering_no_collision(tmp_path):
         ["geom", "adm0_pcode", "adm1_pcode", "adm1_name", "alt_name1", "alt_name2"],
         rows,
     )
-    schema = _write_schema(
-        tmp_path / "two_siblings_schema.yaml",
+    out = tmp_path / "crosswalk.csv"
+    map(
+        path,
+        out,
         name_field="level{n}_name",
         code_field="level{n}_pcode",
+        overwrite=True,
     )
-    out = tmp_path / "crosswalk.csv"
-    map(path, schema, out, overwrite=True)
 
     rows_out = _crosswalk(out)
     targets = {
@@ -476,13 +485,14 @@ def test_code_bracket_group_numbers_bijective_code_companions(tmp_path):
         (_unit_square(3), "R0", "R0R2", "R0ALT2"),
     ]
     _write_table(path, ["geom", "adm0_pcode", "adm1_pcode", "alt1_pcode"], rows)
-    schema = _write_schema(
-        tmp_path / "code_companions_schema.yaml",
+    out = tmp_path / "crosswalk.csv"
+    map(
+        path,
+        out,
         name_field="level{n}_name",
         code_field="level{n}_pcode",
+        overwrite=True,
     )
-    out = tmp_path / "crosswalk.csv"
-    map(path, schema, out, overwrite=True)
 
     rows_out = _crosswalk(out)
     assert rows_out["adm1_pcode"]["target_column"] == "level1_pcode"
@@ -494,7 +504,7 @@ def test_unedited_crosswalk_with_ambiguous_and_unmatched_survives_refactor(
 ):
     """An unedited crosswalk (blank-target columns dropped) must not raise."""
     crosswalk = tmp_path / "crosswalk.csv"
-    map(chain_input, chain_schema, crosswalk, overwrite=True)
+    map(chain_input, crosswalk, **chain_schema, overwrite=True)
 
     out = tmp_path / "mapped.parquet"
     refactor(chain_input, crosswalk, out, overwrite=True)

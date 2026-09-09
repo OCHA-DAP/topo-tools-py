@@ -7,17 +7,19 @@ See `docs/reference/README.md` for the MUST/SHOULD/MAY convention, and
 
 - `schema-fill` MUST read the input and reproject it to EPSG:4326 the same
   way every other tool does, via `core.io.read_and_reproject()`.
-- `schema-fill` MUST take the same target-schema YAML shape `schema-map`
-  takes (top-level `name_field`/`code_field` string keys, each containing
-  a `{n}` placeholder). If omitted, it MUST default to the bundled generic
-  schema (`topo_tools/core/schema_map/data/default.yaml`).
-- `schema-fill` MUST detect every admin level 1..N present via the
-  schema's `code_field` prefix (e.g. `adm`), N being the deepest level
-  column found, and MUST raise `ValueError` if any level in that 1..N
-  range is missing its own code column, or if none is found at all.
-- `schema-fill` MUST additionally include level 0 in the detected/filled
-  range whenever its own code column (e.g. `adm0_pcode`) is present,
-  without requiring it.
+- `schema-fill` MAY take the same `name_field`/`code_field` pair `schema-map`
+  takes (each containing a `{n}` placeholder); both MUST be given together,
+  or both omitted. When given, `schema-fill` MUST detect every admin level
+  1..N present via `code_field`'s prefix, N being the deepest level column
+  found, and MUST raise `ValueError` if any level in that 1..N range is
+  missing its own code column, or if none is found at all; level 0 is
+  additionally included whenever its own code column is present, without
+  requiring it.
+- When `name_field`/`code_field` are omitted, `schema-fill` MUST instead
+  structurally auto-detect every admin level and its own code column
+  (`core.schema_map`'s cardinality/containment matcher, no naming
+  convention assumed), raising `ValueError` if any detected level lacks a
+  code column.
 
 ## Filling
 
@@ -29,9 +31,11 @@ See `docs/reference/README.md` for the MUST/SHOULD/MAY convention, and
 - `schema-fill` MUST raise `ValueError` if `depth_column` already names an
   existing column on the input.
 - For each admin-hierarchy column family sharing a level prefix and suffix
-  (matched independently against the schema's own `name_field` prefix and
-  `code_field` prefix, e.g. every `adm{n}_pcode`, every `adm{n}_name`),
-  `schema-fill` MUST pin every level past a row's own `depth_column` value
+  (matched independently against `name_field`'s and `code_field`'s own
+  prefixes when given, e.g. every `adm{n}_pcode`, every `adm{n}_name`; or,
+  when auto-detecting, grouped by each level's shared naming anchor, digit
+  or word, prefix or suffix position), `schema-fill` MUST pin every level
+  past a row's own `depth_column` value
   to the family's own value at that row's real depth (or the nearest
   shallower level the family itself has a column for), leaving a value at
   or before a row's own real depth untouched, NULL included. This is a

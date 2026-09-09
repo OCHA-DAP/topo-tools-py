@@ -4,6 +4,7 @@ from logging import getLogger
 
 from duckdb import DuckDBPyConnection
 
+from topo_tools.core.constants import is_noise_column, is_numeric_duckdb_type
 from topo_tools.core.schema_map._levels import (
     column_families,
     detect_levels,
@@ -12,6 +13,14 @@ from topo_tools.core.schema_map._levels import (
 from topo_tools.core.schema_map._target_schema import TargetSchema
 
 logger = getLogger(__name__)
+
+_ALLOWED_AGGREGATIONS = {
+    "sum": "SUM",
+    "min": "MIN",
+    "max": "MAX",
+    "avg": "AVG",
+    "first": "ANY_VALUE",
+}
 
 
 def _distinct_counts(
@@ -27,6 +36,10 @@ def _distinct_counts(
     """
     if not columns:
         return {}
+    if not group_by:
+        counts_sql = ", ".join(f'COUNT(DISTINCT "{c}")' for c in columns)
+        row = conn.execute(f'SELECT {counts_sql} FROM "{table}"').fetchall()[0]
+        return dict(zip(columns, row, strict=True))
     group_by_sql = ", ".join(f'"{c}"' for c in group_by)
     counts_sql = ", ".join(
         f'COUNT(DISTINCT "{c}") AS "__auto_{i}"' for i, c in enumerate(columns)
@@ -81,37 +94,70 @@ def main(  # noqa: PLR0913
     group_by: list[str],
     exclude: list[str] | None = None,
     target_schema: TargetSchema | None = None,
+    aggregations: dict[str, str] | None = None,
 ) -> None:
     """Dissolve table_in into table_out, grouping by `group_by`, unioning geometry.
 
-    A NULL `group_by` value forms its own group (matching GDAL's
-    `combine --group-by`); other columns are kept if constant per group, else dropped.
+    A NULL `group_by` value forms its own group; other columns are kept if
+    constant per group, else summed if numeric (else dropped), unless overridden.
     """
+    for column, function in (aggregations or {}).items():
+        if function not in _ALLOWED_AGGREGATIONS:
+            msg = f"unsupported aggregation {function!r} for column {column!r}"
+            raise ValueError(msg)
+
     always_excluded = {*group_by, "fid", "geom", *(exclude or [])}
     if target_schema is not None:
         always_excluded |= _schema_derived_exclusions(
             conn, table_in, group_by, target_schema
         )
-    all_cols = {row[0] for row in conn.execute(f'DESCRIBE "{table_in}"').fetchall()}
-    candidate_cols = sorted(all_cols - always_excluded)
+    describe_rows = conn.execute(f'DESCRIBE "{table_in}"').fetchall()
+    column_types = {row[0]: row[1] for row in describe_rows}
+    noise_cols = {
+        c for c in column_types if c not in {"fid", "geom"} and is_noise_column(c)
+    }
+    always_excluded |= noise_cols
+    candidate_cols = sorted(set(column_types) - always_excluded)
 
     stats = _distinct_counts(conn, table_in, group_by, candidate_cols)
-    kept_cols = [c for c in candidate_cols if stats[c] <= 1]
-    dropped_cols = [c for c in candidate_cols if stats[c] > 1]
+
+    kept_cols: list[str] = []
+    summed_cols: list[str] = []
+    overridden_cols: dict[str, str] = {}
+    dropped_cols: list[str] = []
+    for c in candidate_cols:
+        if c in (aggregations or {}):
+            overridden_cols[c] = _ALLOWED_AGGREGATIONS[aggregations[c]]
+        elif stats[c] <= 1:
+            kept_cols.append(c)
+        elif is_numeric_duckdb_type(column_types[c]):
+            summed_cols.append(c)
+        else:
+            dropped_cols.append(c)
     if dropped_cols:
         logger.warning(
             "dissolve: dropping %d column(s) not constant within every group: %s",
             len(dropped_cols),
             dropped_cols,
         )
+    if summed_cols:
+        logger.info(
+            "dissolve: summing %d non-constant numeric column(s): %s",
+            len(summed_cols),
+            summed_cols,
+        )
 
-    group_by_sql = ", ".join(f'"{c}"' for c in group_by)
-    kept_sql = "".join(f', any_value("{c}") AS "{c}"' for c in kept_cols)
+    group_cols_sql = [f'"{c}"' for c in group_by]
+    kept_sql = [f'any_value("{c}") AS "{c}"' for c in kept_cols]
+    summed_sql = [f'SUM("{c}") AS "{c}"' for c in summed_cols]
+    overridden_sql = [f'{func}("{c}") AS "{c}"' for c, func in overridden_cols.items()]
 
+    select_sql = ", ".join(group_cols_sql + kept_sql + summed_sql + overridden_sql)
+    group_clause = f"GROUP BY {', '.join(group_cols_sql)}" if group_by else ""
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{table_out}" AS
-        SELECT row_number() OVER () AS fid, {group_by_sql}{kept_sql},
+        SELECT row_number() OVER () AS fid, {select_sql},
                ST_MakeValid(ST_Union_Agg(geom)) AS geom
         FROM "{table_in}"
-        GROUP BY {group_by_sql}
+        {group_clause}
     """)

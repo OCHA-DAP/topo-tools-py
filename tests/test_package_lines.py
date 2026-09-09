@@ -2,7 +2,6 @@
 
 import duckdb
 import pytest
-import yaml
 from click.testing import CliRunner
 
 from topo_tools.api.package_lines import package_lines
@@ -34,11 +33,6 @@ def _write_synthetic(path, rows: list[dict]) -> None:
         conn.execute(f"COPY synth TO '{path}'")
 
 
-def _write_schema(path, name_field, code_field):
-    path.write_text(yaml.dump({"name_field": name_field, "code_field": code_field}))
-    return path
-
-
 def _fetch_lines(path):
     with duckdb.connect() as conn:
         conn.execute("LOAD spatial")
@@ -48,13 +42,6 @@ def _fetch_lines(path):
         """).fetchall()
 
 
-@pytest.fixture
-def pcode_target_schema(tmp_path):
-    return _write_schema(
-        tmp_path / "schema.yaml", name_field="adm{n}_name", code_field="adm{n}_pcode"
-    )
-
-
 def test_cli_help():
     result = CliRunner().invoke(cli, ["package-lines", "--help"])
     assert result.exit_code == 0
@@ -62,7 +49,7 @@ def test_cli_help():
     assert "Examples:" in result.output
 
 
-def test_two_adjacent_squares_one_shared_row(pcode_target_schema, tmp_path):
+def test_two_adjacent_squares_one_shared_row(tmp_path):
     input_path = tmp_path / "in.parquet"
     _write_synthetic(
         input_path,
@@ -72,7 +59,13 @@ def test_two_adjacent_squares_one_shared_row(pcode_target_schema, tmp_path):
         ],
     )
     output_path = tmp_path / "lines.parquet"
-    package_lines(input_path, output_path, pcode_target_schema, overwrite=True)
+    package_lines(
+        input_path,
+        output_path,
+        name_field="adm{n}_name",
+        code_field="adm{n}_pcode",
+        overwrite=True,
+    )
 
     rows = _fetch_lines(output_path)
     shared = [r for r in rows if r[2] == "shared"]
@@ -81,7 +74,7 @@ def test_two_adjacent_squares_one_shared_row(pcode_target_schema, tmp_path):
 
 
 def test_depth_column_collision_with_output_column_raises(
-    pcode_target_schema, tmp_path
+    tmp_path,
 ):
     input_path = tmp_path / "in.parquet"
     _write_synthetic(
@@ -96,13 +89,14 @@ def test_depth_column_collision_with_output_column_raises(
         package_lines(
             input_path,
             output_path,
-            pcode_target_schema,
+            name_field="adm{n}_name",
+            code_field="adm{n}_pcode",
             depth_column="boundary_type",
             overwrite=True,
         )
 
 
-def test_every_exterior_row_has_null_right_fid(pcode_target_schema, tmp_path):
+def test_every_exterior_row_has_null_right_fid(tmp_path):
     input_path = tmp_path / "in.parquet"
     _write_synthetic(
         input_path,
@@ -112,7 +106,13 @@ def test_every_exterior_row_has_null_right_fid(pcode_target_schema, tmp_path):
         ],
     )
     output_path = tmp_path / "lines.parquet"
-    package_lines(input_path, output_path, pcode_target_schema, overwrite=True)
+    package_lines(
+        input_path,
+        output_path,
+        name_field="adm{n}_name",
+        code_field="adm{n}_pcode",
+        overwrite=True,
+    )
 
     rows = _fetch_lines(output_path)
     exterior = [r for r in rows if r[2] == "exterior"]
@@ -120,7 +120,7 @@ def test_every_exterior_row_has_null_right_fid(pcode_target_schema, tmp_path):
     assert all(r[1] is None for r in exterior)
 
 
-def test_three_squares_middle_produces_two_exterior_rows(pcode_target_schema, tmp_path):
+def test_three_squares_middle_produces_two_exterior_rows(tmp_path):
     input_path = tmp_path / "in.parquet"
     _write_synthetic(
         input_path,
@@ -131,7 +131,13 @@ def test_three_squares_middle_produces_two_exterior_rows(pcode_target_schema, tm
         ],
     )
     output_path = tmp_path / "lines.parquet"
-    package_lines(input_path, output_path, pcode_target_schema, overwrite=True)
+    package_lines(
+        input_path,
+        output_path,
+        name_field="adm{n}_name",
+        code_field="adm{n}_pcode",
+        overwrite=True,
+    )
 
     rows = _fetch_lines(output_path)
     exterior_by_fid: dict[int, list[str]] = {}
@@ -146,7 +152,7 @@ def test_three_squares_middle_produces_two_exterior_rows(pcode_target_schema, tm
     assert all(g.startswith("LINESTRING") for g in middle_geoms)
 
 
-def test_corner_touch_produces_zero_shared_rows(pcode_target_schema, tmp_path):
+def test_corner_touch_produces_zero_shared_rows(tmp_path):
     input_path = tmp_path / "in.parquet"
     _write_synthetic(
         input_path,
@@ -156,13 +162,19 @@ def test_corner_touch_produces_zero_shared_rows(pcode_target_schema, tmp_path):
         ],
     )
     output_path = tmp_path / "lines.parquet"
-    package_lines(input_path, output_path, pcode_target_schema, overwrite=True)
+    package_lines(
+        input_path,
+        output_path,
+        name_field="adm{n}_name",
+        code_field="adm{n}_pcode",
+        overwrite=True,
+    )
 
     rows = _fetch_lines(output_path)
     assert not [r for r in rows if r[2] == "shared"]
 
 
-def test_multi_part_fid_touching_and_remote(pcode_target_schema, tmp_path):
+def test_multi_part_fid_touching_and_remote(tmp_path):
     """A 2-part fid: one part touches a neighbor, one is a remote island."""
     input_path = tmp_path / "in.parquet"
     _write_synthetic(
@@ -179,7 +191,13 @@ def test_multi_part_fid_touching_and_remote(pcode_target_schema, tmp_path):
         ],
     )
     output_path = tmp_path / "lines.parquet"
-    package_lines(input_path, output_path, pcode_target_schema, overwrite=True)
+    package_lines(
+        input_path,
+        output_path,
+        name_field="adm{n}_name",
+        code_field="adm{n}_pcode",
+        overwrite=True,
+    )
 
     rows = _fetch_lines(output_path)
     shared = [r for r in rows if r[2] == "shared"]
@@ -188,7 +206,7 @@ def test_multi_part_fid_touching_and_remote(pcode_target_schema, tmp_path):
     assert remote_exterior
 
 
-def test_every_input_fid_appears_at_least_once(pcode_target_schema, tmp_path):
+def test_every_input_fid_appears_at_least_once(tmp_path):
     input_path = tmp_path / "in.parquet"
     _write_synthetic(
         input_path,
@@ -199,14 +217,20 @@ def test_every_input_fid_appears_at_least_once(pcode_target_schema, tmp_path):
         ],
     )
     output_path = tmp_path / "lines.parquet"
-    package_lines(input_path, output_path, pcode_target_schema, overwrite=True)
+    package_lines(
+        input_path,
+        output_path,
+        name_field="adm{n}_name",
+        code_field="adm{n}_pcode",
+        overwrite=True,
+    )
 
     rows = _fetch_lines(output_path)
     present = {r[0] for r in rows} | {r[1] for r in rows if r[1] is not None}
     assert present == {1, 2, 3}
 
 
-def test_multi_level_classification(pcode_target_schema, tmp_path):
+def test_multi_level_classification(tmp_path):
     """4 admin2 units under 2 admin1 parents: same-parent -> finer, else coarser."""
     input_path = tmp_path / "in.parquet"
     _write_synthetic(
@@ -235,7 +259,13 @@ def test_multi_level_classification(pcode_target_schema, tmp_path):
         ],
     )
     output_path = tmp_path / "lines.parquet"
-    package_lines(input_path, output_path, pcode_target_schema, overwrite=True)
+    package_lines(
+        input_path,
+        output_path,
+        name_field="adm{n}_name",
+        code_field="adm{n}_pcode",
+        overwrite=True,
+    )
 
     with duckdb.connect() as conn:
         conn.execute("LOAD spatial")
@@ -251,7 +281,7 @@ def test_multi_level_classification(pcode_target_schema, tmp_path):
     assert by_x[frozenset((20.0, 20.0))] == coarser_level  # X2-Y1, P1 vs P2
 
 
-def test_cli_default_naming(pcode_target_schema, tmp_path):
+def test_cli_default_naming(tmp_path):
     input_path = tmp_path / "in.parquet"
     _write_synthetic(
         input_path,
@@ -265,8 +295,10 @@ def test_cli_default_naming(pcode_target_schema, tmp_path):
         [
             "package-lines",
             str(input_path),
-            "--target-schema",
-            str(pcode_target_schema),
+            "--name-field",
+            "adm{n}_name",
+            "--code-field",
+            "adm{n}_pcode",
         ],
     )
     assert result.exit_code == 0, result.output

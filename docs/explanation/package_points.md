@@ -10,13 +10,13 @@ its own territory.
 ## Usage
 
 ```sh
-topo-tools package-points admin3.geojson --target-schema schema.yaml
+topo-tools package-points admin3.geojson
 ```
 
 ```python
 from topo_tools import package_points
 
-package_points("admin3.parquet", target_schema_path="schema.yaml")
+package_points("admin3.parquet")
 ```
 
 `OUTPUT_FILE` (positional, optional) defaults to `INPUT_FILE` with a
@@ -29,11 +29,11 @@ list.
 
 1. **`_01_inputs`**: loads and reprojects the input, same as
    `package-polygons`.
-2. **`_02_points`**: loads the target schema, detects every level, then
-   per level: dissolves via `core.dissolve`'s `_02_dissolve.main()`
-   (grouped by that level's code column, `target_schema` passed through),
-   checks the dissolved row count against the input's own distinct
-   code-column count, computes each dissolved unit's
+2. **`_02_points`**: detects every level (explicit schema or structural
+   auto-detection, same as `package-polygons`), then per level: dissolves
+   via `core.dissolve`'s `_02_dissolve.main()` (grouped by that level's
+   code column), checks the dissolved row count against the input's own
+   distinct code-column count, computes each dissolved unit's
    `ST_MaximumInscribedCircle(geom).center` as its label point, stamps the
    depth column, and checks every point is `ST_Covers`-ed by its own
    source polygon. Every level's points table is combined via

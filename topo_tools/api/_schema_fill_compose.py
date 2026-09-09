@@ -1,23 +1,19 @@
 """Opt-in schema-fill composition for edge-stitch/edge-match/edge-mosaic."""
 
-from pathlib import Path
-
 from duckdb import DuckDBPyConnection
 
 from topo_tools.core.schema_fill import _02_fill as fill_stage
+from topo_tools.core.schema_map._level_columns import detect_level_columns
 from topo_tools.core.schema_map._levels import detect_levels
-from topo_tools.core.schema_map._target_schema import (
-    DEFAULT_TARGET_SCHEMA_PATH,
-    load_target_schema,
-)
+from topo_tools.core.schema_map._target_schema import resolve_explicit_target_schema
 
 
 def validate_fill_flags(
-    *, fill_schema: bool, target_schema_path: str | Path | None
+    *, fill_schema: bool, name_field: str | None, code_field: str | None
 ) -> None:
-    """Raise if target_schema_path is given without fill_schema."""
-    if target_schema_path is not None and not fill_schema:
-        msg = "target_schema_path requires fill_schema=True"
+    """Raise if name_field/code_field are given without fill_schema."""
+    if (name_field is not None or code_field is not None) and not fill_schema:
+        msg = "name_field/code_field require fill_schema=True"
         raise ValueError(msg)
 
 
@@ -27,7 +23,8 @@ def apply_optional_fill(  # noqa: PLR0913
     table: str,
     *,
     requested: bool,
-    target_schema_path: str | Path | None,
+    name_field: str | None,
+    code_field: str | None,
     depth_column: str,
     debug: bool,
 ) -> None:
@@ -40,8 +37,12 @@ def apply_optional_fill(  # noqa: PLR0913
         msg = f"depth_column {depth_column!r} already exists on {table!r}"
         raise ValueError(msg)
 
-    schema = load_target_schema(target_schema_path or DEFAULT_TARGET_SCHEMA_PATH)
-    levels = detect_levels(conn, table, schema)
+    schema = resolve_explicit_target_schema(name_field, code_field)
+    levels = (
+        detect_levels(conn, table, schema)
+        if schema is not None
+        else sorted(detect_level_columns(conn, table))
+    )
 
     pre_table = f"{name}_fill_01"
     post_table = f"{name}_fill_02"

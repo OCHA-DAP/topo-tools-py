@@ -20,11 +20,11 @@ from topo_tools.core.package_polygons import _01_inputs as inputs
 from topo_tools.core.package_polygons import _02_dissolve as dissolve_stage
 from topo_tools.core.package_polygons import _03_outputs as outputs
 from topo_tools.core.package_polygons._03_outputs import LevelOutput
+from topo_tools.core.schema_map._level_columns import detect_level_columns_or_single
 from topo_tools.core.schema_map._levels import detect_levels
 from topo_tools.core.schema_map._target_schema import (
-    DEFAULT_TARGET_SCHEMA_PATH,
     TargetSchema,
-    load_target_schema,
+    resolve_explicit_target_schema,
 )
 
 logger = getLogger(__name__)
@@ -68,13 +68,16 @@ def _load_plan(  # noqa: PLR0913, PLR0917
     input_path: Path | str,
     output_path: str | Path | None,
     issues_path: str | Path | None,
-    target_schema_path: Path,
+    schema: TargetSchema | None,
     *,
     overwrite: bool,
-) -> tuple[TargetSchema, list[int], list[LevelOutput]]:
-    """Load the target schema, detect levels, and resolve every level's plan."""
-    schema = load_target_schema(target_schema_path)
-    levels = detect_levels(conn, f"{name}_01", schema)
+) -> tuple[TargetSchema | None, list[int], list[LevelOutput]]:
+    """Detect levels (explicit schema, or structural auto-detect) and resolve plan."""
+    table = f"{name}_01"
+    if schema is not None:
+        levels = detect_levels(conn, table, schema)
+    else:
+        levels = sorted(detect_level_columns_or_single(conn, table))
     plan = _plan_levels(
         name, input_path, output_path, issues_path, levels, overwrite=overwrite
     )
@@ -115,25 +118,27 @@ def package_polygons(  # noqa: PLR0913
     input_path: str | Path,
     output_path: str | Path | None = None,
     issues_path: str | Path | None = None,
-    target_schema_path: str | Path | None = None,
+    name_field: str | None = None,
+    code_field: str | None = None,
     *,
+    aggregations: dict[str, str] | None = None,
     threads: int | None = None,
     tmp_dir: str | Path | None = None,
     overwrite: bool = True,
     debug: bool = False,
     step: str | None = None,
 ) -> None:
-    """Dissolve a polygon layer into every detected coarser admin level."""
+    """Dissolve a polygon layer into every detected coarser admin level.
+
+    With no name_field/code_field, levels and their columns are
+    auto-detected structurally from the input's own data.
+    """
     if step is not None and step not in _STEP_ORDER:
         msg = f"step must be one of {_STEP_ORDER}, got {step!r}"
         raise ValueError(msg)
 
     input_path = resolve_input_path(input_path)
-    target_schema_path = (
-        Path(target_schema_path)
-        if target_schema_path is not None
-        else DEFAULT_TARGET_SCHEMA_PATH
-    )
+    schema = resolve_explicit_target_schema(name_field, code_field)
 
     name = input_basename(input_path).replace(".", "_") + "_package_polygons"
 
@@ -159,10 +164,12 @@ def package_polygons(  # noqa: PLR0913
                     input_path,
                     output_path,
                     issues_path,
-                    target_schema_path,
+                    schema,
                     overwrite=overwrite,
                 )
-                dissolve_stage.main(conn, name, levels, schema)
+                dissolve_stage.main(
+                    conn, name, levels, schema, aggregations=aggregations
+                )
             elif s == "outputs":
                 if plan is None:
                     _schema, _levels, plan = _load_plan(
@@ -171,7 +178,7 @@ def package_polygons(  # noqa: PLR0913
                         input_path,
                         output_path,
                         issues_path,
-                        target_schema_path,
+                        schema,
                         overwrite=overwrite,
                     )
                 outputs.main(conn, name, plan, debug=debug)

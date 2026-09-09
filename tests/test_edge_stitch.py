@@ -13,7 +13,6 @@ from click.testing import CliRunner
 from topo_tools.api.edge_stitch import stitch
 from topo_tools.cli.main import cli
 from topo_tools.core.coverage import has_invalid_edges
-from topo_tools.core.schema_map._target_schema import DEFAULT_TARGET_SCHEMA_PATH
 
 _STEPS = ["inputs", "clean", "outputs"]
 _FIXTURES_DIR = Path(__file__).parent / "fixtures"
@@ -426,7 +425,7 @@ def test_cli_fill_schema_flag(admin_input, tmp_path):
 
 
 def test_fill_schema_without_admin_columns_raises(tiny_gap_input, tmp_path):
-    with pytest.raises(ValueError, match=r"no .*level column found"):
+    with pytest.raises(ValueError, match="no admin hierarchy level detected"):
         stitch(
             tiny_gap_input,
             tmp_path / "out.parquet",
@@ -457,11 +456,12 @@ def test_depth_column_collision_raises(tmp_path):
         stitch(path, tmp_path / "out.parquet", overwrite=True, fill_schema=True)
 
 
-def test_target_schema_path_requires_fill_schema(admin_input, tmp_path):
-    with pytest.raises(ValueError, match="requires fill_schema"):
+def test_name_field_code_field_require_fill_schema(admin_input, tmp_path):
+    with pytest.raises(ValueError, match="require fill_schema"):
         stitch(
             admin_input,
             tmp_path / "out.parquet",
             overwrite=True,
-            target_schema_path=DEFAULT_TARGET_SCHEMA_PATH,
+            name_field="adm{n}_name",
+            code_field="adm{n}_code",
         )

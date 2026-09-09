@@ -15,7 +15,6 @@ from topo_tools.api.edge_extend import extend
 from topo_tools.api.edge_match import match
 from topo_tools.api.edge_mosaic import mosaic
 from topo_tools.cli.main import cli
-from topo_tools.core.schema_map._target_schema import DEFAULT_TARGET_SCHEMA_PATH
 
 _LEVEL_1, _LEVEL_2 = 1, 2
 
@@ -1150,7 +1149,7 @@ def test_cli_fill_schema_flag(admin_children, synthetic_parents, tmp_path):
 def test_fill_schema_without_admin_columns_raises(
     synthetic_children, synthetic_parents, tmp_path
 ):
-    with pytest.raises(ValueError, match=r"no .*level column found"):
+    with pytest.raises(ValueError, match="no admin hierarchy level detected"):
         mosaic(
             synthetic_children,
             synthetic_parents,
@@ -1189,16 +1188,17 @@ def test_depth_column_collision_raises(synthetic_parents, tmp_path):
         )
 
 
-def test_target_schema_path_requires_fill_schema(
+def test_name_field_code_field_require_fill_schema(
     admin_children, synthetic_parents, tmp_path
 ):
-    with pytest.raises(ValueError, match="requires fill_schema"):
+    with pytest.raises(ValueError, match="require fill_schema"):
         mosaic(
             admin_children,
             synthetic_parents,
             tmp_path / "out.parquet",
             overwrite=True,
-            target_schema_path=DEFAULT_TARGET_SCHEMA_PATH,
+            name_field="adm{n}_name",
+            code_field="adm{n}_code",
         )
 
 

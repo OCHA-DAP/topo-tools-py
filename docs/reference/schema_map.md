@@ -7,14 +7,13 @@ See `docs/reference/README.md` for the MUST/SHOULD/MAY convention, and
 
 - `schema-map` MUST read the input and reproject it to EPSG:4326 the same way
   every other tool does, via `core.io.read_and_reproject()`.
-- `schema-map` MUST take a target-schema YAML file with top-level `name_field`/
-  `code_field` string keys, each containing a `{n}` placeholder (e.g.
-  `adm{n}_name`/`adm{n}_code`); these supply output naming only, never
-  matching vocabulary. If omitted, it MUST default to the bundled generic
-  schema (`topo_tools/core/schema_map/data/default.yaml`).
-- `schema-map` MUST raise `ValueError` (not a raw `KeyError`/silent empty
-  result) if the target-schema YAML is missing either key or either
-  value lacks a `{n}` placeholder.
+- `schema-map` MUST take `name_field`/`code_field` strings, each containing a
+  `{n}` placeholder (e.g. `adm{n}_name`/`adm{n}_code`); these supply output
+  naming only, never matching vocabulary. Both MUST be given together, or
+  both omitted; if both are omitted, it MUST default to `adm{n}_name`/
+  `adm{n}_code`.
+- `schema-map` MUST raise `ValueError` if only one of `name_field`/
+  `code_field` is given, or if either lacks a `{n}` placeholder.
 - `schema-map` MUST exclude any column matching `core.constants.is_noise_column()`
   from candidate columns entirely; they never appear in the crosswalk, not
   even as `unmatched`. A column matches if its name, case-insensitively,

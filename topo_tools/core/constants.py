@@ -28,12 +28,36 @@ NOISE_COLUMNS = frozenset(
         "shape__length",
         "shape_area",
         "shape__area",
+        "bbox",
         # GDAL's own synthesized feature index, see RESERVED_COLUMN_NAMES.
         "ogc_fid",
         "ogc_fid_orig",
         "fid_orig",
     }
 )
+
+NUMERIC_DUCKDB_TYPE_PREFIXES = (
+    "TINYINT",
+    "SMALLINT",
+    "INTEGER",
+    "BIGINT",
+    "HUGEINT",
+    "UTINYINT",
+    "USMALLINT",
+    "UINTEGER",
+    "UBIGINT",
+    "UHUGEINT",
+    "FLOAT",
+    "DOUBLE",
+    "DECIMAL",
+    "REAL",
+)
+
+
+def is_numeric_duckdb_type(duckdb_type: str) -> bool:
+    """Check a `DESCRIBE`-reported DuckDB column type is a numeric one."""
+    return duckdb_type.upper().startswith(NUMERIC_DUCKDB_TYPE_PREFIXES)
+
 
 _NOISE_SUFFIX_RE = re.compile(r"_(\d+)$")
 # ESRI Shapefile's DBF driver caps field names at this many characters total,

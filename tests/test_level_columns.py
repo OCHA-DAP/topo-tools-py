@@ -1,0 +1,140 @@
+"""Unit tests for schema_map's structural level/column detection."""
+
+import duckdb
+import pytest
+
+from topo_tools.core.schema_map._level_columns import (
+    detect_level_columns,
+    group_families_by_level,
+    is_level_identity_column,
+    verify_functional_cluster,
+)
+
+
+@pytest.mark.parametrize(
+    ("name", "prefix", "anchor", "suffix", "expected"),
+    [
+        ("adm3_pcode", "adm", "3", "_pcode", True),
+        ("adm3_name2", "adm", "3", "_pcode", True),
+        ("adm4_pcode", "adm", "3", "_pcode", False),
+        ("area_sqkm", "adm", "3", "_pcode", False),
+        ("state_name", "", "state", "_code", True),
+        ("code_state", "code_", "state", "", True),
+        ("code_county", "code_", "state", "", False),
+    ],
+)
+def test_is_level_identity_column(name, prefix, anchor, suffix, expected):
+    assert is_level_identity_column(name, prefix, anchor, suffix) is expected
+
+
+@pytest.fixture
+def conn():
+    with duckdb.connect() as connection:
+        connection.execute("INSTALL spatial; LOAD spatial;")
+        yield connection
+
+
+def _load_two_level_table(conn) -> None:
+    conn.execute("""--sql
+        CREATE TABLE t_01 AS
+        SELECT row_number() OVER () AS fid, *
+        FROM (VALUES
+            ('P1', 'A1', 'Province1', 'Alpha',
+             ST_GeomFromText('POLYGON((0 0,1 0,1 1,0 1,0 0))')),
+            ('P1', 'A2', 'Province1', 'Beta',
+             ST_GeomFromText('POLYGON((1 0,2 0,2 1,1 1,1 0))')),
+            ('P2', 'B1', 'Province2', 'Gamma',
+             ST_GeomFromText('POLYGON((0 1,1 1,1 2,0 2,0 1))'))
+        ) AS v(adm1_pcode, adm2_pcode, adm1_name, adm2_name, geom)
+    """)
+
+
+def test_detect_level_columns_finds_coarser_and_finer_level(conn):
+    _load_two_level_table(conn)
+    result = detect_level_columns(conn, "t_01")
+    coarser_level, finer_level = sorted(result)
+    assert set(result[coarser_level].group_by) == {"adm1_pcode", "adm1_name"}
+    assert set(result[finer_level].group_by) == {"adm2_pcode", "adm2_name"}
+    assert set(result[coarser_level].identity_columns) == {"adm1_pcode", "adm1_name"}
+    assert set(result[finer_level].identity_columns) == {"adm2_pcode", "adm2_name"}
+
+
+def test_detect_level_columns_excludes_bijective_lookalike_from_identity(conn):
+    conn.execute("""--sql
+        CREATE TABLE t_01 AS
+        SELECT row_number() OVER () AS fid, *
+        FROM (VALUES
+            ('P1', 'A1', 1.5, ST_GeomFromText('POLYGON((0 0,1 0,1 1,0 1,0 0))')),
+            ('P1', 'A2', 2.5, ST_GeomFromText('POLYGON((1 0,2 0,2 1,1 1,1 0))')),
+            ('P2', 'B1', 3.5, ST_GeomFromText('POLYGON((0 1,1 1,1 2,0 2,0 1))'))
+        ) AS v(adm1_pcode, adm2_pcode, area_sqkm, geom)
+    """)
+    result = detect_level_columns(conn, "t_01")
+    finer_level = max(result)
+    assert "area_sqkm" not in result[finer_level].identity_columns
+
+
+def test_detect_level_columns_word_based_anchor_both_positions(conn):
+    conn.execute("""--sql
+        CREATE TABLE t_01 AS
+        SELECT row_number() OVER () AS fid, *
+        FROM (VALUES
+            ('P1', 'A1', NULL, NULL,
+             ST_GeomFromText('POLYGON((0 0,1 0,1 1,0 1,0 0))')),
+            ('P1', 'A2', NULL, NULL,
+             ST_GeomFromText('POLYGON((1 0,2 0,2 1,1 1,1 0))')),
+            ('P2', 'B1', NULL, NULL,
+             ST_GeomFromText('POLYGON((0 1,1 1,1 2,0 2,0 1))'))
+        ) AS v(state_code, county_code, state_name_alt, county_name_alt, geom)
+    """)
+    result = detect_level_columns(conn, "t_01")
+    state_level, county_level = sorted(result)
+    assert "state_name_alt" in result[state_level].identity_columns
+    assert "county_name_alt" in result[county_level].identity_columns
+
+
+def test_detect_level_columns_raises_when_no_level_found(conn):
+    conn.execute("""--sql
+        CREATE TABLE t_01 AS
+        SELECT row_number() OVER () AS fid,
+               ST_GeomFromText('POLYGON((0 0,1 0,1 1,0 1,0 0))') AS geom
+    """)
+    with pytest.raises(ValueError, match="no admin hierarchy level detected"):
+        detect_level_columns(conn, "t_01")
+
+
+def test_verify_functional_cluster_raises_on_fragmenting_member(conn):
+    conn.execute("""--sql
+        CREATE TABLE t_01 AS
+        SELECT * FROM (VALUES
+            ('P1', 'x'), ('P1', 'y'), ('P2', 'z')
+        ) AS v(code, extra)
+    """)
+    with pytest.raises(ValueError, match="grouping by"):
+        verify_functional_cluster(conn, "t_01", "code", ["code", "extra"])
+
+
+def test_verify_functional_cluster_passes_on_matching_cardinality(conn):
+    conn.execute("""--sql
+        CREATE TABLE t_01 AS
+        SELECT * FROM (VALUES
+            ('P1', 'x'), ('P1', 'x'), ('P2', 'y')
+        ) AS v(code, extra)
+    """)
+    verify_functional_cluster(conn, "t_01", "code", ["code", "extra"])
+
+
+def test_group_families_by_level_word_based_anchor(conn):
+    conn.execute("""--sql
+        CREATE TABLE t_01 AS
+        SELECT row_number() OVER () AS fid, *
+        FROM (VALUES
+            ('P1', 'A1', 'Province1', 'Alpha'),
+            ('P1', 'A2', 'Province1', 'Beta'),
+            ('P2', 'B1', 'Province2', 'Gamma')
+        ) AS v(state_code, county_code, state_name, county_name)
+    """)
+    level_columns = detect_level_columns(conn, "t_01")
+    families = group_families_by_level(conn, "t_01", level_columns)
+    code_family = next(f for f in families.values() if set(f.values()) & {"state_code"})
+    assert set(code_family.values()) == {"state_code", "county_code"}

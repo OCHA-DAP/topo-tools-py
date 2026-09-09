@@ -14,13 +14,13 @@ across them, since each sub-tool already manages its own.
 ## Usage
 
 ```sh
-topo-tools package admin3.geojson --target-schema schema.yaml
+topo-tools package admin3.geojson
 ```
 
 ```python
 from topo_tools import package
 
-package("admin3.parquet", target_schema_path="schema.yaml")
+package("admin3.parquet")
 ```
 
 Run `topo-tools package --help` for the full, always-current option list.

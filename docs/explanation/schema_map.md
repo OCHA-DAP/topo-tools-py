@@ -1,7 +1,8 @@
 # Map Explanation
 
-`schema-map` reads a source file's columns and a target-schema config (a bundled
-default, or user-supplied), and maps a source-column -> canonical-column
+`schema-map` reads a source file's columns and a `name_field`/`code_field`
+naming template (`adm{n}_name`/`adm{n}_code` by default, or user-supplied),
+and maps a source-column -> canonical-column
 crosswalk, without touching the file. It replaces what `hdx-cod-ab-ai`
 previously did by having a live Claude Code session freehand DuckDB
 `DESCRIBE` queries and its own judgment: matching here is embedding and
@@ -52,22 +53,21 @@ from topo_tools.api.schema_map import map
 map("example.parquet")
 ```
 
-`TARGET_SCHEMA_FILE` (positional, optional) defaults to the bundled generic
-schema. `OUTPUT_FILE` (positional, optional) defaults to `INPUT_FILE` with a
-`_crosswalk.csv` name.
+`OUTPUT_FILE` (positional, optional) defaults to `INPUT_FILE` with a
+`_crosswalk.csv` name. `--name-field`/`--code-field` default to
+`adm{n}_name`/`adm{n}_code` when omitted.
 
 Run `topo-tools schema-map --help` for the full, always-current option
 list.
 
-## Target-schema config
+## Target naming templates
 
-The target schema is config, not hardcoded, so `schema-map` works on any
-dataset, not just COD-AB; omit `TARGET_SCHEMA_FILE` to use the bundled
-default (`topo_tools/core/schema_map/data/default.yaml`), or pass your own. A
-config is just two naming templates, `name_field` and `code_field` (e.g.
-`"adm{n}_name"`/`"adm{n}_code"`), each containing a `{n}` placeholder for
-the discovered admin level. They control output naming only; `schema-map` never
-reads them while deciding what belongs to which level.
+The output naming is config, not hardcoded, so `schema-map` works on any
+dataset, not just COD-AB; omit `--name-field`/`--code-field` to render
+`adm{n}_name`/`adm{n}_code`, or pass your own pair (each containing a `{n}`
+placeholder for the discovered admin level, given together or not at all).
+They control output naming only; `schema-map` never reads them while
+deciding what belongs to which level.
 
 ## Pipeline
 

@@ -2,7 +2,6 @@
 
 import duckdb
 import pytest
-import yaml
 from click.testing import CliRunner
 
 from topo_tools.api.schema_fill import fill
@@ -10,7 +9,6 @@ from topo_tools.cli.main import cli
 from topo_tools.core.dissolve import _01_inputs as _dissolve_inputs
 from topo_tools.core.dissolve import _02_dissolve as _dissolve_stage
 from topo_tools.core.io import export_geometry_table
-from topo_tools.core.schema_map._target_schema import DEFAULT_TARGET_SCHEMA_PATH
 
 _STEPS = ["inputs", "fill", "outputs"]
 _LEVEL_1, _LEVEL_2, _LEVEL_3 = 1, 2, 3
@@ -69,11 +67,6 @@ def _write_synthetic(path, rows: list[dict]) -> None:
             f"CREATE TABLE synth AS SELECT * FROM (VALUES {values}) AS t({col_list})"
         )
         conn.execute(f"COPY synth TO '{path}'")
-
-
-def _write_schema(path, name_field, code_field):
-    path.write_text(yaml.dump({"name_field": name_field, "code_field": code_field}))
-    return path
 
 
 def _fetch(path):
@@ -145,8 +138,17 @@ def test_extends_to_a_single_level(admin1_only_input, tmp_path):
 
 
 def test_missing_level_column_raises(tmp_path):
+    """adm2_name alone must not pass as a code, even though it varies by row."""
     path = tmp_path / "missing_level.parquet"
-    rows = [{k: v for k, v in row.items() if k != "adm2_code"} for row in _LEAF_ROWS]
+    renamed = {"Prov1": "Providence", "Prov2": "Piedmont"}
+    rows = [
+        {
+            k: (renamed.get(v, v) if k == "adm2_name" else v)
+            for k, v in row.items()
+            if k != "adm2_code"
+        }
+        for row in _LEAF_ROWS
+    ]
     _write_synthetic(path, rows)
     with pytest.raises(ValueError, match="missing code column"):
         fill(path, overwrite=True)
@@ -172,11 +174,6 @@ def test_steps(leaf_input, tmp_path):
 
 
 def test_custom_target_schema(tmp_path):
-    schema_path = _write_schema(
-        tmp_path / "custom_schema.yaml",
-        name_field="level{n}_name",
-        code_field="level{n}_id",
-    )
     rows = [
         {
             "level1_id": "X1",
@@ -192,7 +189,8 @@ def test_custom_target_schema(tmp_path):
     output_path = tmp_path / "custom_out.parquet"
     fill(
         input_path,
-        target_schema_path=schema_path,
+        name_field="level{n}_name",
+        code_field="level{n}_id",
         output_path=output_path,
         overwrite=True,
     )
@@ -210,9 +208,6 @@ def test_custom_target_schema(tmp_path):
 
 def test_mismatched_name_code_prefixes_both_fill(tmp_path):
     """name_field and code_field with unrelated prefixes must both cascade."""
-    schema_path = _write_schema(
-        tmp_path / "gadm_schema.yaml", name_field="NAME_{n}", code_field="GID_{n}"
-    )
     rows = [
         {
             "GID_1": "X1",
@@ -235,7 +230,8 @@ def test_mismatched_name_code_prefixes_both_fill(tmp_path):
     output_path = tmp_path / "gadm_out.parquet"
     fill(
         input_path,
-        target_schema_path=schema_path,
+        name_field="NAME_{n}",
+        code_field="GID_{n}",
         output_path=output_path,
         overwrite=True,
     )
@@ -266,11 +262,6 @@ def test_custom_depth_column_name(leaf_input, tmp_path):
 
 def test_fills_fieldmaps_shaped_column_family_set(tmp_path):
     """adm{n}_id/_src/_name/_name1/_name2 (fieldmaps' own convention) all cascade."""
-    schema_path = _write_schema(
-        tmp_path / "fieldmaps_schema.yaml",
-        name_field="adm{n}_name",
-        code_field="adm{n}_id",
-    )
     rows = [
         {
             "adm1_id": "AA",
@@ -305,7 +296,8 @@ def test_fills_fieldmaps_shaped_column_family_set(tmp_path):
     output_path = tmp_path / "fieldmaps_out.parquet"
     fill(
         input_path,
-        target_schema_path=schema_path,
+        name_field="adm{n}_name",
+        code_field="adm{n}_id",
         output_path=output_path,
         overwrite=True,
     )
@@ -475,26 +467,9 @@ def test_depth_column_collision_raises(tmp_path):
         fill(path, overwrite=True)
 
 
-def test_cli_positional_args(leaf_input, tmp_path):
+def test_cli_default_naming(leaf_input, tmp_path):
     output_path = tmp_path / "cli_out.parquet"
-    result = CliRunner().invoke(
-        cli, ["schema-fill", str(leaf_input), "", str(output_path)]
-    )
-    assert result.exit_code != 0
-    assert "target schema file not found" in result.output
-
-
-def test_cli_default_schema(leaf_input, tmp_path):
-    output_path = tmp_path / "cli_out.parquet"
-    result = CliRunner().invoke(
-        cli,
-        [
-            "schema-fill",
-            str(leaf_input),
-            str(DEFAULT_TARGET_SCHEMA_PATH),
-            str(output_path),
-        ],
-    )
+    result = CliRunner().invoke(cli, ["schema-fill", str(leaf_input), str(output_path)])
     assert result.exit_code == 0, result.output
     assert output_path.exists()
 
@@ -507,7 +482,6 @@ def test_cli_error_on_existing_output(leaf_input, tmp_path):
         [
             "schema-fill",
             str(leaf_input),
-            str(DEFAULT_TARGET_SCHEMA_PATH),
             str(output_path),
             "--overwrite=false",
         ],

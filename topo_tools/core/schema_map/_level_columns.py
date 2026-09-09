@@ -1,0 +1,226 @@
+"""Groups a source table's columns by admin level, structurally, no naming assumed."""
+
+import re
+from dataclasses import dataclass
+from os.path import commonprefix
+
+from duckdb import DuckDBPyConnection
+
+from topo_tools.core.duckdb_utils import quote_identifier
+from topo_tools.core.schema_map._02_map import resolve_columns
+from topo_tools.core.schema_map._target_schema import DEFAULT_TARGET_SCHEMA
+
+_MIN_LEVELS_TO_DIFF = 2
+_LEVEL_DIGIT_RE = re.compile(r"\d+")
+
+
+@dataclass(frozen=True)
+class LevelColumns:
+    """One level's safe group-by key, and its own naming-anchored identity columns."""
+
+    group_by: list[str]
+    identity_columns: list[str]
+    has_code: bool = True
+
+
+def _common_prefix_suffix(names: list[str]) -> tuple[str, str]:
+    """Return the run every name shares at the start, then at the end."""
+    prefix = commonprefix(names)
+    remainders = [n[len(prefix) :] for n in names]
+    suffix = commonprefix([r[::-1] for r in remainders])[::-1]
+    return prefix, suffix
+
+
+def _level_anchors(code_columns: dict[int, str]) -> dict[int, tuple[str, str, str]]:
+    """Each level's own (prefix, anchor, suffix) split, diffed against every other."""
+    if len(code_columns) < _MIN_LEVELS_TO_DIFF:
+        return {}
+    prefix, suffix = _common_prefix_suffix(list(code_columns.values()))
+    anchors: dict[int, tuple[str, str, str]] = {}
+    for level, name in code_columns.items():
+        anchor = name[len(prefix) : len(name) - len(suffix)]
+        if anchor:
+            anchors[level] = (prefix, anchor, suffix)
+    return anchors
+
+
+def is_level_identity_column(name: str, prefix: str, anchor: str, suffix: str) -> bool:
+    """Check name carries this level's own naming anchor, as a prefix or a suffix."""
+    return name.startswith(prefix + anchor) or name.endswith(anchor + suffix)
+
+
+def _strip_anchor(column: str, prefix: str, anchor: str, suffix: str) -> str:
+    """Remove a level's own anchor from column, leaving its shared naming kind."""
+    if column.startswith(prefix + anchor):
+        return column[len(prefix) + len(anchor) :]
+    return column[: len(column) - len(anchor) - len(suffix)]
+
+
+def _max_cardinality_column(rows: dict, columns: list[str]) -> str:
+    """Pick the cluster member least collapsed by NULLs, as the depth indicator."""
+    return max(columns, key=lambda c: rows[c].unique_count or 0)
+
+
+def _is_functionally_dependent(
+    conn: DuckDBPyConnection, table: str, canonical_column: str, column: str
+) -> bool:
+    """Check column takes at most one non-null value per canonical_column group."""
+    canonical_id = quote_identifier(canonical_column)
+    other_id = quote_identifier(column)
+    variants = conn.execute(f"""--sql
+        SELECT MAX(variant_count) FROM (
+            SELECT COUNT(DISTINCT {other_id}) FILTER (WHERE {other_id} IS NOT NULL)
+                AS variant_count
+            FROM {quote_identifier(table)}
+            WHERE {canonical_id} IS NOT NULL
+            GROUP BY {canonical_id}
+        )
+    """).fetchone()[0]
+    return variants is None or variants <= 1
+
+
+def _display_levels(
+    codes: dict[int, str], anchors: dict[int, tuple[str, str, str]]
+) -> dict[int, int]:
+    """Renumber each level to its own naming-anchor digit, when consistent.
+
+    Falls back to the structural level itself when no digit is found or unordered.
+    """
+    ordered = sorted(codes)
+    digits = []
+    for level in ordered:
+        source = anchors[level][1] if level in anchors else codes[level]
+        match = _LEVEL_DIGIT_RE.search(source)
+        if match is None:
+            return {level: level for level in codes}
+        digits.append(int(match.group()))
+    if digits != sorted(digits) or len(set(digits)) != len(digits):
+        return {level: level for level in codes}
+    return dict(zip(ordered, digits, strict=True))
+
+
+def detect_level_columns_or_single(
+    conn: DuckDBPyConnection, table: str
+) -> dict[int, LevelColumns]:
+    """detect_level_columns(), falling back to one ungrouped level for zero evidence."""
+    try:
+        return detect_level_columns(conn, table)
+    except ValueError:
+        return {0: LevelColumns(group_by=[], identity_columns=[], has_code=True)}
+
+
+def detect_level_columns(
+    conn: DuckDBPyConnection, table: str
+) -> dict[int, LevelColumns]:
+    """Every column structurally tied to each admin level, in no particular naming."""
+    rows = resolve_columns(conn, table, DEFAULT_TARGET_SCHEMA)
+
+    all_columns_by_level: dict[int, list[str]] = {}
+    group_by_by_level: dict[int, list[str]] = {}
+    for source, row in rows.items():
+        if row.level is None:
+            continue
+        all_columns_by_level.setdefault(row.level, []).append(source)
+        if row.role is not None:
+            group_by_by_level.setdefault(row.level, []).append(source)
+    if not all_columns_by_level:
+        msg = f"no admin hierarchy level detected in {table!r}"
+        raise ValueError(msg)
+
+    codes = {
+        level: _max_cardinality_column(rows, cols)
+        for level, cols in group_by_by_level.items()
+    }
+    anchors = _level_anchors(codes)
+    display = _display_levels(codes, anchors)
+    assigned = {c for cols in all_columns_by_level.values() for c in cols}
+    table_columns = [
+        r[0] for r in conn.execute(f"DESCRIBE {quote_identifier(table)}").fetchall()
+    ]
+
+    root_level = min(all_columns_by_level)
+    result: dict[int, LevelColumns] = {}
+    for level in sorted(all_columns_by_level):
+        group_by = list(group_by_by_level.get(level, []))
+        # The root has no parent to embed, so its own shape is never diagnostic.
+        has_code = level == root_level or any(
+            rows[c].role == "code" for c in all_columns_by_level[level]
+        )
+        if level not in anchors:
+            result[level] = LevelColumns(
+                group_by=group_by,
+                identity_columns=list(all_columns_by_level[level]),
+                has_code=has_code,
+            )
+            continue
+
+        prefix, anchor, suffix = anchors[level]
+        completed = [
+            c
+            for c in table_columns
+            if c not in assigned
+            and is_level_identity_column(c, prefix, anchor, suffix)
+            and _is_functionally_dependent(conn, table, codes[level], c)
+        ]
+        assigned.update(completed)
+        identity = [
+            c
+            for c in all_columns_by_level[level]
+            if is_level_identity_column(c, prefix, anchor, suffix)
+        ] + completed
+        result[level] = LevelColumns(
+            group_by=group_by + completed, identity_columns=identity, has_code=has_code
+        )
+    return {display.get(level, level): v for level, v in result.items()}
+
+
+def detect_level_codes(conn: DuckDBPyConnection, table: str) -> dict[int, str]:
+    """Each level's least-collapsed column, never a bracketed/supplemental one."""
+    rows = resolve_columns(conn, table, DEFAULT_TARGET_SCHEMA)
+    group_by_by_level: dict[int, list[str]] = {}
+    for source, row in rows.items():
+        if row.level is not None and row.role is not None:
+            group_by_by_level.setdefault(row.level, []).append(source)
+    if not group_by_by_level:
+        msg = f"no admin hierarchy code column detected in {table!r}"
+        raise ValueError(msg)
+    codes = {
+        level: _max_cardinality_column(rows, cols)
+        for level, cols in group_by_by_level.items()
+    }
+    display = _display_levels(codes, _level_anchors(codes))
+    return {display.get(level, level): column for level, column in codes.items()}
+
+
+def group_families_by_level(
+    conn: DuckDBPyConnection, table: str, level_columns: dict[int, LevelColumns]
+) -> dict[str, dict[int, str]]:
+    """Group every level's identity columns by shared naming kind, across levels."""
+    anchors = _level_anchors(detect_level_codes(conn, table))
+    families: dict[str, dict[int, str]] = {}
+    for level, cols in level_columns.items():
+        if level not in anchors:
+            continue
+        prefix, anchor, suffix = anchors[level]
+        for column in cols.identity_columns:
+            kind = _strip_anchor(column, prefix, anchor, suffix)
+            families.setdefault(kind, {})[level] = column
+    return families
+
+
+def verify_functional_cluster(
+    conn: DuckDBPyConnection, table: str, canonical_column: str, cluster: list[str]
+) -> None:
+    """Raise ValueError if any cluster member takes >1 non-null value per group.
+
+    Per-column, not a raw tuple COUNT(DISTINCT): that treats an all-NULL row as a group.
+    """
+    for other in cluster:
+        if other == canonical_column:
+            continue
+        if not _is_functionally_dependent(conn, table, canonical_column, other):
+            msg = (
+                f"{table}: grouping by {cluster} fragments {canonical_column!r}; "
+                f"{other!r} takes more than one non-null value within a group"
+            )
+            raise ValueError(msg)

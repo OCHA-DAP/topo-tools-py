@@ -9,11 +9,11 @@ coarsest admin level each segment belongs to.
 Produces `adm3_lines.geojson`, combining shared and exterior boundaries
 from every detected level, deduplicated so no segment repeats:
 
-    topo-tools package-lines adm3.geojson --target-schema schema.yaml
+    topo-tools package-lines adm3.geojson
 
 ### Example 2: style by boundary depth
 
 `adm_lvl` (or a custom `--depth-column`) lets a web map style an
 international boundary (level 0) differently from a sub-national one:
 
-    topo-tools package-lines adm3.geojson --target-schema schema.yaml --depth-column boundary_level
+    topo-tools package-lines adm3.geojson --depth-column boundary_level

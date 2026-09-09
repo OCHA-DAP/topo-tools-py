@@ -10,10 +10,10 @@ territory.
 Produces `adm3_points.geojson`, one combined file covering every detected
 level:
 
-    topo-tools package-points adm3.geojson --target-schema schema.yaml
+    topo-tools package-points adm3.geojson
 
 ### Example 2: custom depth column
 
 Rename the stamped level column from `adm_lvl` to something else:
 
-    topo-tools package-points adm3.geojson --target-schema schema.yaml --depth-column level
+    topo-tools package-points adm3.geojson --depth-column level

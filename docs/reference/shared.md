@@ -22,9 +22,10 @@ instead of repeating them.
   neither `schema-map` nor `schema-refactor` MUST depend on `schema-crosswalk`, or on each
   other (see `docs/explanation/schema_crosswalk.md`).
 - `schema-fill`, `package-polygons`, `package-points`, and `package-lines`
-  MAY all depend on `schema-map`'s target-schema/level-detection helpers
-  (`core/schema_map/_levels.py`); `schema-map` MUST NOT depend on any of
-  them (see `docs/adr/0075`, `docs/adr/0092`).
+  MAY all depend on `schema-map`'s `name_field`/`code_field`/level-detection
+  helpers (`core/schema_map/_levels.py`, `core/schema_map/_level_columns.py`);
+  `schema-map` MUST NOT depend on any of them (see `docs/adr/0075`,
+  `docs/adr/0092`).
 - `package-polygons`, `package-points`, and `package-lines` MAY all depend
   on `core.dissolve`'s stage functions directly; `core.dissolve` MUST NOT
   depend on any of them.

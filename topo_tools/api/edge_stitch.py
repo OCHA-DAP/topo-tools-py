@@ -41,7 +41,8 @@ def stitch(  # noqa: C901, PLR0913
     debug: bool = False,
     step: str | None = None,
     fill_schema: bool = False,
-    target_schema_path: str | Path | None = None,
+    name_field: str | None = None,
+    code_field: str | None = None,
     depth_column: str = "adm_lvl",
 ) -> None:
     """Close seams in an already-tiled polygon layer via coverage-clean.
@@ -52,7 +53,9 @@ def stitch(  # noqa: C901, PLR0913
     if step is not None and step not in _STEP_ORDER:
         msg = f"step must be one of {_STEP_ORDER}, got {step!r}"
         raise ValueError(msg)
-    validate_fill_flags(fill_schema=fill_schema, target_schema_path=target_schema_path)
+    validate_fill_flags(
+        fill_schema=fill_schema, name_field=name_field, code_field=code_field
+    )
 
     if isinstance(input_path, (str, Path)):
         paths = [resolve_input_path(input_path)]
@@ -108,7 +111,8 @@ def stitch(  # noqa: C901, PLR0913
                     name,
                     f"{name}_02",
                     requested=fill_schema,
-                    target_schema_path=target_schema_path,
+                    name_field=name_field,
+                    code_field=code_field,
                     depth_column=depth_column,
                     debug=debug,
                 )

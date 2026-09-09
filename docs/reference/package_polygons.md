@@ -7,9 +7,13 @@ tools.
 ## Inputs
 
 - `package-polygons` MUST read the input and reproject it to EPSG:4326.
-- `package-polygons` MUST detect every admin level present via a
-  target-schema YAML (the same format `schema-map`/`schema-fill` use),
-  raising `ValueError` if no level is found.
+- `package-polygons` MUST detect every admin level present, either
+  structurally (`core.schema_map`'s cardinality/containment matcher, no
+  naming convention assumed, the default when `name_field`/`code_field`
+  are omitted) or via an explicit `name_field`/`code_field` pair (the same
+  shape `schema-map`/`schema-fill` take, each containing a `{n}`
+  placeholder, given together or not at all), raising `ValueError` if no
+  level is found.
 
 ## Dissolving
 
@@ -18,9 +22,10 @@ tools.
   The finest level MUST NOT be dissolved; its output is the loaded input
   itself.
 - Every column not at or above a given level's own detected depth MUST be
-  dropped unconditionally (via the target schema), never triggering the
-  auto-drop warning `dissolve` would otherwise log for a genuinely
-  finer-level column.
+  dropped unconditionally (via the explicit `code_field`, or via each
+  finer level's own structurally-detected identity columns when
+  auto-detecting), never triggering the auto-drop warning `dissolve` would
+  otherwise log for a genuinely finer-level column.
 
 ## Outputs
 
@@ -50,5 +55,6 @@ tools.
   output or issues path already exists and overwriting wasn't requested.
 - `step`, if given, MUST be one of `inputs`, `dissolve`, `outputs`; any
   other value MUST raise `ValueError`.
-- `target_schema_path`, if omitted, MUST default to the bundled generic
-  target schema.
+- `name_field`/`code_field` MUST be given together, or both omitted; when
+  both are omitted, `package-polygons` MUST fall back to full structural
+  auto-detection of every level.

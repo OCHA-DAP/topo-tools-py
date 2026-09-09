@@ -19,8 +19,8 @@ from topo_tools.core.schema_crosswalk import _04_outputs as outputs
 from topo_tools.core.schema_map import _01_inputs as inputs
 from topo_tools.core.schema_map import _02_map as map_stage
 from topo_tools.core.schema_map._target_schema import (
-    DEFAULT_TARGET_SCHEMA_PATH,
-    load_target_schema,
+    DEFAULT_TARGET_SCHEMA,
+    resolve_explicit_target_schema,
 )
 
 logger = getLogger(__name__)
@@ -37,10 +37,11 @@ _STEP_TABLES = {
 
 def crosswalk(  # noqa: PLR0913
     input_path: str | Path,
-    target_schema_path: str | Path | None = None,
     output_path: str | Path | None = None,
     crosswalk_path: str | Path | None = None,
     *,
+    name_field: str | None = None,
+    code_field: str | None = None,
     layer: str | None = None,
     threads: int | None = None,
     tmp_dir: str | Path | None = None,
@@ -58,10 +59,8 @@ def crosswalk(  # noqa: PLR0913
         raise ValueError(msg)
 
     input_path = resolve_input_path(input_path)
-    target_schema_path = (
-        Path(target_schema_path)
-        if target_schema_path is not None
-        else DEFAULT_TARGET_SCHEMA_PATH
+    schema = resolve_explicit_target_schema(name_field, code_field) or (
+        DEFAULT_TARGET_SCHEMA
     )
     output_path = (
         Path(output_path)
@@ -93,7 +92,6 @@ def crosswalk(  # noqa: PLR0913
             if s == "inputs":
                 inputs.main(conn, name, input_path, layer)
             elif s == "map":
-                schema = load_target_schema(target_schema_path)
                 map_stage.main(conn, name, schema)
             elif s == "apply":
                 apply_stage.main(conn, name, input_path)

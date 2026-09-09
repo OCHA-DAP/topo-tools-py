@@ -2,7 +2,6 @@
 
 import duckdb
 import pytest
-import yaml
 from click.testing import CliRunner
 
 from topo_tools.api.package import package
@@ -55,11 +54,6 @@ def _write_synthetic(path, rows: list[dict]) -> None:
         conn.execute(f"COPY synth TO '{path}'")
 
 
-def _write_schema(path, name_field, code_field):
-    path.write_text(yaml.dump({"name_field": name_field, "code_field": code_field}))
-    return path
-
-
 @pytest.fixture
 def admin2_input(tmp_path):
     path = tmp_path / "admin2.parquet"
@@ -67,34 +61,39 @@ def admin2_input(tmp_path):
     return path
 
 
-@pytest.fixture
-def pcode_target_schema(tmp_path):
-    return _write_schema(
-        tmp_path / "schema.yaml", name_field="adm{n}_name", code_field="adm{n}_pcode"
-    )
-
-
-def test_default_output_matches_calling_each_tool_separately(
-    pcode_target_schema, tmp_path
-):
+def test_default_output_matches_calling_each_tool_separately(tmp_path):
     combined_dir = tmp_path / "combined"
     combined_dir.mkdir()
     combined_input = combined_dir / "admin2.parquet"
     _write_synthetic(combined_input, _ROWS)
-    package(combined_input, target_schema_path=pcode_target_schema, overwrite=True)
+    package(
+        combined_input,
+        name_field="adm{n}_name",
+        code_field="adm{n}_pcode",
+        overwrite=True,
+    )
 
     separate_dir = tmp_path / "separate"
     separate_dir.mkdir()
     separate_input = separate_dir / "admin2.parquet"
     _write_synthetic(separate_input, _ROWS)
     package_polygons(
-        separate_input, target_schema_path=pcode_target_schema, overwrite=True
+        separate_input,
+        name_field="adm{n}_name",
+        code_field="adm{n}_pcode",
+        overwrite=True,
     )
     package_points(
-        separate_input, target_schema_path=pcode_target_schema, overwrite=True
+        separate_input,
+        name_field="adm{n}_name",
+        code_field="adm{n}_pcode",
+        overwrite=True,
     )
     package_lines(
-        separate_input, target_schema_path=pcode_target_schema, overwrite=True
+        separate_input,
+        name_field="adm{n}_name",
+        code_field="adm{n}_pcode",
+        overwrite=True,
     )
 
     combined_names = {p.name for p in combined_dir.glob("*.parquet")}
@@ -102,11 +101,15 @@ def test_default_output_matches_calling_each_tool_separately(
     assert combined_names == separate_names
 
 
-def test_x_template_substitutes_per_subtool(
-    admin2_input, pcode_target_schema, tmp_path
-):
+def test_x_template_substitutes_per_subtool(admin2_input, tmp_path):
     template = str(tmp_path / "web_{x}.parquet")
-    package(admin2_input, template, pcode_target_schema, overwrite=True)
+    package(
+        admin2_input,
+        template,
+        name_field="adm{n}_name",
+        code_field="adm{n}_pcode",
+        overwrite=True,
+    )
 
     assert (tmp_path / "web_admin1.parquet").exists()
     assert (tmp_path / "web_admin2.parquet").exists()
@@ -114,29 +117,48 @@ def test_x_template_substitutes_per_subtool(
     assert (tmp_path / "web_lines.parquet").exists()
 
 
-def test_missing_x_raises(admin2_input, pcode_target_schema, tmp_path):
+def test_missing_x_raises(admin2_input, tmp_path):
     with pytest.raises(ValueError, match="literal '\\{x\\}'"):
         package(
             admin2_input,
             str(tmp_path / "flat.parquet"),
-            pcode_target_schema,
+            name_field="adm{n}_name",
+            code_field="adm{n}_pcode",
             overwrite=True,
         )
 
 
-def test_overwrite_and_target_schema_passed_through(
-    admin2_input, pcode_target_schema, tmp_path
-):
+def test_overwrite_and_name_field_code_field_passed_through(admin2_input, tmp_path):
     template = str(tmp_path / "web_{x}.parquet")
-    package(admin2_input, template, pcode_target_schema, overwrite=True)
+    package(
+        admin2_input,
+        template,
+        name_field="adm{n}_name",
+        code_field="adm{n}_pcode",
+        overwrite=True,
+    )
 
     with pytest.raises(FileExistsError, match="already exists"):
-        package(admin2_input, template, pcode_target_schema, overwrite=False)
+        package(
+            admin2_input,
+            template,
+            name_field="adm{n}_name",
+            code_field="adm{n}_pcode",
+            overwrite=False,
+        )
 
 
-def test_cli_default_naming(admin2_input, pcode_target_schema):
+def test_cli_default_naming(admin2_input):
     result = CliRunner().invoke(
-        cli, ["package", str(admin2_input), "--target-schema", str(pcode_target_schema)]
+        cli,
+        [
+            "package",
+            str(admin2_input),
+            "--name-field",
+            "adm{n}_name",
+            "--code-field",
+            "adm{n}_pcode",
+        ],
     )
     assert result.exit_code == 0, result.output
     assert admin2_input.with_stem(admin2_input.stem + "_admin1").exists()
@@ -144,7 +166,7 @@ def test_cli_default_naming(admin2_input, pcode_target_schema):
     assert admin2_input.with_stem(admin2_input.stem + "_lines").exists()
 
 
-def test_cli_output_template(admin2_input, pcode_target_schema, tmp_path):
+def test_cli_output_template(admin2_input, tmp_path):
     result = CliRunner().invoke(
         cli,
         [
@@ -152,8 +174,10 @@ def test_cli_output_template(admin2_input, pcode_target_schema, tmp_path):
             str(admin2_input),
             "--output",
             str(tmp_path / "web_{x}.parquet"),
-            "--target-schema",
-            str(pcode_target_schema),
+            "--name-field",
+            "adm{n}_name",
+            "--code-field",
+            "adm{n}_pcode",
         ],
     )
     assert result.exit_code == 0, result.output

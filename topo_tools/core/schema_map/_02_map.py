@@ -4,11 +4,12 @@ See docs/explanation/schema_map.md and docs/adr/0054, 0064-0066 for the
 algorithm and why.
 """
 
+import re
 from dataclasses import dataclass
 
 from duckdb import DuckDBPyConnection
 
-from topo_tools.core.constants import is_noise_column
+from topo_tools.core.constants import is_noise_column, is_numeric_duckdb_type
 from topo_tools.core.duckdb_utils import quote_identifier
 from topo_tools.core.schema_map._constants import (
     CONFIDENCE_AMBIGUOUS,
@@ -16,8 +17,9 @@ from topo_tools.core.schema_map._constants import (
 )
 from topo_tools.core.schema_map._target_schema import TargetSchema
 
-# fid/geom are topo-tools' own internal columns, never candidate source data.
-_EXCLUDED_COLUMNS = {"fid", "geom"}
+# fid/geom/source_file are topo-tools' own internal columns, never candidate
+# source data (source_file is added by core.assign, dropped only at final export).
+_EXCLUDED_COLUMNS = {"fid", "geom", "source_file"}
 
 _CODE_SHAPE_MAJORITY = 0.5
 
@@ -37,11 +39,14 @@ class _Row:
 
 
 def _candidate_columns(conn: DuckDBPyConnection, table: str) -> list[str]:
+    """List columns eligible for hierarchy detection, excluding numeric-typed ids."""
     rows = conn.execute(f'DESCRIBE "{table}"').fetchall()
     return [
         r[0]
         for r in rows
-        if r[0] not in _EXCLUDED_COLUMNS and not is_noise_column(r[0])
+        if r[0] not in _EXCLUDED_COLUMNS
+        and not is_noise_column(r[0])
+        and not is_numeric_duckdb_type(r[1])
     ]
 
 
@@ -114,23 +119,64 @@ def _looks_code_shaped(conn: DuckDBPyConnection, table: str, column: str) -> boo
     return total > 0 and digits / total > _CODE_SHAPE_MAJORITY
 
 
+_MIN_GROUPS_FOR_TOLERANCE = 2
+
+
 def _containment_holds(
     conn: DuckDBPyConnection, table: str, coarser: str, finer: str
 ) -> bool:
-    """Check every `finer` maps to one `coarser`, tolerating one violating value."""
-    violators = conn.execute(f"""--sql
-        SELECT {quote_identifier(finer)} FROM {quote_identifier(table)}
+    """Check every non-null `finer` maps to a single non-null `coarser`, mostly."""
+    coarser_id = quote_identifier(coarser)
+    groups = conn.execute(f"""--sql
+        SELECT COUNT(DISTINCT {coarser_id}) AS coarser_count,
+               COUNT(*) FILTER (WHERE {coarser_id} IS NULL) AS null_coarser
+        FROM {quote_identifier(table)}
+        WHERE {quote_identifier(finer)} IS NOT NULL
         GROUP BY {quote_identifier(finer)}
-        HAVING COUNT(DISTINCT {quote_identifier(coarser)}) > 1
     """).fetchall()
-    return len(violators) <= 1
+    if any(null_coarser > 0 for _, null_coarser in groups):
+        return False
+    violators = sum(1 for coarser_count, _ in groups if coarser_count > 1)
+    tolerance = 1 if len(groups) > _MIN_GROUPS_FOR_TOLERANCE else 0
+    return violators <= tolerance
+
+
+_MIN_JOINT_EVIDENCE_FOR_BIJECTION = 2
+_LEVEL_DIGIT_RE = re.compile(r"\d+")
+
+
+def _same_naming_digit(a: str, b: str) -> bool:
+    """Check a and b's own digits agree, or neither has one (nothing to compare)."""
+    match_a, match_b = _LEVEL_DIGIT_RE.search(a), _LEVEL_DIGIT_RE.search(b)
+    return match_a is None or match_b is None or match_a.group() == match_b.group()
+
+
+def _companion_holds(conn: DuckDBPyConnection, table: str, x: str, y: str) -> bool:
+    """Check x determines y on rows where both are populated, ignoring the rest."""
+    groups = conn.execute(f"""--sql
+        SELECT COUNT(DISTINCT {quote_identifier(y)}) AS y_count
+        FROM {quote_identifier(table)}
+        WHERE {quote_identifier(x)} IS NOT NULL AND {quote_identifier(y)} IS NOT NULL
+        GROUP BY {quote_identifier(x)}
+    """).fetchall()
+    violators = sum(1 for (y_count,) in groups if y_count > 1)
+    tolerance = 1 if len(groups) > _MIN_GROUPS_FOR_TOLERANCE else 0
+    return violators <= tolerance
 
 
 def _bijective(conn: DuckDBPyConnection, table: str, a: str, b: str) -> bool:
-    """Check that a and b's values correspond 1:1 (same-level companions)."""
-    return _containment_holds(conn, table, a, b) and _containment_holds(
-        conn, table, b, a
-    )
+    """Check a and b correspond 1:1, using the joint subset only if both are sparse."""
+    joint = conn.execute(f"""--sql
+        SELECT COUNT(*) FROM {quote_identifier(table)}
+        WHERE {quote_identifier(a)} IS NOT NULL AND {quote_identifier(b)} IS NOT NULL
+    """).fetchone()[0]
+    if joint < _MIN_JOINT_EVIDENCE_FOR_BIJECTION and not _same_naming_digit(a, b):
+        return False
+    if _fully_populated(conn, table, a) or _fully_populated(conn, table, b):
+        return _containment_holds(conn, table, a, b) and _containment_holds(
+            conn, table, b, a
+        )
+    return _companion_holds(conn, table, a, b) and _companion_holds(conn, table, b, a)
 
 
 def _combined_distinct_count(
@@ -148,27 +194,20 @@ def _combined_distinct_count(
 def _build_level_groups(
     conn: DuckDBPyConnection, table: str, columns: list[str], counts: dict[str, int]
 ) -> list[tuple[int, list[str]]]:
-    """Group every column (code or name alike) by distinct count and bijection.
-
-    A constant (single-value) column stays, a single-country file's admin0 can be one.
-    """
-    by_count: dict[int, list[str]] = {}
-    for c in columns:
-        by_count.setdefault(counts[c], []).append(c)
-
-    groups: list[tuple[int, list[str]]] = []
-    for count, cols in by_count.items():
-        groups.extend(
-            (count, cluster) for cluster in _cluster_by_bijection(conn, table, cols)
-        )
+    """Group every column (code or name alike) by bijection, count picks the label."""
+    groups = [
+        (max(counts[c] for c in cluster), cluster)
+        for cluster in _cluster_by_bijection(conn, table, columns, counts)
+    ]
     groups.sort(key=lambda g: g[0])
     return groups
 
 
 def _cluster_by_bijection(
-    conn: DuckDBPyConnection, table: str, cols: list[str]
+    conn: DuckDBPyConnection, table: str, cols: list[str], counts: dict[str, int]
 ) -> list[list[str]]:
-    """Union same-count columns pairwise bijective with each other into one cluster."""
+    """Union bijective columns, cross-count only if either side is NULL-sparse."""
+    fully_populated = {c: _fully_populated(conn, table, c) for c in cols}
     parent = {c: c for c in cols}
 
     def find(c: str) -> str:
@@ -179,7 +218,11 @@ def _cluster_by_bijection(
 
     for i, a in enumerate(cols):
         for b in cols[i + 1 :]:
-            if _bijective(conn, table, a, b):
+            both_dense = fully_populated[a] and fully_populated[b]
+            comparable = (both_dense and counts[a] == counts[b]) or (
+                not both_dense and _same_naming_digit(a, b)
+            )
+            if comparable and _bijective(conn, table, a, b):
                 parent[find(a)] = find(b)
 
     clusters: dict[str, list[str]] = {}
@@ -188,18 +231,42 @@ def _cluster_by_bijection(
     return list(clusters.values())
 
 
-def _build_chain(
+def _order_groups_by_containment(
     conn: DuckDBPyConnection, table: str, groups: list[tuple[int, list[str]]]
 ) -> list[tuple[int, list[str]]]:
-    """Longest nesting path; a non-constant edge must be embedding-justified.
-
-    See docs/adr/0066: a constant needs no embedding, anything else does,
-    unless no candidate pair in the whole file embeds at all (docs/adr/0070).
-    """
+    """Order groups coarsest-first by containment, not raw COUNT(DISTINCT)."""
     n = len(groups)
+    joins = [[False] * n for _ in range(n)]
+    for i in range(n):
+        for j in range(n):
+            if i == j:
+                continue
+            joins[i][j] = all(
+                _containment_holds(conn, table, coarser=a, finer=b)
+                for a in groups[i][1]
+                for b in groups[j][1]
+            )
+
+    indegree = [sum(joins[k][i] for k in range(n)) for i in range(n)]
+    remaining = set(range(n))
+    order: list[int] = []
+    while remaining:
+        ready = [i for i in remaining if indegree[i] == 0] or list(remaining)
+        i = min(ready, key=lambda i: (groups[i][0], groups[i][1]))
+        order.append(i)
+        remaining.discard(i)
+        for j in remaining:
+            if joins[i][j]:
+                indegree[j] -= 1
+    return [groups[i] for i in order]
+
+
+def _build_edges(
+    conn: DuckDBPyConnection, table: str, groups: list[tuple[int, list[str]]]
+) -> dict[tuple[int, int], tuple[bool, bool]]:
+    """Every coarser/finer pair's (containment holds, containment embeds)."""
     edges: dict[tuple[int, int], tuple[bool, bool]] = {}
-    for finer_idx in range(n):
-        _finer_count, finer_cols = groups[finer_idx]
+    for finer_idx, (_finer_count, finer_cols) in enumerate(groups):
         for coarser_idx in range(finer_idx):
             _coarser_count, coarser_cols = groups[coarser_idx]
             joins = all(
@@ -211,8 +278,55 @@ def _build_chain(
                 _embeds(conn, table, b, a) for a in coarser_cols for b in finer_cols
             )
             edges[coarser_idx, finer_idx] = (joins, embeds)
+    return edges
 
+
+def _group_digit(cols: list[str]) -> int | None:
+    """Return the single naming digit every column in a group agrees on."""
+    digits = {
+        int(m.group()) for c in cols if (m := _LEVEL_DIGIT_RE.search(c)) is not None
+    }
+    return digits.pop() if len(digits) == 1 else None
+
+
+def _bridged_edges(
+    groups: list[tuple[int, list[str]]], edges: dict[tuple[int, int], tuple[bool, bool]]
+) -> set[tuple[int, int]]:
+    """Edges bracketing a level whose digit sits exactly between its neighbors'.
+
+    A verified direct skip across it (its own coarser to its own finer) then
+    needs no embedding of its own, e.g. a name-only adm2 between adm1/adm3.
+    """
+    n = len(groups)
+    digits = [_group_digit(cols) for _count, cols in groups]
+    bridged: set[tuple[int, int]] = set()
+    for k in range(n):
+        if digits[k] is None:
+            continue
+        for c in range(k):
+            if digits[c] is None or digits[c] >= digits[k] or not edges[c, k][0]:
+                continue
+            for f in range(k + 1, n):
+                if digits[f] is None or digits[k] >= digits[f]:
+                    continue
+                if edges[k, f][0] and edges[c, f][1]:
+                    bridged.add((c, k))
+                    bridged.add((k, f))
+    return bridged
+
+
+def _build_chain(
+    conn: DuckDBPyConnection, table: str, groups: list[tuple[int, list[str]]]
+) -> list[tuple[int, list[str]]]:
+    """Longest nesting path; a non-constant edge must be embedding-justified.
+
+    See docs/adr/0066: a constant needs no embedding, anything else does,
+    unless no candidate pair in the whole file embeds at all (docs/adr/0070).
+    """
+    n = len(groups)
+    edges = _build_edges(conn, table, groups)
     no_embedding_anywhere = not any(embeds for _joins, embeds in edges.values())
+    bridged_edges = _bridged_edges(groups, edges)
 
     best_len = [1] * n
     best_prev: list[int | None] = [None] * n
@@ -222,7 +336,12 @@ def _build_chain(
             joins, embeds = edges[coarser_idx, finer_idx]
             if not joins:
                 continue
-            justified = coarser_count == 1 or embeds or no_embedding_anywhere
+            justified = (
+                coarser_count == 1
+                or embeds
+                or no_embedding_anywhere
+                or (coarser_idx, finer_idx) in bridged_edges
+            )
             if justified and best_len[coarser_idx] + 1 > best_len[finer_idx]:
                 best_len[finer_idx] = best_len[coarser_idx] + 1
                 best_prev[finer_idx] = coarser_idx
@@ -254,6 +373,15 @@ def _bracket_index(code_counts: list[int], count: int) -> int | None:
     return None
 
 
+def _fully_populated(conn: DuckDBPyConnection, table: str, column: str) -> bool:
+    """Check `column` is non-null everywhere (a real constant, not a sparse one)."""
+    total, populated = conn.execute(f"""--sql
+        SELECT COUNT(*), COUNT({quote_identifier(column)})
+        FROM {quote_identifier(table)}
+    """).fetchone()
+    return total == populated
+
+
 def _assign_chain_roles(
     conn: DuckDBPyConnection,
     table: str,
@@ -267,7 +395,15 @@ def _assign_chain_roles(
     """
     rows: dict[str, _Row] = {}
     for index, (count, cols) in enumerate(chain):
-        if count == 1:
+        # A constant root folds away with no deeper level, or a fully-populated
+        # one; a root above a partial deeper level is the only depth evidence.
+        next_fully_populated = len(chain) > 1 and all(
+            _fully_populated(conn, table, c) for c in chain[1][1]
+        )
+        is_foldable_root = (
+            index == 0 and count == 1 and (len(chain) == 1 or next_fully_populated)
+        )
+        if is_foldable_root and _fully_populated(conn, table, cols[0]):
             continue
         level = index
         parent_cols = chain[index - 1][1] if index > 0 else []
@@ -411,15 +547,17 @@ def _bracket_other_columns(  # noqa: PLR0913, PLR0917
     return rows
 
 
-def main(conn: DuckDBPyConnection, name: str, schema: TargetSchema) -> None:
-    """Discover a source file's admin hierarchy, writing crosswalk `{name}_02`."""
-    table = f"{name}_01"
+def resolve_columns(
+    conn: DuckDBPyConnection, table: str, schema: TargetSchema
+) -> dict[str, _Row]:
+    """Resolve every candidate column to a level/role; `schema` only renders names."""
     columns = _candidate_columns(conn, table)
     counts = _distinct_counts(conn, table, columns)
 
     # An all-null column has no evidence either way, same principle as _embeds().
     chainable_columns = [c for c in columns if counts[c] > 0]
     level_groups = _build_level_groups(conn, table, chainable_columns, counts)
+    level_groups = _order_groups_by_containment(conn, table, level_groups)
     chain = _build_chain(conn, table, level_groups)
 
     rows = _assign_chain_roles(conn, table, chain, schema, counts)
@@ -435,6 +573,14 @@ def main(conn: DuckDBPyConnection, name: str, schema: TargetSchema) -> None:
     for column in columns:
         if column not in rows:
             rows[column] = _Row(column, None, "", unique_count=counts[column])
+    return rows
+
+
+def main(conn: DuckDBPyConnection, name: str, schema: TargetSchema) -> None:
+    """Discover a source file's admin hierarchy, writing crosswalk `{name}_02`."""
+    table = f"{name}_01"
+    columns = _candidate_columns(conn, table)
+    rows = resolve_columns(conn, table, schema)
 
     def sort_key(row: _Row, source_position: int) -> tuple[int, int, int, int]:
         if row.level is None:

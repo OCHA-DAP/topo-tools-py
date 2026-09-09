@@ -7,8 +7,11 @@ tools.
 ## Inputs
 
 - `package-points` MUST read the input and reproject it to EPSG:4326.
-- `package-points` MUST detect every admin level present via a
-  target-schema YAML, raising `ValueError` if no level is found.
+- `package-points` MUST detect every admin level present, either
+  structurally (`core.schema_map`'s cardinality/containment matcher, no
+  naming convention assumed, the default when `name_field`/`code_field`
+  are omitted) or via an explicit `name_field`/`code_field` pair, raising
+  `ValueError` if no level is found.
 
 ## Point extraction
 
@@ -43,5 +46,6 @@ tools.
   exists and overwriting wasn't requested.
 - `step`, if given, MUST be one of `inputs`, `points`, `outputs`; any
   other value MUST raise `ValueError`.
-- `target_schema_path`, if omitted, MUST default to the bundled generic
-  target schema.
+- `name_field`/`code_field` MUST be given together, or both omitted; when
+  both are omitted, `package-points` MUST fall back to full structural
+  auto-detection of every level.

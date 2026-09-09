@@ -66,7 +66,8 @@ def mosaic(  # noqa: C901, PLR0912, PLR0913, PLR0915
     child_exclude: list[str] | None = None,
     prefer: str | None = None,
     fill_schema: bool = False,
-    target_schema_path: str | Path | None = None,
+    name_field: str | None = None,
+    code_field: str | None = None,
     depth_column: str = "adm_lvl",
 ) -> None:
     """Fit one or more already-extended children layers into a new parent/clip layer."""
@@ -90,7 +91,9 @@ def mosaic(  # noqa: C901, PLR0912, PLR0913, PLR0915
         child_exclude=child_exclude,
         prefer=prefer,
     )
-    validate_fill_flags(fill_schema=fill_schema, target_schema_path=target_schema_path)
+    validate_fill_flags(
+        fill_schema=fill_schema, name_field=name_field, code_field=code_field
+    )
     passthrough = merge
 
     if isinstance(input_paths, (str, Path)):
@@ -156,7 +159,8 @@ def mosaic(  # noqa: C901, PLR0912, PLR0913, PLR0915
                 child_exclude=child_exclude,
                 prefer=prefer,
                 fill_schema=fill_schema,
-                target_schema_path=target_schema_path,
+                name_field=name_field,
+                code_field=code_field,
                 depth_column=depth_column,
             )
         else:
@@ -248,7 +252,8 @@ def mosaic(  # noqa: C901, PLR0912, PLR0913, PLR0915
                         name,
                         f"{name}_04",
                         requested=fill_schema,
-                        target_schema_path=target_schema_path,
+                        name_field=name_field,
+                        code_field=code_field,
                         depth_column=depth_column,
                         debug=debug,
                     )
@@ -310,7 +315,8 @@ def _mosaic_multi_file(  # noqa: C901, PLR0913, PLR0915, PLR0917
     child_exclude: list[str] | None,
     prefer: str | None,
     fill_schema: bool,
-    target_schema_path: str | Path | None,
+    name_field: str | None,
+    code_field: str | None,
     depth_column: str,
 ) -> None:
     """Assign/clip one children file at a time, sharing one already-loaded parent."""
@@ -441,7 +447,8 @@ def _mosaic_multi_file(  # noqa: C901, PLR0913, PLR0915, PLR0917
         name,
         f"{name}_04",
         requested=fill_schema,
-        target_schema_path=target_schema_path,
+        name_field=name_field,
+        code_field=code_field,
         depth_column=depth_column,
         debug=debug,
     )

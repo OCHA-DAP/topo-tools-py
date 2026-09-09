@@ -9,11 +9,11 @@ cartographic bundle at once.
 Each sub-tool falls back to its own default naming
 (`_admin{n}`/`_points`/`_lines`):
 
-    topo-tools package adm3.geojson --target-schema schema.yaml
+    topo-tools package adm3.geojson
 
 ### Example 2: explicit output template
 
 `{x}` MUST appear in `--output` if given; it's substituted per sub-tool
 (`admin{n}`, `points`, `lines`):
 
-    topo-tools package adm3.geojson --output "web/{x}.geojson" --target-schema schema.yaml
+    topo-tools package adm3.geojson --output "web/{x}.geojson"

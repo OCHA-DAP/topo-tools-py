@@ -2,7 +2,6 @@
 
 import duckdb
 import pytest
-import yaml
 from click.testing import CliRunner
 
 from topo_tools.api.package_points import package_points
@@ -54,23 +53,11 @@ def _write_synthetic(path, rows: list[dict]) -> None:
         conn.execute(f"COPY synth TO '{path}'")
 
 
-def _write_schema(path, name_field, code_field):
-    path.write_text(yaml.dump({"name_field": name_field, "code_field": code_field}))
-    return path
-
-
 @pytest.fixture
 def admin2_input(tmp_path):
     path = tmp_path / "admin2.parquet"
     _write_synthetic(path, _ROWS)
     return path
-
-
-@pytest.fixture
-def pcode_target_schema(tmp_path):
-    return _write_schema(
-        tmp_path / "schema.yaml", name_field="adm{n}_name", code_field="adm{n}_pcode"
-    )
 
 
 def test_cli_help():
@@ -80,9 +67,15 @@ def test_cli_help():
     assert "Examples:" in result.output
 
 
-def test_row_count_matches_units_per_level(admin2_input, pcode_target_schema, tmp_path):
+def test_row_count_matches_units_per_level(admin2_input, tmp_path):
     output_path = tmp_path / "points.parquet"
-    package_points(admin2_input, output_path, pcode_target_schema, overwrite=True)
+    package_points(
+        admin2_input,
+        output_path,
+        name_field="adm{n}_name",
+        code_field="adm{n}_pcode",
+        overwrite=True,
+    )
 
     with duckdb.connect() as conn:
         conn.execute("LOAD spatial")
@@ -96,11 +89,15 @@ def test_row_count_matches_units_per_level(admin2_input, pcode_target_schema, tm
     assert counts == {1: expected_level1_count, 2: expected_level2_count}
 
 
-def test_every_point_covered_by_its_own_polygon(
-    admin2_input, pcode_target_schema, tmp_path
-):
+def test_every_point_covered_by_its_own_polygon(admin2_input, tmp_path):
     output_path = tmp_path / "points.parquet"
-    package_points(admin2_input, output_path, pcode_target_schema, overwrite=True)
+    package_points(
+        admin2_input,
+        output_path,
+        name_field="adm{n}_name",
+        code_field="adm{n}_pcode",
+        overwrite=True,
+    )
 
     with duckdb.connect() as conn:
         conn.execute("LOAD spatial")
@@ -114,11 +111,15 @@ def test_every_point_covered_by_its_own_polygon(
     assert uncovered == 0
 
 
-def test_original_attribute_columns_survive(
-    admin2_input, pcode_target_schema, tmp_path
-):
+def test_original_attribute_columns_survive(admin2_input, tmp_path):
     output_path = tmp_path / "points.parquet"
-    package_points(admin2_input, output_path, pcode_target_schema, overwrite=True)
+    package_points(
+        admin2_input,
+        output_path,
+        name_field="adm{n}_name",
+        code_field="adm{n}_pcode",
+        overwrite=True,
+    )
 
     with duckdb.connect() as conn:
         conn.execute("LOAD spatial")
@@ -131,12 +132,13 @@ def test_original_attribute_columns_survive(
     assert {"adm1_pcode", "adm2_pcode", "adm_lvl", "geometry"} <= columns
 
 
-def test_custom_depth_column(admin2_input, pcode_target_schema, tmp_path):
+def test_custom_depth_column(admin2_input, tmp_path):
     output_path = tmp_path / "points.parquet"
     package_points(
         admin2_input,
         output_path,
-        pcode_target_schema,
+        name_field="adm{n}_name",
+        code_field="adm{n}_pcode",
         depth_column="level",
         overwrite=True,
     )
@@ -152,22 +154,28 @@ def test_custom_depth_column(admin2_input, pcode_target_schema, tmp_path):
     assert "adm_lvl" not in columns
 
 
-def test_depth_column_collision_raises(pcode_target_schema, tmp_path):
+def test_depth_column_collision_raises(tmp_path):
     rows = [{**r, "adm_lvl": 2} for r in _ROWS]
     input_path = tmp_path / "admin2.parquet"
     _write_synthetic(input_path, rows)
     with pytest.raises(ValueError, match="adm_lvl"):
-        package_points(input_path, tmp_path / "points.parquet", pcode_target_schema)
+        package_points(
+            input_path,
+            tmp_path / "points.parquet",
+            name_field="adm{n}_name",
+            code_field="adm{n}_pcode",
+        )
 
 
-def test_step_reuse(admin2_input, pcode_target_schema, tmp_path):
+def test_step_reuse(admin2_input, tmp_path):
     output_path = tmp_path / "points.parquet"
     work_dir = tmp_path / "work"
     for step in _STEPS:
         package_points(
             admin2_input,
             output_path,
-            pcode_target_schema,
+            name_field="adm{n}_name",
+            code_field="adm{n}_pcode",
             tmp_dir=work_dir,
             step=step,
             overwrite=True,
@@ -175,15 +183,18 @@ def test_step_reuse(admin2_input, pcode_target_schema, tmp_path):
     assert output_path.exists()
 
 
-def test_default_output_path(admin2_input, pcode_target_schema):
-    package_points(admin2_input, target_schema_path=pcode_target_schema, overwrite=True)
+def test_default_output_path(admin2_input):
+    package_points(
+        admin2_input,
+        name_field="adm{n}_name",
+        code_field="adm{n}_pcode",
+        overwrite=True,
+    )
     expected = admin2_input.with_stem(admin2_input.stem + "_points")
     assert expected.exists()
 
 
-def test_cli_overwrite_false_raises_on_existing_output(
-    admin2_input, pcode_target_schema, tmp_path
-):
+def test_cli_overwrite_false_raises_on_existing_output(admin2_input, tmp_path):
     output_path = tmp_path / "points.parquet"
     output_path.touch()
     result = CliRunner().invoke(
@@ -192,8 +203,10 @@ def test_cli_overwrite_false_raises_on_existing_output(
             "package-points",
             str(admin2_input),
             str(output_path),
-            "--target-schema",
-            str(pcode_target_schema),
+            "--name-field",
+            "adm{n}_name",
+            "--code-field",
+            "adm{n}_pcode",
             "--overwrite=false",
         ],
     )

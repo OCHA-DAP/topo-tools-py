@@ -5,9 +5,10 @@ See `docs/reference/README.md` for the MUST/SHOULD/MAY convention.
 ## Behavior
 
 - `package` MUST call `package-polygons`, `package-points`, and
-  `package-lines` against the same input path and the same target schema,
-  each reading and reprojecting the input independently (no shared
-  connection or table across the three).
+  `package-lines` against the same input path and the same `name_field`/
+  `code_field` (or the same auto-detection, when both are omitted), each
+  reading and reprojecting the input independently (no shared connection
+  or table across the three).
 - `package` MUST NOT expose `--step` or a separate issues-path option; each
   sub-tool manages its own connection and derives its own issues path from
   its own output path.
@@ -26,8 +27,8 @@ See `docs/reference/README.md` for the MUST/SHOULD/MAY convention.
 ## Configuration (`api.package.package()` / CLI)
 
 - `package` MUST process exactly one input file per call.
-- `overwrite`, `threads`, `tmp_dir`, `debug`, and `target_schema_path` MUST
-  be passed through unchanged to all three sub-calls.
+- `overwrite`, `threads`, `tmp_dir`, `debug`, `name_field`, and `code_field`
+  MUST be passed through unchanged to all three sub-calls.
 - `package` MUST NOT expose `depth_column`: `package-points` and
   `package-lines` each run with their own default (`adm_lvl`). An input
   that already has its own `adm_lvl` column (raising `ValueError` in

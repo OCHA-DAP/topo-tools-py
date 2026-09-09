@@ -4,6 +4,10 @@ from duckdb import DuckDBPyConnection
 
 from topo_tools.core.dissolve import _02_dissolve as dissolve_stage
 from topo_tools.core.duckdb_utils import bbox_columns_sql
+from topo_tools.core.schema_map._level_columns import (
+    detect_level_columns_or_single,
+    verify_functional_cluster,
+)
 from topo_tools.core.schema_map._target_schema import TargetSchema
 
 _EMPTY_LINES = "ST_GeomFromText('MULTILINESTRING EMPTY')"
@@ -40,24 +44,44 @@ def main(
     conn: DuckDBPyConnection,
     name: str,
     levels: list[int],
-    schema: TargetSchema,
+    schema: TargetSchema | None,
     depth_column: str,
 ) -> None:
-    """Dissolve at the finest level, then extract and classify its boundary network."""
+    """Dissolve at the finest level, then extract and classify its boundary network.
+
+    A None `schema` triggers structural auto-detection of each level's columns.
+    """
     reserved = {"left_fid", "right_fid", "boundary_type", "geom"}
     if depth_column in reserved:
         msg = f"depth_column {depth_column!r} collides with a fixed output column"
         raise ValueError(msg)
 
-    code_columns = [schema.code_field.format(n=n) for n in levels]
+    table_in = f"{name}_01"
+    finest = max(levels)
     dissolved = f"{name}_02_dissolved"
-    dissolve_stage.main(
-        conn,
-        f"{name}_01",
-        dissolved,
-        group_by=[code_columns[-1]],
-        target_schema=schema,
-    )
+    if schema is not None:
+        code_columns = [schema.code_field.format(n=n) for n in levels]
+        dissolve_stage.main(
+            conn,
+            table_in,
+            dissolved,
+            group_by=[code_columns[-1]],
+            target_schema=schema,
+        )
+    else:
+        level_columns = detect_level_columns_or_single(conn, table_in)
+        for n in levels:
+            if not level_columns[n].group_by and len(level_columns) > 1:
+                msg = f"no reliable group-by column detected for level {n}"
+                raise ValueError(msg)
+        code_columns = [
+            level_columns[n].group_by[0] if level_columns[n].group_by else None
+            for n in levels
+        ]
+        finest_group_by = level_columns[finest].group_by
+        if finest_group_by:
+            verify_functional_cluster(conn, table_in, code_columns[-1], finest_group_by)
+        dissolve_stage.main(conn, table_in, dissolved, group_by=finest_group_by)
 
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_02_parts" AS
@@ -77,6 +101,11 @@ def main(
         SELECT fid, ST_Boundary(geom) AS boundary FROM "{dissolved}"
     """)
     conn.execute(f"""--sql
+        CREATE OR REPLACE TABLE "{name}_02_boundary_parts" AS
+        SELECT fid, (dump).geom AS geom, {bbox_columns_sql("(dump).geom")}
+        FROM "{name}_02_boundary", UNNEST(ST_Dump(boundary)) AS d(dump)
+    """)
+    conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_02_touching" AS
         SELECT p.left_fid, p.right_fid
         FROM "{name}_02_pairs" p
@@ -86,16 +115,22 @@ def main(
     """)
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_02_shared" AS
-        WITH raw AS (
+        WITH pieces AS (
             SELECT t.left_fid, t.right_fid,
-                   ST_LineMerge(ST_CollectionExtract(
-                       ST_Intersection(bl.boundary, br.boundary), 2
-                   )) AS geom
+                   ST_CollectionExtract(ST_Intersection(lp.geom, rp.geom), 2) AS geom
             FROM "{name}_02_touching" t
-            JOIN "{name}_02_boundary" bl ON bl.fid = t.left_fid
-            JOIN "{name}_02_boundary" br ON br.fid = t.right_fid
+            JOIN "{name}_02_boundary_parts" lp ON lp.fid = t.left_fid
+            JOIN "{name}_02_boundary_parts" rp ON rp.fid = t.right_fid
+              AND lp.xmin <= rp.xmax AND lp.xmax >= rp.xmin
+              AND lp.ymin <= rp.ymax AND lp.ymax >= rp.ymin
+        ),
+        merged AS (
+            SELECT left_fid, right_fid, ST_LineMerge(ST_Union_Agg(geom)) AS geom
+            FROM pieces
+            WHERE NOT ST_IsEmpty(geom)
+            GROUP BY left_fid, right_fid
         )
-        SELECT left_fid, right_fid, geom FROM raw
+        SELECT left_fid, right_fid, geom FROM merged
         WHERE geom IS NOT NULL AND NOT ST_IsEmpty(geom)
     """)
     conn.execute(f"""--sql
@@ -110,13 +145,12 @@ def main(
     """)
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_02_exterior_raw" AS
-        SELECT d.fid,
+        SELECT bp.fid,
                ST_LineMerge(ST_Difference(
-                   b.boundary, COALESCE(s.geom, {_EMPTY_LINES})
+                   bp.geom, COALESCE(s.geom, {_EMPTY_LINES})
                )) AS geom
-        FROM "{dissolved}" d
-        JOIN "{name}_02_boundary" b ON b.fid = d.fid
-        LEFT JOIN "{name}_02_shared_by_fid" s ON s.fid = d.fid
+        FROM "{name}_02_boundary_parts" bp
+        LEFT JOIN "{name}_02_shared_by_fid" s ON s.fid = bp.fid
     """)
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_02_shared_atomic" AS
@@ -153,6 +187,7 @@ def main(
         "parts",
         "pairs",
         "boundary",
+        "boundary_parts",
         "touching",
         "shared",
         "shared_by_fid",

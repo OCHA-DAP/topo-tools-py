@@ -17,11 +17,9 @@ from topo_tools.core.io import (
 from topo_tools.core.package_lines import _01_inputs as inputs
 from topo_tools.core.package_lines import _02_boundaries as boundaries_stage
 from topo_tools.core.package_lines import _03_outputs as outputs
+from topo_tools.core.schema_map._level_columns import detect_level_columns_or_single
 from topo_tools.core.schema_map._levels import detect_levels
-from topo_tools.core.schema_map._target_schema import (
-    DEFAULT_TARGET_SCHEMA_PATH,
-    load_target_schema,
-)
+from topo_tools.core.schema_map._target_schema import resolve_explicit_target_schema
 
 logger = getLogger(__name__)
 
@@ -37,7 +35,8 @@ _STEP_TABLES = {
 def package_lines(  # noqa: PLR0913
     input_path: str | Path,
     output_path: str | Path | None = None,
-    target_schema_path: str | Path | None = None,
+    name_field: str | None = None,
+    code_field: str | None = None,
     *,
     depth_column: str = "adm_lvl",
     threads: int | None = None,
@@ -46,7 +45,10 @@ def package_lines(  # noqa: PLR0913
     debug: bool = False,
     step: str | None = None,
 ) -> None:
-    """Deduplicated shared+exterior boundary lines, classified by admin level."""
+    """Deduplicated shared+exterior boundary lines, classified by admin level.
+
+    With no name_field/code_field, levels are auto-detected.
+    """
     if step is not None and step not in _STEP_ORDER:
         msg = f"step must be one of {_STEP_ORDER}, got {step!r}"
         raise ValueError(msg)
@@ -58,11 +60,7 @@ def package_lines(  # noqa: PLR0913
         else default_output_path(input_path, "_lines")
     )
     check_overwrite(output_path, overwrite=overwrite)
-    target_schema_path = (
-        Path(target_schema_path)
-        if target_schema_path is not None
-        else DEFAULT_TARGET_SCHEMA_PATH
-    )
+    schema = resolve_explicit_target_schema(name_field, code_field)
 
     name = input_basename(input_path).replace(".", "_") + "_package_lines"
 
@@ -81,8 +79,10 @@ def package_lines(  # noqa: PLR0913
             if s == "inputs":
                 inputs.main(conn, name, input_path)
             elif s == "boundaries":
-                schema = load_target_schema(target_schema_path)
-                levels = detect_levels(conn, f"{name}_01", schema)
+                if schema is not None:
+                    levels = detect_levels(conn, f"{name}_01", schema)
+                else:
+                    levels = sorted(detect_level_columns_or_single(conn, f"{name}_01"))
                 boundaries_stage.main(conn, name, levels, schema, depth_column)
             elif s == "outputs":
                 outputs.main(conn, name, output_path, debug=debug)

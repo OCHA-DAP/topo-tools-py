@@ -7,11 +7,15 @@ own value at (or nearest below) that depth (e.g. a row whose real depth is
 admin1 gets `adm2_code`/`adm2_name`/`adm3_code`/`adm3_name` filled in from
 that same admin1 unit, while a row whose real depth is admin2 with a
 genuinely NULL `adm2_name` keeps that NULL at `adm3_name` too, rather than
-reaching further up to admin1's name). It reuses `schema-map`'s
-`TargetSchema` mechanism (`docs/explanation/schema_map.md`) to discover the
-hierarchy generically, from any dataset's own naming convention, never a
-hardcoded P-code-shaped assumption; `name_field` and `code_field` are
-matched independently, so they need not share a literal prefix.
+reaching further up to admin1's name). Given an explicit `name_field`/
+`code_field` pair, it reuses `schema-map`'s `TargetSchema` mechanism
+(`docs/explanation/schema_map.md`) to discover the hierarchy from that
+naming convention, matching `name_field` and `code_field` independently so
+they need not share a literal prefix. Omitting both instead triggers full
+structural auto-detection (`core.schema_map`'s cardinality/containment
+matcher, `docs/explanation/schema_map.md`), grouping columns into families
+by each level's own shared naming anchor rather than a caller-supplied
+template.
 
 ## Why this exists
 
@@ -44,52 +48,57 @@ freshly-filled one (see `docs/adr/0075`).
 
 `schema-fill` is meant to run against an already-clipped, already-stitched
 layer (`edge-match`'s or `edge-mosaic`'s output), not a raw pre-clip
-source: the target schema is already settled by that point (every parent's
-own attribute columns are present on every child row after clip), so
-`schema-fill`'s level detection has real code/name columns to key off of.
-Running it earlier, against raw per-level source files before they've been
-matched into a single coherent hierarchy, has nothing to detect a level
-from yet.
+source: every parent's own attribute columns are already present on every
+child row after clip by that point, so `schema-fill`'s level detection
+(explicit or structural) has real code/name columns to key off of. Running
+it earlier, against raw per-level source files before they've been matched
+into a single coherent hierarchy, has nothing to detect a level from yet.
 
 ## Pipeline
 
 1. **`_01_inputs`**: reads and reprojects to EPSG:4326 via the shared
-   `core.io.read_and_reproject()` helper (`{name}_01`), then immediately
-   calls `detect_levels()` to raise early if any level 1..N is missing its
-   own code column.
+   `core.io.read_and_reproject()` helper (`{name}_01`), then either calls
+   `detect_levels()` (an explicit schema) or `detect_level_columns()`/
+   `detect_level_codes()` (structural auto-detection) to raise early if any
+   level is missing its own code column.
 2. **`_02_fill`** (`core/schema_fill/_02_fill.py`): builds the `depth_column`
    CASE expression (`_depth_column_sql()`) keyed off the *original*,
    pre-fill code columns inside a `WITH "depth" AS (...)` CTE, then groups
-   every level column by shared suffix (`column_families()`,
-   `core/schema_map/_levels.py`), run once against `code_field`'s own
-   prefix and once against `name_field`'s own prefix (skipping the second
-   pass when they're the same prefix). For each family, a level `L`'s
-   column stays untouched (`CASE WHEN "{depth_column}" >= L THEN own_col
-   ELSE (fallback) END`) whenever `L` is at or before a row's own real
-   depth; past that, it takes `fallback`: the family's own deepest column at
-   or below the row's real depth (`CASE WHEN "{depth_column}" >= lvl THEN
-   col ... END`, tested descending), whatever that column's raw value is,
-   NULL included, never searching further up the family's own chain. A
-   single-level family is left as pure passthrough (`{name}_02`). The
+   every level column into families. Given an explicit schema, families
+   come from `column_families()` (`core/schema_map/_levels.py`), run once
+   against `code_field`'s own prefix and once against `name_field`'s own
+   prefix (skipping the second pass when they're the same prefix); the
    prefix scan picks up every same-prefix suffix it finds, not just
-   `code_field`/`name_field` themselves: fieldmaps' `adm{n}_id`,
+   `code_field`/`name_field` themselves, so fieldmaps' `adm{n}_id`,
    `adm{n}_src`, `adm{n}_name`, `adm{n}_name1`, `adm{n}_name2` (one
    alt-language name column per language) land in five independent
-   families and all get filled, with no extra configuration.
+   families and all get filled, with no extra configuration. Auto-detecting
+   instead, families come from `group_families_by_level()`
+   (`core/schema_map/_level_columns.py`), which groups each level's own
+   structurally-detected identity columns by their shared naming anchor
+   (digit or word, prefix or suffix position). For each family, a level
+   `L`'s column stays untouched (`CASE WHEN "{depth_column}" >= L THEN
+   own_col ELSE (fallback) END`) whenever `L` is at or before a row's own
+   real depth; past that, it takes `fallback`: the family's own deepest
+   column at or below the row's real depth (`CASE WHEN "{depth_column}" >=
+   lvl THEN col ... END`, tested descending), whatever that column's raw
+   value is, NULL included, never searching further up the family's own
+   chain. A single-level family is left as pure passthrough (`{name}_02`).
 3. **`_03_outputs`**: exports `{name}_02` directly. No hard gate: like
    `schema-map`, this tool only touches attribute columns, never geometry.
 
 ## Level detection
 
-`detect_levels()` (`core/schema_map/_levels.py`, shared with
-`package-polygons`, see `docs/explanation/package_polygons.md`) reuses the schema's own
-`code_field` prefix (the literal text before its `{n}` placeholder, e.g.
-`"adm"`) to find every present level via a regex match against the
-table's columns, then requires every level in `1..max_level` to have its
-own code column, raising `ValueError` naming exactly which level(s) are
-missing otherwise. This is what lets the pattern auto-extend to a single
-detected level (e.g. an admin1-only input) with no special-casing: `levels`
-is simply `[1]`, and the fill/depth-stamp logic runs unchanged.
+Given an explicit schema, `detect_levels()` (`core/schema_map/_levels.py`,
+shared with `package-polygons`, see `docs/explanation/package_polygons.md`)
+reuses `code_field`'s prefix (the literal text before its `{n}`
+placeholder, e.g. `"adm"`) to find every present level via a regex match
+against the table's columns, then requires every level in `1..max_level`
+to have its own code column, raising `ValueError` naming exactly which
+level(s) are missing otherwise. This is what lets the pattern auto-extend
+to a single detected level (e.g. an admin1-only input) with no
+special-casing: `levels` is simply `[1]`, and the fill/depth-stamp logic
+runs unchanged.
 
 Level 0 is opportunistic rather than required: `detect_levels()` prepends
 it to the returned range whenever the table already has its own level-0
@@ -99,6 +108,11 @@ gap for datasets like `fieldmaps/admin-boundaries`, where a territory has
 ADM0 geometry but zero sub-national source rows: `adm1_id`..`adm4_id` fall
 back to `adm0_id` and `adm_lvl` reads `0`, through the same per-family
 fill machinery used for every other level (see `docs/adr/0091`).
+
+Auto-detecting instead, `detect_level_columns()` finds every level
+structurally (cardinality/containment, no naming convention assumed), and
+`levels` is simply every key of its result, level 0 included whenever a
+structurally-detected level-0 code column exists.
 
 ## Why the fill pins to each row's own real depth, not a COALESCE search
 
