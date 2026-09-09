@@ -2,7 +2,10 @@
 
 ## Status
 
-Accepted
+Superseded by `docs/adr/0099` (target-schema YAML is no longer required;
+structural auto-detection is the default, the YAML/`--name-field`/
+`--code-field` pair is now an opt-in override). The `dissolve`-removal/
+`package-polygons`-replacement decision itself is unaffected.
 
 ## Context
 
