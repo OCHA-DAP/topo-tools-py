@@ -132,9 +132,11 @@ def _containment_holds(
         WHERE {quote_identifier(finer)} IS NOT NULL
         GROUP BY {quote_identifier(finer)}
     """).fetchall()
-    if any(null_coarser > 0 for _, null_coarser in groups):
-        return False
-    violators = sum(1 for coarser_count, _ in groups if coarser_count > 1)
+    violators = sum(
+        1
+        for coarser_count, null_coarser in groups
+        if coarser_count > 1 or null_coarser > 0
+    )
     tolerance = 1 if len(groups) > _MIN_GROUPS_FOR_TOLERANCE else 0
     return violators <= tolerance
 
