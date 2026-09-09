@@ -141,15 +141,52 @@ def _containment_holds(
     return violators <= tolerance
 
 
+_MIN_GROUPS_FOR_STRICT_CONTAINMENT = 10
+_MIN_FINEST_UNIQUENESS_RATIO = 0.9
+
+
+def _containment_perfect(
+    conn: DuckDBPyConnection, table: str, coarser: str, finer: str
+) -> bool:
+    """Check every non-null `finer` maps to exactly one non-null `coarser`."""
+    coarser_id = quote_identifier(coarser)
+    groups = conn.execute(f"""--sql
+        SELECT COUNT(DISTINCT {coarser_id}) AS coarser_count,
+               COUNT(*) FILTER (WHERE {coarser_id} IS NULL) AS null_coarser
+        FROM {quote_identifier(table)}
+        WHERE {quote_identifier(finer)} IS NOT NULL
+        GROUP BY {quote_identifier(finer)}
+    """).fetchall()
+    if len(groups) < _MIN_GROUPS_FOR_STRICT_CONTAINMENT:
+        return False
+    return all(
+        coarser_count == 1 and null_coarser == 0
+        for coarser_count, null_coarser in groups
+    )
+
+
+def _is_near_row_unique(conn: DuckDBPyConnection, table: str, column: str) -> bool:
+    """Check column's own distinct count nearly matches the table's row count."""
+    total, distinct = conn.execute(f"""--sql
+        SELECT COUNT(*), COUNT(DISTINCT {quote_identifier(column)})
+        FROM {quote_identifier(table)}
+    """).fetchone()
+    return total > 0 and distinct / total >= _MIN_FINEST_UNIQUENESS_RATIO
+
+
 _MIN_JOINT_EVIDENCE_FOR_BIJECTION = 2
 _MIN_ROOT_EVIDENCE_COLUMNS = 2
 _LEVEL_DIGIT_RE = re.compile(r"\d+")
 
 
 def _same_naming_digit(a: str, b: str) -> bool:
-    """Check a and b's own digits agree, or neither has one (nothing to compare)."""
+    """Check a and b share an actual naming digit; neither having one doesn't count."""
     match_a, match_b = _LEVEL_DIGIT_RE.search(a), _LEVEL_DIGIT_RE.search(b)
-    return match_a is None or match_b is None or match_a.group() == match_b.group()
+    return (
+        match_a is not None
+        and match_b is not None
+        and match_a.group() == match_b.group()
+    )
 
 
 def _companion_holds(conn: DuckDBPyConnection, table: str, x: str, y: str) -> bool:
@@ -262,26 +299,38 @@ def _order_groups_by_containment(
     return [groups[i] for i in order]
 
 
+def _non_floating(
+    conn: DuckDBPyConnection, table: str, columns: list[str]
+) -> list[str]:
+    """Non-floating members of columns; an all-floating group has none, no fallback."""
+    rows = conn.execute(f"DESCRIBE {quote_identifier(table)}").fetchall()
+    types = {r[0]: r[1] for r in rows}
+    return [c for c in columns if not is_floating_duckdb_type(types[c])]
+
+
 def _embed_witnesses(
     conn: DuckDBPyConnection, table: str, columns: list[str]
 ) -> list[str]:
     """Non-floating members only: a fraction's digits satisfy `_embeds()` by chance."""
-    rows = conn.execute(f"DESCRIBE {quote_identifier(table)}").fetchall()
-    types = {r[0]: r[1] for r in rows}
-    witnesses = [c for c in columns if not is_floating_duckdb_type(types[c])]
+    witnesses = _non_floating(conn, table, columns)
     return witnesses or columns
 
 
 def _build_edges(
     conn: DuckDBPyConnection, table: str, groups: list[tuple[int, list[str]]]
-) -> dict[tuple[int, int], tuple[bool, bool]]:
-    """Every coarser/finer pair's (containment holds, containment embeds)."""
-    edges: dict[tuple[int, int], tuple[bool, bool]] = {}
+) -> dict[tuple[int, int], tuple[bool, bool, bool]]:
+    """Every coarser/finer pair's (containment holds, embeds, perfect+row-unique)."""
+    edges: dict[tuple[int, int], tuple[bool, bool, bool]] = {}
     for finer_idx, (_finer_count, finer_cols) in enumerate(groups):
         finer_witnesses = _embed_witnesses(conn, table, finer_cols)
+        finer_strict = _non_floating(conn, table, finer_cols)
+        finer_near_unique = any(
+            _is_near_row_unique(conn, table, c) for c in finer_strict
+        )
         for coarser_idx in range(finer_idx):
             _coarser_count, coarser_cols = groups[coarser_idx]
             coarser_witnesses = _embed_witnesses(conn, table, coarser_cols)
+            coarser_strict = _non_floating(conn, table, coarser_cols)
             joins = all(
                 _containment_holds(conn, table, coarser=a, finer=b)
                 for a in coarser_cols
@@ -292,7 +341,17 @@ def _build_edges(
                 for a in coarser_witnesses
                 for b in finer_witnesses
             )
-            edges[coarser_idx, finer_idx] = (joins, embeds)
+            strong = (
+                joins
+                and not embeds
+                and finer_near_unique
+                and any(
+                    _containment_perfect(conn, table, coarser=a, finer=b)
+                    for a in coarser_strict
+                    for b in finer_strict
+                )
+            )
+            edges[coarser_idx, finer_idx] = (joins, embeds, strong)
     return edges
 
 
@@ -305,7 +364,8 @@ def _group_digit(cols: list[str]) -> int | None:
 
 
 def _bridged_edges(
-    groups: list[tuple[int, list[str]]], edges: dict[tuple[int, int], tuple[bool, bool]]
+    groups: list[tuple[int, list[str]]],
+    edges: dict[tuple[int, int], tuple[bool, bool, bool]],
 ) -> set[tuple[int, int]]:
     """Edges bracketing a level whose digit sits exactly between its neighbors'.
 
@@ -340,26 +400,31 @@ def _build_chain(
     """
     n = len(groups)
     edges = _build_edges(conn, table, groups)
-    no_embedding_anywhere = not any(embeds for _joins, embeds in edges.values())
+    no_embedding_anywhere = not any(
+        embeds for _joins, embeds, _strong in edges.values()
+    )
     bridged_edges = _bridged_edges(groups, edges)
 
     best_len = [1] * n
     best_prev: list[int | None] = [None] * n
+    chain_has_embed = [False] * n
     for finer_idx in range(n):
         for coarser_idx in range(finer_idx):
             coarser_count, _coarser_cols = groups[coarser_idx]
-            joins, embeds = edges[coarser_idx, finer_idx]
+            joins, embeds, strong = edges[coarser_idx, finer_idx]
             if not joins:
                 continue
             justified = (
                 coarser_count == 1
                 or embeds
+                or (strong and chain_has_embed[coarser_idx])
                 or no_embedding_anywhere
                 or (coarser_idx, finer_idx) in bridged_edges
             )
             if justified and best_len[coarser_idx] + 1 > best_len[finer_idx]:
                 best_len[finer_idx] = best_len[coarser_idx] + 1
                 best_prev[finer_idx] = coarser_idx
+                chain_has_embed[finer_idx] = embeds or chain_has_embed[coarser_idx]
     if n == 0:
         return []
     end = max(range(n), key=lambda i: (best_len[i], len(groups[i][1]), groups[i][0]))
