@@ -96,6 +96,35 @@ def test_detect_level_columns_ignores_floating_point_embed_coincidence(conn):
     assert set(result[level].group_by) == {"adm1_pcode", "adm1_name", "area_sqkm"}
 
 
+def test_detect_level_columns_finds_flat_non_embedding_finest_level(conn):
+    """A flat, non-compound finest-level code is still detected, via containment."""
+    adm2_children = {
+        "C0A1": ["5001", "5002", "5003"],
+        "C0A2": ["5004", "5005", "5006"],
+        "C0B1": ["5007", "5008", "5009"],
+        "C0B2": ["5010", "5011", "5012"],
+    }
+    adm1_of = {"C0A1": "C0A", "C0A2": "C0A", "C0B1": "C0B", "C0B2": "C0B"}
+    rows = []
+    i = 0
+    for adm2, children in adm2_children.items():
+        for adm3 in children:
+            square = f"POLYGON(({i} 0,{i + 1} 0,{i + 1} 1,{i} 1,{i} 0))"
+            rows.append((adm1_of[adm2], adm2, adm3, square))
+            i += 1
+    values = ", ".join(
+        f"('{a1}', '{a2}', '{a3}', ST_GeomFromText('{g}'))" for a1, a2, a3, g in rows
+    )
+    conn.execute(f"""--sql
+        CREATE TABLE t_01 AS
+        SELECT row_number() OVER () AS fid, 'C0' AS adm0_pcode, *
+        FROM (VALUES {values}) AS v(adm1_pcode, adm2_pcode, adm3_pcode, geom)
+    """)
+    result = detect_level_columns(conn, "t_01")
+    finest_level = max(result)
+    assert result[finest_level].group_by == ["adm3_pcode"]
+
+
 def test_detect_level_columns_word_based_anchor_both_positions(conn):
     conn.execute("""--sql
         CREATE TABLE t_01 AS
