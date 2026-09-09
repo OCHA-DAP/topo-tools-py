@@ -63,6 +63,15 @@ def _distinct_counts(
     return dict(zip(columns, result, strict=True))
 
 
+def _temporal_columns(
+    conn: DuckDBPyConnection, table: str, columns: list[str]
+) -> set[str]:
+    """Every `columns` member whose DuckDB type is a date/time one."""
+    rows = conn.execute(f"DESCRIBE {quote_identifier(table)}").fetchall()
+    types = {c: t for c, t, *_ in rows}
+    return {c for c in columns if is_temporal_duckdb_type(types[c])}
+
+
 def _embeds(conn: DuckDBPyConnection, table: str, child: str, parent: str) -> bool:
     """Check every non-null row has `child` contain `parent`, tolerating one sentinel.
 
@@ -413,11 +422,16 @@ def _build_chain(
     )
     bridged_edges = _bridged_edges(groups, edges)
 
-    # Only an unbroken constant prefix from index 0 is the genuine root.
+    # Only an unbroken, fully-populated constant prefix from index 0 is the
+    # genuine root; a sparse column can coincidentally have one distinct value.
     in_root_prefix = [False] * n
     still_root = True
     for idx in range(n):
-        in_root_prefix[idx] = still_root and groups[idx][0] == 1
+        in_root_prefix[idx] = (
+            still_root
+            and groups[idx][0] == 1
+            and all(_fully_populated(conn, table, c) for c in groups[idx][1])
+        )
         still_root = in_root_prefix[idx]
 
     group_code_shaped = [
@@ -666,8 +680,12 @@ def resolve_columns(
     columns = _candidate_columns(conn, table)
     counts = _distinct_counts(conn, table, columns)
 
-    # An all-null column has no evidence either way, same principle as _embeds().
-    chainable_columns = [c for c in columns if counts[c] > 0]
+    # An all-null column has no evidence either way, same principle as _embeds();
+    # a date/time column is categorically never an admin identity column.
+    temporal_columns = _temporal_columns(conn, table, columns)
+    chainable_columns = [
+        c for c in columns if counts[c] > 0 and c not in temporal_columns
+    ]
     level_groups = _build_level_groups(conn, table, chainable_columns, counts)
     level_groups = _order_groups_by_containment(conn, table, level_groups)
     chain = _build_chain(conn, table, level_groups)

@@ -164,6 +164,42 @@ def test_detect_level_columns_ignores_coincidentally_embedding_sparse_columns(co
     assert result[finest_level].group_by == ["adm3_pcode"]
 
 
+_LAST_ROW = 11
+
+
+def test_detect_level_columns_ignores_low_cardinality_date_chains(conn):
+    """A fully-populated pair of date audit columns must not out-chain a real level."""
+    adm1_children = {
+        "C0A": ["5001", "5002", "5003", "5004", "5005", "5006"],
+        "C0B": ["5007", "5008", "5009", "5010", "5011", "5012"],
+    }
+    rows = []
+    i = 0
+    for adm1, children in adm1_children.items():
+        for finest in children:
+            square = f"POLYGON(({i} 0,{i + 1} 0,{i + 1} 1,{i} 1,{i} 0))"
+            created = "2023-04-15" if i % 2 == 0 else "2023-06-01"
+            # The last row was later re-edited, breaking the otherwise-clean
+            # created_date/update_date bijection into a genuine embeds edge.
+            updated = "2023-07-01" if i == _LAST_ROW else created
+            rows.append((adm1, f"{adm1}{finest}", created, updated, square))
+            i += 1
+    values = ", ".join(
+        f"('{a1}', '{f}', DATE '{c}', DATE '{d}', ST_GeomFromText('{g}'))"
+        for a1, f, c, d, g in rows
+    )
+    conn.execute(f"""--sql
+        CREATE TABLE t_01 AS
+        SELECT row_number() OVER () AS fid, 'C0' AS adm0_pcode, *
+        FROM (VALUES {values})
+            AS v(adm1_pcode, finest_pcode, created_date, update_date, geom)
+    """)
+    result = detect_level_columns(conn, "t_01")
+    assert any(lc.group_by == ["adm1_pcode"] for lc in result.values())
+    finest_level = max(result)
+    assert "finest_pcode" in result[finest_level].group_by
+
+
 def test_detect_level_columns_word_based_anchor_both_positions(conn):
     conn.execute("""--sql
         CREATE TABLE t_01 AS
