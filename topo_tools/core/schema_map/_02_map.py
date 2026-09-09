@@ -9,7 +9,11 @@ from dataclasses import dataclass
 
 from duckdb import DuckDBPyConnection
 
-from topo_tools.core.constants import is_floating_duckdb_type, is_noise_column
+from topo_tools.core.constants import (
+    is_floating_duckdb_type,
+    is_noise_column,
+    is_temporal_duckdb_type,
+)
 from topo_tools.core.duckdb_utils import quote_identifier
 from topo_tools.core.schema_map._constants import (
     CONFIDENCE_AMBIGUOUS,
@@ -102,8 +106,12 @@ def _embeds(conn: DuckDBPyConnection, table: str, child: str, parent: str) -> bo
 def _looks_code_shaped(conn: DuckDBPyConnection, table: str, column: str) -> bool:
     """Check whether most non-null values contain a digit.
 
-    Only consulted when no embedding evidence exists to pick code vs name.
+    Never true for a date/time column; only consulted absent embedding evidence.
     """
+    rows = conn.execute(f"DESCRIBE {quote_identifier(table)}").fetchall()
+    column_type = next(t for c, t, *_ in rows if c == column)
+    if is_temporal_duckdb_type(column_type):
+        return False
     digits, total = conn.execute(f"""--sql
         SELECT
             COUNT(*) FILTER (
@@ -405,24 +413,48 @@ def _build_chain(
     )
     bridged_edges = _bridged_edges(groups, edges)
 
+    # Only an unbroken constant prefix from index 0 is the genuine root.
+    in_root_prefix = [False] * n
+    still_root = True
+    for idx in range(n):
+        in_root_prefix[idx] = still_root and groups[idx][0] == 1
+        still_root = in_root_prefix[idx]
+
+    group_code_shaped = [
+        any(_looks_code_shaped(conn, table, c) for c in cols) for _count, cols in groups
+    ]
+
     best_len = [1] * n
     best_prev: list[int | None] = [None] * n
     chain_has_embed = [False] * n
     for finer_idx in range(n):
         for coarser_idx in range(finer_idx):
-            coarser_count, _coarser_cols = groups[coarser_idx]
             joins, embeds, strong = edges[coarser_idx, finer_idx]
             if not joins:
                 continue
+            # A coincidentally-constant, non-root column can't extend a chain.
+            if groups[coarser_idx][0] == 1 and not in_root_prefix[coarser_idx]:
+                continue
             justified = (
-                coarser_count == 1
+                in_root_prefix[coarser_idx]
                 or embeds
                 or (strong and chain_has_embed[coarser_idx])
                 or no_embedding_anywhere
                 or (coarser_idx, finer_idx) in bridged_edges
             )
-            if justified and best_len[coarser_idx] + 1 > best_len[finer_idx]:
-                best_len[finer_idx] = best_len[coarser_idx] + 1
+            if not justified:
+                continue
+            candidate_len = best_len[coarser_idx] + 1
+            prev = best_prev[finer_idx]
+            # On a tie, a code-shaped sibling outranks a name-shaped one.
+            better = candidate_len > best_len[finer_idx] or (
+                candidate_len == best_len[finer_idx]
+                and prev is not None
+                and group_code_shaped[coarser_idx]
+                and not group_code_shaped[prev]
+            )
+            if better:
+                best_len[finer_idx] = candidate_len
                 best_prev[finer_idx] = coarser_idx
                 chain_has_embed[finer_idx] = embeds or chain_has_embed[coarser_idx]
     if n == 0:

@@ -125,6 +125,45 @@ def test_detect_level_columns_finds_flat_non_embedding_finest_level(conn):
     assert result[finest_level].group_by == ["adm3_pcode"]
 
 
+def test_detect_level_columns_ignores_coincidentally_embedding_sparse_columns(conn):
+    """Sparse, single-row audit columns must not out-chain the real hierarchy."""
+    adm2_children = {
+        "C0A1": ["5001", "5002", "5003"],
+        "C0A2": ["5004", "5005", "5006"],
+        "C0B1": ["5007", "5008", "5009"],
+        "C0B2": ["5010", "5011", "5012"],
+    }
+    adm1_of = {"C0A1": "C0A", "C0A2": "C0A", "C0B1": "C0B", "C0B2": "C0B"}
+    rows = []
+    i = 0
+    for adm2, children in adm2_children.items():
+        for adm3 in children:
+            square = f"POLYGON(({i} 0,{i + 1} 0,{i + 1} 1,{i} 1,{i} 0))"
+            audit = "' '" if i == 0 else "NULL"
+            rows.append((adm1_of[adm2], adm2, adm3, audit, square))
+            i += 1
+    values = ", ".join(
+        f"('{a1}', '{a2}', '{a3}', {audit}, ST_GeomFromText('{g}'))"
+        for a1, a2, a3, audit, g in rows
+    )
+    conn.execute(f"""--sql
+        CREATE TABLE t_01 AS
+        SELECT row_number() OVER () AS fid, 'C0' AS adm0_pcode, *
+        FROM (VALUES {values})
+            AS v(adm1_pcode, adm2_pcode, adm3_pcode, comments, geom)
+    """)
+    conn.execute("""--sql
+        ALTER TABLE t_01 ADD COLUMN focus_id VARCHAR;
+        ALTER TABLE t_01 ADD COLUMN mod_by VARCHAR;
+        ALTER TABLE t_01 ADD COLUMN progres_id VARCHAR;
+        UPDATE t_01 SET focus_id = comments, mod_by = comments, progres_id = comments;
+    """)
+    result = detect_level_columns(conn, "t_01")
+    assert any("adm1_pcode" in lc.group_by for lc in result.values())
+    finest_level = max(result)
+    assert result[finest_level].group_by == ["adm3_pcode"]
+
+
 def test_detect_level_columns_word_based_anchor_both_positions(conn):
     conn.execute("""--sql
         CREATE TABLE t_01 AS

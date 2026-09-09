@@ -67,6 +67,14 @@ def is_floating_duckdb_type(duckdb_type: str) -> bool:
     return duckdb_type.upper().startswith(FLOATING_DUCKDB_TYPE_PREFIXES)
 
 
+TEMPORAL_DUCKDB_TYPE_PREFIXES = ("DATE", "TIME", "TIMESTAMP", "INTERVAL")
+
+
+def is_temporal_duckdb_type(duckdb_type: str) -> bool:
+    """Check a `DESCRIBE`-reported DuckDB column type is a date/time one."""
+    return duckdb_type.upper().startswith(TEMPORAL_DUCKDB_TYPE_PREFIXES)
+
+
 _NOISE_SUFFIX_RE = re.compile(r"_(\d+)$")
 # ESRI Shapefile's DBF driver caps field names at this many characters total,
 # truncating the base name to make room for a disambiguating "_N" suffix.
