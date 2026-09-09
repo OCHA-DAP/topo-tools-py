@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 from duckdb import DuckDBPyConnection
 
-from topo_tools.core.constants import is_noise_column
+from topo_tools.core.constants import is_floating_duckdb_type, is_noise_column
 from topo_tools.core.duckdb_utils import quote_identifier
 from topo_tools.core.schema_map._constants import (
     CONFIDENCE_AMBIGUOUS,
@@ -262,21 +262,35 @@ def _order_groups_by_containment(
     return [groups[i] for i in order]
 
 
+def _embed_witnesses(
+    conn: DuckDBPyConnection, table: str, columns: list[str]
+) -> list[str]:
+    """Non-floating members only: a fraction's digits satisfy `_embeds()` by chance."""
+    rows = conn.execute(f"DESCRIBE {quote_identifier(table)}").fetchall()
+    types = {r[0]: r[1] for r in rows}
+    witnesses = [c for c in columns if not is_floating_duckdb_type(types[c])]
+    return witnesses or columns
+
+
 def _build_edges(
     conn: DuckDBPyConnection, table: str, groups: list[tuple[int, list[str]]]
 ) -> dict[tuple[int, int], tuple[bool, bool]]:
     """Every coarser/finer pair's (containment holds, containment embeds)."""
     edges: dict[tuple[int, int], tuple[bool, bool]] = {}
     for finer_idx, (_finer_count, finer_cols) in enumerate(groups):
+        finer_witnesses = _embed_witnesses(conn, table, finer_cols)
         for coarser_idx in range(finer_idx):
             _coarser_count, coarser_cols = groups[coarser_idx]
+            coarser_witnesses = _embed_witnesses(conn, table, coarser_cols)
             joins = all(
                 _containment_holds(conn, table, coarser=a, finer=b)
                 for a in coarser_cols
                 for b in finer_cols
             )
             embeds = joins and any(
-                _embeds(conn, table, b, a) for a in coarser_cols for b in finer_cols
+                _embeds(conn, table, b, a)
+                for a in coarser_witnesses
+                for b in finer_witnesses
             )
             edges[coarser_idx, finer_idx] = (joins, embeds)
     return edges

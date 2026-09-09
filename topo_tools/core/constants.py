@@ -59,6 +59,14 @@ def is_numeric_duckdb_type(duckdb_type: str) -> bool:
     return duckdb_type.upper().startswith(NUMERIC_DUCKDB_TYPE_PREFIXES)
 
 
+FLOATING_DUCKDB_TYPE_PREFIXES = ("FLOAT", "DOUBLE", "DECIMAL", "REAL")
+
+
+def is_floating_duckdb_type(duckdb_type: str) -> bool:
+    """Check a `DESCRIBE`-reported DuckDB column type is a continuous/fractional one."""
+    return duckdb_type.upper().startswith(FLOATING_DUCKDB_TYPE_PREFIXES)
+
+
 _NOISE_SUFFIX_RE = re.compile(r"_(\d+)$")
 # ESRI Shapefile's DBF driver caps field names at this many characters total,
 # truncating the base name to make room for a disambiguating "_N" suffix.

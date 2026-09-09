@@ -74,6 +74,28 @@ def test_detect_level_columns_excludes_bijective_lookalike_from_identity(conn):
     assert "area_sqkm" not in result[finer_level].identity_columns
 
 
+def test_detect_level_columns_ignores_floating_point_embed_coincidence(conn):
+    """A low-cardinality flag must not masquerade as a level via a float's digits."""
+    conn.execute("""--sql
+        CREATE TABLE t_01 AS
+        SELECT row_number() OVER () AS fid, *
+        FROM (VALUES
+            ('C0', 'C0A', 'Alpha', 1, 100.0,
+             ST_GeomFromText('POLYGON((0 0,1 0,1 1,0 1,0 0))')),
+            ('C0', 'C0B', 'Beta', 1, 210.0,
+             ST_GeomFromText('POLYGON((1 0,2 0,2 1,1 1,1 0))')),
+            ('C0', 'C0C', 'Gamma', 1, 310.0,
+             ST_GeomFromText('POLYGON((0 1,1 1,1 2,0 2,0 1))')),
+            ('C0', 'C0D', 'Delta', 2, 420.0,
+             ST_GeomFromText('POLYGON((1 1,2 1,2 2,1 2,1 1))'))
+        ) AS v(adm0_pcode, adm1_pcode, adm1_name, multipart, area_sqkm, geom)
+    """)
+    result = detect_level_columns(conn, "t_01")
+    assert len(result) == 1
+    (level,) = result
+    assert set(result[level].group_by) == {"adm1_pcode", "adm1_name", "area_sqkm"}
+
+
 def test_detect_level_columns_word_based_anchor_both_positions(conn):
     conn.execute("""--sql
         CREATE TABLE t_01 AS
