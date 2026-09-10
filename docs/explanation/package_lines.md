@@ -1,11 +1,12 @@
 # Package-Lines Explanation
 
 `package-lines` produces one deduplicated line network of admin
-boundaries (shared between two units, or exterior to all of them), tagged
-by adjacency and the coarsest admin level each segment belongs to. A web
-map can style or filter international vs. sub-national boundaries from
-this one layer, instead of drawing every level's own polygon outline on
-top of each other.
+boundaries, tagged by adjacency and the coarsest admin level each segment
+belongs to. A row is shared between two units when its `b_*` columns are
+populated, and exterior to all of them when they're `NULL`; there is no
+separate `boundary_type` column. A web map can style or filter
+international vs. sub-national boundaries from this one layer, instead of
+drawing every level's own polygon outline on top of each other.
 
 ## Usage
 
@@ -71,19 +72,34 @@ multi-part/archipelago fid, and a corner-only touch).
    fid's shared adjacency can itself be a `MultiLineString`), then classify
    every row: a shared row's depth is the coarsest detected level at which
    its two sides' own code columns first differ; an exterior row's depth
-   is always the coarsest detected level, since the exterior ring is
-   identical regardless of grouping.
+   is one level coarser than the coarsest detected level (`min(levels) -
+   1`, not the coarsest detected level itself, since `levels` can include
+   a genuine level 0 for a multi-country file whose admin0 codes vary, and
+   hardcoding depth `0` for exterior rows would then collide with a real
+   international shared-boundary classification).
 7. Raise `ValueError` if any finest-level fid is absent from every output
    row (as `left_fid` or `right_fid`), catching a fid silently dropped
    somewhere in the pipeline. A fid fully enclosed by neighbors (zero
    exterior boundary) can only ever appear as `right_fid`, since candidate
    pairs are generated with `a.fid < b.fid`; the check accepts either
    column, not `left_fid` alone.
+8. Resolve each side's `fid` to the finest level's own detected identity
+   families (`group_families_by_level()`/`level_family_names()`, the same
+   naming-anchor mechanism `package-points` uses, or an explicit schema's
+   fixed `code`/`name`), one column pair per family under `a_*`/`b_*`
+   (e.g. `a_pcode`/`b_pcode`, `a_name`/`b_name`), then drop
+   `left_fid`/`right_fid` from the final output: `fid` is a fresh
+   `row_number()` per run, not a stable identifier a caller could join
+   back against their own data, while the resolved identity is.
+   Single-letter `a`/`b` prefixes (rather than `left`/`right`) keep every
+   generated field name within a Shapefile DBF field's 10-character limit
+   even for a longer family name like `name1`.
 
 `depth_column`/`--depth-column` is checked up front against the tool's own
-fixed output column names (`left_fid`, `right_fid`, `boundary_type`,
-`geom`), raising `ValueError` on a collision rather than letting
-DuckDB silently rename the duplicate.
+fixed output column names (`left_fid`, `right_fid`, `geom`), raising
+`ValueError` on a collision rather than letting DuckDB silently rename the
+duplicate; the fid check (step 7) runs before `left_fid`/`right_fid` are
+dropped (step 8).
 
 ## Portolan-scale profiling
 

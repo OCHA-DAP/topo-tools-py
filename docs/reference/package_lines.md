@@ -31,17 +31,26 @@ tools.
   into atomic `LineString` rows; a unit with multiple disjoint exterior
   segments MUST produce one row per segment, never a single
   `MultiLineString`.
-- Every output row MUST carry a `boundary_type` of `shared` or `exterior`.
-  `right_fid` MUST be `NULL` on every exterior row.
+- Every output row MUST carry each side's own finest-level identity under
+  single-letter-prefixed generic columns, `a_*` for one side and `b_*` for
+  the other (e.g. `a_pcode`/`b_pcode`, `a_name`/`b_name`), one pair of
+  columns per identity kind the finest level's own naming family
+  detects (`group_families_by_level()`/`level_family_names()`, or an
+  explicit schema's fixed `code`/`name`), never a raw `fid`. Single-letter
+  prefixes keep every generated field name within a Shapefile DBF field's
+  10-character limit. There is no `boundary_type` column: a row is
+  exterior exactly when every `b_*` column is `NULL`, never shared.
 - `package-lines` MUST classify every shared row by the coarsest detected
   level at which its two sides' code columns first differ, and every
-  exterior row by the coarsest detected level, into a depth column
-  (`adm_lvl` by default, overridable via `depth_column`).
+  exterior row one level coarser than the coarsest detected level
+  (`min(levels) - 1`), into a depth column (`adm_lvl` by default,
+  overridable via `depth_column`).
 - `package-lines` MUST raise `ValueError` if any finest-level unit is
-  absent from every output row (as `left_fid` or `right_fid`).
+  absent from every output row (matched internally by `fid`, dropped from
+  the output once the `a_*`/`b_*` columns resolve each side's identity).
 - `package-lines` MUST raise `ValueError` if `depth_column` collides with
   one of its own fixed output column names (`left_fid`, `right_fid`,
-  `boundary_type`, `geom`).
+  `geom`).
 
 ## Outputs
 

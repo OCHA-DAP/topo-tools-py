@@ -37,7 +37,7 @@ def _fetch_lines(path):
     with duckdb.connect() as conn:
         conn.execute("LOAD spatial")
         return conn.execute(f"""
-            SELECT left_fid, right_fid, boundary_type, adm_lvl, ST_AsText(geometry)
+            SELECT a_code, b_code, adm_lvl, ST_AsText(geometry)
             FROM '{path}'
         """).fetchall()
 
@@ -68,9 +68,9 @@ def test_two_adjacent_squares_one_shared_row(tmp_path):
     )
 
     rows = _fetch_lines(output_path)
-    shared = [r for r in rows if r[2] == "shared"]
+    shared = [r for r in rows if r[1] is not None]
     assert len(shared) == 1
-    assert shared[0][0] < shared[0][1]
+    assert {shared[0][0], shared[0][1]} == {"A", "B"}
 
 
 def test_depth_column_collision_with_output_column_raises(
@@ -85,18 +85,18 @@ def test_depth_column_collision_with_output_column_raises(
         ],
     )
     output_path = tmp_path / "lines.parquet"
-    with pytest.raises(ValueError, match="boundary_type"):
+    with pytest.raises(ValueError, match="geom"):
         package_lines(
             input_path,
             output_path,
             name_field="adm{n}_name",
             code_field="adm{n}_pcode",
-            depth_column="boundary_type",
+            depth_column="geom",
             overwrite=True,
         )
 
 
-def test_every_exterior_row_has_null_right_fid(tmp_path):
+def test_every_exterior_row_has_null_right_code(tmp_path):
     input_path = tmp_path / "in.parquet"
     _write_synthetic(
         input_path,
@@ -115,7 +115,7 @@ def test_every_exterior_row_has_null_right_fid(tmp_path):
     )
 
     rows = _fetch_lines(output_path)
-    exterior = [r for r in rows if r[2] == "exterior"]
+    exterior = [r for r in rows if r[1] is None]
     assert exterior
     assert all(r[1] is None for r in exterior)
 
@@ -140,14 +140,14 @@ def test_three_squares_middle_produces_two_exterior_rows(tmp_path):
     )
 
     rows = _fetch_lines(output_path)
-    exterior_by_fid: dict[int, list[str]] = {}
-    for left_fid, _right_fid, boundary_type, _adm_lvl, geom in rows:
-        if boundary_type == "exterior":
-            exterior_by_fid.setdefault(left_fid, []).append(geom)
+    exterior_by_code: dict[str, list[str]] = {}
+    for left_code, right_code, _adm_lvl, geom in rows:
+        if right_code is None:
+            exterior_by_code.setdefault(left_code, []).append(geom)
 
     expected_middle_exterior_count = 2
     middle_geoms = next(
-        g for g in exterior_by_fid.values() if len(g) == expected_middle_exterior_count
+        g for g in exterior_by_code.values() if len(g) == expected_middle_exterior_count
     )
     assert all(g.startswith("LINESTRING") for g in middle_geoms)
 
@@ -171,7 +171,7 @@ def test_corner_touch_produces_zero_shared_rows(tmp_path):
     )
 
     rows = _fetch_lines(output_path)
-    assert not [r for r in rows if r[2] == "shared"]
+    assert not [r for r in rows if r[1] is not None]
 
 
 def test_multi_part_fid_touching_and_remote(tmp_path):
@@ -200,13 +200,13 @@ def test_multi_part_fid_touching_and_remote(tmp_path):
     )
 
     rows = _fetch_lines(output_path)
-    shared = [r for r in rows if r[2] == "shared"]
+    shared = [r for r in rows if r[1] is not None]
     assert len(shared) == 1
-    remote_exterior = [r for r in rows if r[2] == "exterior" and "100 100" in r[4]]
+    remote_exterior = [r for r in rows if r[1] is None and "100 100" in r[3]]
     assert remote_exterior
 
 
-def test_every_input_fid_appears_at_least_once(tmp_path):
+def test_every_input_code_appears_at_least_once(tmp_path):
     input_path = tmp_path / "in.parquet"
     _write_synthetic(
         input_path,
@@ -227,7 +227,7 @@ def test_every_input_fid_appears_at_least_once(tmp_path):
 
     rows = _fetch_lines(output_path)
     present = {r[0] for r in rows} | {r[1] for r in rows if r[1] is not None}
-    assert present == {1, 2, 3}
+    assert present == {"A", "B", "C"}
 
 
 def test_multi_level_classification(tmp_path):
@@ -271,7 +271,7 @@ def test_multi_level_classification(tmp_path):
         conn.execute("LOAD spatial")
         shared = conn.execute(f"""
             SELECT ST_X(ST_PointN(geometry, 1)), ST_X(ST_PointN(geometry, 2)), adm_lvl
-            FROM '{output_path}' WHERE boundary_type = 'shared'
+            FROM '{output_path}' WHERE b_code IS NOT NULL
         """).fetchall()
     by_x = {frozenset((x1, x2)): lvl for x1, x2, lvl in shared}
     finer_level = 2

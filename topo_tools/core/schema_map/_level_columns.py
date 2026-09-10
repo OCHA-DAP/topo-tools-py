@@ -192,11 +192,84 @@ def detect_level_codes(conn: DuckDBPyConnection, table: str) -> dict[int, str]:
     return {display.get(level, level): column for level, column in codes.items()}
 
 
+def _root_anchor(
+    conn: DuckDBPyConnection, table: str, level_columns: dict[int, LevelColumns]
+) -> tuple[str, str, str] | None:
+    """Find an unassigned family's (prefix, anchor, suffix), or None if ambiguous."""
+    anchors = _level_anchors(detect_level_codes(conn, table))
+    if not anchors:
+        return None
+    prefix, _, suffix = next(iter(anchors.values()))
+    used_anchors = {a for _, a, _ in anchors.values()}
+
+    table_columns = [
+        r[0] for r in conn.execute(f"DESCRIBE {quote_identifier(table)}").fetchall()
+    ]
+    assigned = {c for cols in level_columns.values() for c in cols.identity_columns}
+    candidate_anchors = {
+        c[len(prefix) : len(c) - len(suffix)]
+        for c in table_columns
+        if c not in assigned
+        and c.startswith(prefix)
+        and c.endswith(suffix)
+        and len(c) > len(prefix) + len(suffix)
+    } - used_anchors
+    if len(candidate_anchors) != 1:
+        return None
+    return prefix, candidate_anchors.pop(), suffix
+
+
+def detect_root_level(
+    conn: DuckDBPyConnection, table: str, level_columns: dict[int, LevelColumns]
+) -> LevelColumns | None:
+    """Detect a coarser, whole-table-constant level one below the finest one.
+
+    Completes the hierarchy via the naming style already established by
+    the detected levels; `None` if no such family exists or isn't constant.
+    """
+    if not level_columns:
+        return None
+    root = _root_anchor(conn, table, level_columns)
+    if root is None:
+        return None
+    prefix, root_anchor, suffix = root
+
+    table_columns = [
+        r[0] for r in conn.execute(f"DESCRIBE {quote_identifier(table)}").fetchall()
+    ]
+    assigned = {c for cols in level_columns.values() for c in cols.identity_columns}
+    candidates = [
+        c
+        for c in table_columns
+        if c not in assigned
+        and is_level_identity_column(c, prefix, root_anchor, suffix)
+    ]
+    if not candidates:
+        return None
+    counts_sql = ", ".join(
+        f"COUNT(DISTINCT {quote_identifier(c)}) "
+        f"FILTER (WHERE {quote_identifier(c)} IS NOT NULL)"
+        for c in candidates
+    )
+    counts = conn.execute(
+        f"SELECT {counts_sql} FROM {quote_identifier(table)}"
+    ).fetchone()
+    root_columns = [c for c, n in zip(candidates, counts, strict=True) if n <= 1]
+    if not root_columns:
+        return None
+    return LevelColumns(group_by=[], identity_columns=root_columns, has_code=True)
+
+
 def group_families_by_level(
     conn: DuckDBPyConnection, table: str, level_columns: dict[int, LevelColumns]
 ) -> dict[str, dict[int, str]]:
     """Group every level's identity columns by shared naming kind, across levels."""
     anchors = _level_anchors(detect_level_codes(conn, table))
+    if 0 in level_columns and 0 not in anchors:
+        real_levels = {k: v for k, v in level_columns.items() if k != 0}
+        root = _root_anchor(conn, table, real_levels)
+        if root is not None:
+            anchors[0] = root
     families: dict[str, dict[int, str]] = {}
     for level, cols in level_columns.items():
         if level not in anchors:
@@ -206,6 +279,21 @@ def group_families_by_level(
             kind = _strip_anchor(column, prefix, anchor, suffix)
             families.setdefault(kind, {})[level] = column
     return families
+
+
+def level_family_names(
+    families: dict[str, dict[int, str]], level: int, code_column: str | None
+) -> dict[str, str]:
+    """Map this level's own identity columns to a name shared across levels."""
+    names = {}
+    for kind, per_level in families.items():
+        if level not in per_level:
+            continue
+        generic = kind.strip("_") or (
+            "code" if per_level[level] == code_column else "name"
+        )
+        names[per_level[level]] = generic
+    return names
 
 
 def verify_functional_cluster(

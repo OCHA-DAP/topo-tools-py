@@ -27,6 +27,21 @@ _ROWS = [
     },
 ]
 
+_STATUS_BY_ADM2 = {"A1": "Urban", "A2": "Rural", "B1": "Urban"}
+_ROWS_WITH_STATUS = [
+    {**r, "office_status": _STATUS_BY_ADM2[r["adm2_pcode"]]} for r in _ROWS
+]
+
+_ROWS_WITH_COUNTRY = [{"adm0_pcode": "Z", "adm0_name": "Zed", **r} for r in _ROWS]
+
+_ROWS_WORD_ANCHORED = [
+    {"state_code": r["adm1_pcode"], "county_code": r["adm2_pcode"], "wkt": r["wkt"]}
+    for r in _ROWS
+]
+_ROWS_WORD_ANCHORED_WITH_COUNTRY = [
+    {"country_code": "Z", "country_name": "Zed", **r} for r in _ROWS_WORD_ANCHORED
+]
+
 
 def _sql_literal(value: object) -> str:
     if value is None:
@@ -58,6 +73,112 @@ def admin2_input(tmp_path):
     path = tmp_path / "admin2.parquet"
     _write_synthetic(path, _ROWS)
     return path
+
+
+@pytest.fixture
+def admin2_input_with_status(tmp_path):
+    path = tmp_path / "admin2_status.parquet"
+    _write_synthetic(path, _ROWS_WITH_STATUS)
+    return path
+
+
+@pytest.fixture
+def admin2_input_with_country(tmp_path):
+    path = tmp_path / "admin2_country.parquet"
+    _write_synthetic(path, _ROWS_WITH_COUNTRY)
+    return path
+
+
+@pytest.fixture
+def word_anchored_input_with_country(tmp_path):
+    path = tmp_path / "word_anchored_country.parquet"
+    _write_synthetic(path, _ROWS_WORD_ANCHORED_WITH_COUNTRY)
+    return path
+
+
+def test_auto_detected_code_uses_source_naming_and_drops_finest_only_attribute(
+    admin2_input_with_status, tmp_path
+):
+    """Every level's own code shares one column; a non-generalizing attribute drops."""
+    output_path = tmp_path / "points.parquet"
+    package_points(admin2_input_with_status, output_path, overwrite=True)
+
+    with duckdb.connect() as conn:
+        conn.execute("LOAD spatial")
+        columns = {
+            row[0]
+            for row in conn.execute(
+                f"DESCRIBE SELECT * FROM '{output_path}'"
+            ).fetchall()
+        }
+        level1_pcode = conn.execute(
+            f"SELECT pcode FROM '{output_path}' WHERE adm_lvl = 1 ORDER BY pcode"
+        ).fetchall()
+        level2_pcode = conn.execute(
+            f"SELECT pcode FROM '{output_path}' WHERE adm_lvl = 2 ORDER BY pcode"
+        ).fetchall()
+    assert {"pcode", "adm_lvl", "geometry"} <= columns
+    assert "adm1_pcode" not in columns
+    assert "adm2_pcode" not in columns
+    assert "office_status" not in columns
+    assert level1_pcode == [("P1",), ("P2",)]
+    assert level2_pcode == [("A1",), ("A2",), ("B1",)]
+
+
+def test_auto_detected_constant_root_becomes_its_own_level_zero_row(
+    admin2_input_with_country, tmp_path
+):
+    """A whole-file-constant family (e.g. adm0_*) gets its own row, no adm0_* column."""
+    output_path = tmp_path / "points.parquet"
+    package_points(admin2_input_with_country, output_path, overwrite=True)
+
+    with duckdb.connect() as conn:
+        conn.execute("LOAD spatial")
+        columns = {
+            row[0]
+            for row in conn.execute(
+                f"DESCRIBE SELECT * FROM '{output_path}'"
+            ).fetchall()
+        }
+        level0 = conn.execute(f"""
+            SELECT pcode, name FROM '{output_path}' WHERE adm_lvl = 0
+        """).fetchall()
+        other_levels = conn.execute(f"""
+            SELECT DISTINCT pcode, name FROM '{output_path}'
+            WHERE adm_lvl != 0 AND pcode IN ('Z', 'P1', 'P2')
+            ORDER BY pcode
+        """).fetchall()
+    assert not {"adm0_pcode", "adm0_name"} & columns
+    assert level0 == [("Z", "Zed")]
+    assert other_levels == [("P1", None), ("P2", None)]
+
+
+def test_word_anchored_constant_root_becomes_its_own_level_zero_row(
+    word_anchored_input_with_country, tmp_path
+):
+    """A word-anchored constant family (e.g. country_*) also gets its own row."""
+    output_path = tmp_path / "points.parquet"
+    package_points(word_anchored_input_with_country, output_path, overwrite=True)
+
+    with duckdb.connect() as conn:
+        conn.execute("LOAD spatial")
+        columns = {
+            row[0]
+            for row in conn.execute(
+                f"DESCRIBE SELECT * FROM '{output_path}'"
+            ).fetchall()
+        }
+        level0 = conn.execute(f"""
+            SELECT code, name FROM '{output_path}' WHERE adm_lvl = 0
+        """).fetchall()
+        other_levels = conn.execute(f"""
+            SELECT DISTINCT code, name FROM '{output_path}'
+            WHERE adm_lvl != 0 AND code IN ('Z', 'P1', 'P2')
+            ORDER BY code
+        """).fetchall()
+    assert not {"country_code", "country_name", "state_code", "county_code"} & columns
+    assert level0 == [("Z", "Zed")]
+    assert other_levels == [("P1", None), ("P2", None)]
 
 
 def test_cli_help():
@@ -104,14 +225,15 @@ def test_every_point_covered_by_its_own_polygon(admin2_input, tmp_path):
         uncovered = conn.execute(f"""
             SELECT COUNT(*) FROM '{output_path}' p
             JOIN '{admin2_input}' src
-              ON src.adm2_pcode IS NOT DISTINCT FROM p.adm2_pcode
+              ON src.adm2_pcode IS NOT DISTINCT FROM p.code
             WHERE p.adm_lvl = 2
               AND NOT ST_Covers(ST_SetCRS(src.geom, 'EPSG:4326'), p.geometry)
         """).fetchone()[0]
     assert uncovered == 0
 
 
-def test_original_attribute_columns_survive(admin2_input, tmp_path):
+def test_own_level_code_is_generic_no_ancestor_column(admin2_input, tmp_path):
+    """Every level's own code lands in one shared column, no numbered ancestor."""
     output_path = tmp_path / "points.parquet"
     package_points(
         admin2_input,
@@ -129,7 +251,9 @@ def test_original_attribute_columns_survive(admin2_input, tmp_path):
                 f"DESCRIBE SELECT * FROM '{output_path}'"
             ).fetchall()
         }
-    assert {"adm1_pcode", "adm2_pcode", "adm_lvl", "geometry"} <= columns
+    assert {"code", "adm_lvl", "geometry"} <= columns
+    assert "adm1_pcode" not in columns
+    assert "adm2_pcode" not in columns
 
 
 def test_custom_depth_column(admin2_input, tmp_path):

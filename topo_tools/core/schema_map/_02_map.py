@@ -72,10 +72,62 @@ def _temporal_columns(
     return {c for c in columns if is_temporal_duckdb_type(types[c])}
 
 
-def _embeds(conn: DuckDBPyConnection, table: str, child: str, parent: str) -> bool:
+_MIN_ROWS_FOR_SPATIAL_COHERENCE = 10
+_MIN_SPATIAL_R2 = 0.7
+
+
+def _has_geometry_column(conn: DuckDBPyConnection, table: str) -> bool:
+    """Check `table` has a `geom` column at all; not every caller loads one."""
+    rows = conn.execute(f"DESCRIBE {quote_identifier(table)}").fetchall()
+    return any(r[0] == "geom" for r in rows)
+
+
+def _spatially_coherent(conn: DuckDBPyConnection, table: str, column: str) -> bool:
+    """Check column's own groups explain most of the file's centroid spread.
+
+    Too little evidence (row count or spatial spread) is not evidence against.
+    """
+    row = conn.execute(f"""--sql
+        WITH pts AS (
+            SELECT {quote_identifier(column)} AS g,
+                ST_X(ST_Centroid(geom)) AS cx, ST_Y(ST_Centroid(geom)) AS cy
+            FROM {quote_identifier(table)}
+            WHERE {quote_identifier(column)} IS NOT NULL
+        ),
+        per_group AS (
+            SELECT g, COUNT(*) AS n, VAR_POP(cx) AS vx, VAR_POP(cy) AS vy
+            FROM pts GROUP BY g
+        )
+        SELECT
+            SUM(n),
+            SUM(n * COALESCE(vx, 0)) / SUM(n), SUM(n * COALESCE(vy, 0)) / SUM(n),
+            (SELECT VAR_POP(cx) FROM pts), (SELECT VAR_POP(cy) FROM pts)
+        FROM per_group
+        HAVING COUNT(*) >= 2
+    """).fetchone()
+    if row is None:
+        return True
+    total_rows, within_x, within_y, total_x, total_y = row
+    if total_rows < _MIN_ROWS_FOR_SPATIAL_COHERENCE:
+        return True
+    total = (total_x or 0) + (total_y or 0)
+    if total == 0:
+        return True
+    within = (within_x or 0) + (within_y or 0)
+    return 1 - within / total >= _MIN_SPATIAL_R2
+
+
+def _embeds(
+    conn: DuckDBPyConnection,
+    table: str,
+    child: str,
+    parent: str,
+    *,
+    has_geom: bool = False,
+) -> bool:
     """Check every non-null row has `child` contain `parent`, tolerating one sentinel.
 
-    An all-null `parent`, or every failure sharing one `child` value, is no evidence.
+    The tolerance itself is trusted only if `child` is also spatially coherent.
     """
     evaluated_where = f"""
         {quote_identifier(child)} IS NOT NULL AND {quote_identifier(parent)} IS NOT NULL
@@ -109,7 +161,9 @@ def _embeds(conn: DuckDBPyConnection, table: str, child: str, parent: str) -> bo
         """,
         [culprits[0][0]],
     ).fetchone()[0]
-    return remaining > 0
+    if remaining <= 0:
+        return False
+    return not has_geom or _spatially_coherent(conn, table, child)
 
 
 def _looks_code_shaped(conn: DuckDBPyConnection, table: str, column: str) -> bool:
@@ -337,6 +391,7 @@ def _build_edges(
     conn: DuckDBPyConnection, table: str, groups: list[tuple[int, list[str]]]
 ) -> dict[tuple[int, int], tuple[bool, bool, bool]]:
     """Every coarser/finer pair's (containment holds, embeds, perfect+row-unique)."""
+    has_geom = _has_geometry_column(conn, table)
     edges: dict[tuple[int, int], tuple[bool, bool, bool]] = {}
     for finer_idx, (_finer_count, finer_cols) in enumerate(groups):
         finer_witnesses = _embed_witnesses(conn, table, finer_cols)
@@ -354,7 +409,7 @@ def _build_edges(
                 for b in finer_cols
             )
             embeds = joins and any(
-                _embeds(conn, table, b, a)
+                _embeds(conn, table, b, a, has_geom=has_geom)
                 for a in coarser_witnesses
                 for b in finer_witnesses
             )
@@ -416,6 +471,7 @@ def _build_chain(
     unless no candidate pair in the whole file embeds at all (docs/adr/0070).
     """
     n = len(groups)
+    has_geom = _has_geometry_column(conn, table)
     edges = _build_edges(conn, table, groups)
     no_embedding_anywhere = not any(
         embeds for _joins, embeds, _strong in edges.values()
@@ -449,8 +505,17 @@ def _build_chain(
             # A coincidentally-constant, non-root column can't extend a chain.
             if groups[coarser_idx][0] == 1 and not in_root_prefix[coarser_idx]:
                 continue
+            # The root's own freebie is trusted unconditionally only without
+            # geometry; with it, an ungrounded finer group must corroborate.
+            root_freebie = in_root_prefix[coarser_idx] and (
+                embeds
+                or not has_geom
+                or any(
+                    _spatially_coherent(conn, table, c) for c in groups[finer_idx][1]
+                )
+            )
             justified = (
-                in_root_prefix[coarser_idx]
+                root_freebie
                 or embeds
                 or (strong and chain_has_embed[coarser_idx])
                 or no_embedding_anywhere

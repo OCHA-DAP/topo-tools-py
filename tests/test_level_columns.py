@@ -5,6 +5,7 @@ import pytest
 
 from topo_tools.core.schema_map._level_columns import (
     detect_level_columns,
+    detect_root_level,
     group_families_by_level,
     is_level_identity_column,
     verify_functional_cluster,
@@ -200,6 +201,58 @@ def test_detect_level_columns_ignores_low_cardinality_date_chains(conn):
     assert "finest_pcode" in result[finest_level].group_by
 
 
+def _build_scattered_audit_rows(update_by_fn):
+    adm1_children = {
+        "C0A": ["5001", "5002", "5003", "5004", "5005", "5006"],
+        "C0B": ["5007", "5008", "5009", "5010", "5011", "5012"],
+    }
+    rows = []
+    i = 0
+    for adm1, children in adm1_children.items():
+        for finest in children:
+            square = f"POLYGON(({i} 0,{i + 1} 0,{i + 1} 1,{i} 1,{i} 0))"
+            rows.append((adm1, f"{adm1}{finest}", update_by_fn(i), square))
+            i += 1
+    return rows
+
+
+def test_detect_level_columns_ignores_spatially_scattered_tolerance_embed(conn):
+    """A tolerance-embedding but spatially scattered audit column must not chain."""
+    rows = _build_scattered_audit_rows(lambda i: "ADMIN" if i % 2 == 0 else "WRITER")
+    values = ", ".join(
+        f"('{a1}', '{f}', '{u}', ST_GeomFromText('{g}'))" for a1, f, u, g in rows
+    )
+    conn.execute(f"""--sql
+        CREATE TABLE t_01 AS
+        SELECT row_number() OVER () AS fid, 'C0' AS adm0_pcode,
+            'WRITER' AS created_user, *
+        FROM (VALUES {values}) AS v(adm1_pcode, finest_pcode, update_by, geom)
+    """)
+    result = detect_level_columns(conn, "t_01")
+    assert not any("update_by" in lc.group_by for lc in result.values())
+    assert any(lc.group_by == ["adm1_pcode"] for lc in result.values())
+    finest_level = max(result)
+    assert "finest_pcode" in result[finest_level].group_by
+
+
+def test_detect_level_columns_ignores_spatially_scattered_root_freebie(conn):
+    """An audit column with no embed at all must not chain via the root freebie."""
+    rows = _build_scattered_audit_rows(lambda i: "ADMIN" if i % 2 == 0 else "WRITER")
+    values = ", ".join(
+        f"('{a1}', '{f}', '{u}', ST_GeomFromText('{g}'))" for a1, f, u, g in rows
+    )
+    conn.execute(f"""--sql
+        CREATE TABLE t_01 AS
+        SELECT row_number() OVER () AS fid, 'C0' AS adm0_pcode, *
+        FROM (VALUES {values}) AS v(adm1_pcode, finest_pcode, update_by, geom)
+    """)
+    result = detect_level_columns(conn, "t_01")
+    assert not any("update_by" in lc.group_by for lc in result.values())
+    assert any(lc.group_by == ["adm1_pcode"] for lc in result.values())
+    finest_level = max(result)
+    assert "finest_pcode" in result[finest_level].group_by
+
+
 def test_detect_level_columns_word_based_anchor_both_positions(conn):
     conn.execute("""--sql
         CREATE TABLE t_01 AS
@@ -248,6 +301,37 @@ def test_verify_functional_cluster_passes_on_matching_cardinality(conn):
         ) AS v(code, extra)
     """)
     verify_functional_cluster(conn, "t_01", "code", ["code", "extra"])
+
+
+def test_detect_root_level_digit_anchored(conn):
+    conn.execute("""--sql
+        CREATE TABLE t_01 AS
+        SELECT row_number() OVER () AS fid, 'C0' AS adm0_pcode, 'Country0' AS adm0_name,
+               *
+        FROM (VALUES
+            ('P1', 'A1'), ('P1', 'A2'), ('P2', 'B1')
+        ) AS v(adm1_pcode, adm2_pcode)
+    """)
+    level_columns = detect_level_columns(conn, "t_01")
+    root = detect_root_level(conn, "t_01", level_columns)
+    assert root is not None
+    assert set(root.identity_columns) == {"adm0_pcode", "adm0_name"}
+    assert root.group_by == []
+
+
+def test_detect_root_level_word_anchored(conn):
+    conn.execute("""--sql
+        CREATE TABLE t_01 AS
+        SELECT row_number() OVER () AS fid,
+               'US' AS country_code, 'USA' AS country_name, *
+        FROM (VALUES
+            ('P1', 'A1'), ('P1', 'A2'), ('P2', 'B1')
+        ) AS v(state_code, county_code)
+    """)
+    level_columns = detect_level_columns(conn, "t_01")
+    root = detect_root_level(conn, "t_01", level_columns)
+    assert root is not None
+    assert set(root.identity_columns) == {"country_code", "country_name"}
 
 
 def test_group_families_by_level_word_based_anchor(conn):

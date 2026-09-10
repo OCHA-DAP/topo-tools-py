@@ -6,6 +6,8 @@ from topo_tools.core.dissolve import _02_dissolve as dissolve_stage
 from topo_tools.core.duckdb_utils import bbox_columns_sql
 from topo_tools.core.schema_map._level_columns import (
     detect_level_columns_or_single,
+    group_families_by_level,
+    level_family_names,
     verify_functional_cluster,
 )
 from topo_tools.core.schema_map._target_schema import TargetSchema
@@ -51,7 +53,7 @@ def main(
 
     A None `schema` triggers structural auto-detection of each level's columns.
     """
-    reserved = {"left_fid", "right_fid", "boundary_type", "geom"}
+    reserved = {"left_fid", "right_fid", "geom"}
     if depth_column in reserved:
         msg = f"depth_column {depth_column!r} collides with a fixed output column"
         raise ValueError(msg)
@@ -61,6 +63,10 @@ def main(
     dissolved = f"{name}_02_dissolved"
     if schema is not None:
         code_columns = [schema.code_field.format(n=n) for n in levels]
+        finest_generics = {
+            "code": code_columns[-1],
+            "name": schema.name_field.format(n=finest),
+        }
         dissolve_stage.main(
             conn,
             table_in,
@@ -82,6 +88,20 @@ def main(
         if finest_group_by:
             verify_functional_cluster(conn, table_in, code_columns[-1], finest_group_by)
         dissolve_stage.main(conn, table_in, dissolved, group_by=finest_group_by)
+        families = group_families_by_level(conn, table_in, level_columns)
+        renamed = level_family_names(families, finest, code_columns[-1])
+        finest_generics = {renamed.get(col, col): col for col in finest_group_by}
+
+    dissolved_columns = {
+        r[0] for r in conn.execute(f'DESCRIBE "{dissolved}"').fetchall()
+    }
+    finest_generics = {
+        generic: col
+        for generic, col in finest_generics.items()
+        if col in dissolved_columns
+    }
+    if not finest_generics:
+        finest_generics = {"code": None}
 
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_02_parts" AS
@@ -166,9 +186,23 @@ def main(
     """)
 
     classification = _classification_sql(levels, code_columns)
+
+    def _side_expr(table: str, col: str | None) -> str:
+        return f'{table}."{col}"' if col else "NULL"
+
+    a_cols = ", ".join(
+        f'{{table}}."{col}" AS "a_{generic}"' if col else f'NULL AS "a_{generic}"'
+        for generic, col in finest_generics.items()
+    )
+    shared_b_cols = ", ".join(
+        f'{_side_expr("r", col)} AS "b_{generic}"'
+        for generic, col in finest_generics.items()
+    )
+    exterior_b_cols = ", ".join(f'NULL AS "b_{generic}"' for generic in finest_generics)
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_02" AS
-        SELECT s.left_fid, s.right_fid, 'shared' AS boundary_type,
+        SELECT s.left_fid, s.right_fid,
+               {a_cols.format(table="l")}, {shared_b_cols},
                {classification} AS "{depth_column}", s.geom
         FROM "{name}_02_shared_atomic" s
         JOIN "{dissolved}" l ON l.fid = s.left_fid
@@ -176,12 +210,21 @@ def main(
 
         UNION ALL BY NAME
 
-        SELECT left_fid, right_fid, 'exterior' AS boundary_type,
-               {min(levels)} AS "{depth_column}", geom
-        FROM "{name}_02_exterior"
+        SELECT e.left_fid, e.right_fid,
+               {a_cols.format(table="d")}, {exterior_b_cols},
+               {min(levels) - 1} AS "{depth_column}", e.geom
+        FROM "{name}_02_exterior" e
+        JOIN "{dissolved}" d ON d.fid = e.left_fid
     """)
 
     _check_every_fid_present(conn, dissolved, f"{name}_02")
+
+    # fid is a fresh row_number() per run, useless once code columns resolve
+    # each side's real identity; only the codes are worth exporting.
+    conn.execute(f"""--sql
+        CREATE OR REPLACE TABLE "{name}_02" AS
+        SELECT * EXCLUDE (left_fid, right_fid) FROM "{name}_02"
+    """)
 
     for table in [
         "parts",
