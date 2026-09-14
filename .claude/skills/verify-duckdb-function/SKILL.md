@@ -1,6 +1,9 @@
-# Verify a DuckDB function
+---
+name: verify-duckdb-function
+description: Use before writing or reviewing code that calls a DuckDB or DuckDB spatial extension function, or when asked about one's signature, parameters, or behavior. Never rely on recalled knowledge about DuckDB/spatial functions, verify against the installed version first.
+---
 
-Do not rely on recalled knowledge about DuckDB or spatial extension functions; verify against the installed version before making claims or writing code.
+# Verify a DuckDB function
 
 **CLI, best for specific function lookups** (includes full description, parameter docs, return type):
 

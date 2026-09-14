@@ -1,3 +1,8 @@
+---
+name: publishing
+description: Use when cutting a topo-tools PyPI release, rehearsing a release on TestPyPI, or checking the release/publish workflow setup (GitHub Environment approval gate, PyPI trusted publisher, Homebrew tap).
+---
+
 # Publishing to PyPI
 
 ## One-time setup (already done)

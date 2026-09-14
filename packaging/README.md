@@ -16,7 +16,7 @@ reference the current PyPI release (0.5.2), which is missing the license
 file (PyPI uploads are immutable, this can't be fixed on 0.5.2 itself).
 
 Before submitting either: cut the 0.5.3 release per
-`docs/how-to/publishing.md`, then update `packaging/conda-forge/recipe.yaml`'s
+the `publishing` skill, then update `packaging/conda-forge/recipe.yaml`'s
 `context.version`/`source.sha256` and `packaging/homebrew/topo-tools.rb`'s
 `url`/`sha256` to match the new sdist/wheel.
 

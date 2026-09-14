@@ -231,7 +231,7 @@ Only ever read from it. Every output/tmp/debug path for a portolan-sourced
 test run must point outside the catalog (e.g. the session scratchpad or
 `/tmp`).
 
-See `docs/how-to/at-scale-testing.md` for the STAC layout and how to pick a
+See the `at-scale-testing` skill for the STAC layout and how to pick a
 file (or an old/new comparison pair, for `change`) from the catalog.
 
 ## Reference Docs
@@ -239,5 +239,5 @@ file (or an old/new comparison pair, for `change`) from the catalog.
 - `docs/tutorials/{tool}.md`: GDAL-style getting-started examples per tool
 - `docs/reference/{tool}.md`: behavior contract per tool (`shared.md` for common settings/gates)
 - `docs/explanation/{tool}.md`: stage-by-stage detail for `edge_extend`, `topology`, `assign`, `edge_clip`, `edge_stitch`, `topo_detect`, `edge_match`, `edge_mosaic`, `topo_clean`, `change`, `schema_map`, `schema_refactor`, `schema_crosswalk`, `schema_fill`, `package_polygons`, `package_points`, `package_lines`, `package`; notable: `topology.md` has the SPATIAL_JOIN memory bug, `performance.md` has thread-scaling benchmarks + the RTREE experiment, `voronoi-memory.md` has per-file resampling distance and memory ceilings for `phl_admin3`/`idn_admin3`, `edge_match.md` has the `check_gaps` caveat
-- `docs/how-to/`: `publishing.md` (PyPI release via OIDC), `verify-duckdb-function.md` (DuckDB/spatial function lookup), `at-scale-testing.md` (portolan catalog layout, picking a test file/pair)
+- `.claude/skills/`: `publishing` (PyPI release via OIDC), `verify-duckdb-function` (DuckDB/spatial function lookup), `at-scale-testing` (portolan catalog layout, picking a test file/pair), `manual-dev-testing` (running any tool against your own data)
 - `docs/adr/README.md`: how to decide ADR vs. `docs/explanation/` vs. CLAUDE.md's Key Patterns; `docs/adr/` itself holds the decision records
