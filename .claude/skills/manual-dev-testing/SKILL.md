@@ -1,3 +1,8 @@
+---
+name: manual-dev-testing
+description: Use when manually running a topo-tools CLI command or api.*() function against real or synthetic data, or running a tool's pytest suite, outside of a tagged release.
+---
+
 # Manually test any tool against your own data
 
 Every tool (released or not) is a normal CLI command once you're on this

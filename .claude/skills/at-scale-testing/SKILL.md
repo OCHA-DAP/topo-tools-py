@@ -1,3 +1,8 @@
+---
+name: at-scale-testing
+description: Use when a task needs to exercise a tool at real multi-thousand-fid scale against the portolan catalog, e.g. checking a fix beyond the West Africa cluster, or testing `change` against a genuine old/new version pair.
+---
+
 # Run an at-scale test against the portolan catalog
 
 Use the portolan catalog (see `CLAUDE.md`'s Test Datasets section for its
