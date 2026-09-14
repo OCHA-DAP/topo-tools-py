@@ -7,17 +7,17 @@ stays NULL rather than being backfilled from a shallower ancestor. Run it
 against an already-clipped/stitched layer (an `edge-match`/`edge-mosaic`
 output).
 
-## Example 1: basic run, default (generic) schema, output name chosen automatically
+## Example 1: basic run, structural auto-detection, output name chosen automatically
 
     topo-tools schema-fill admin4.parquet
 
-## Example 2: custom target schema
+## Example 2: custom target naming
 
-    topo-tools schema-fill admin4.parquet target-schema.yaml
+    topo-tools schema-fill admin4.parquet --name-field state_name --code-field state_code
 
 ## Example 3: explicit output
 
-    topo-tools schema-fill admin4.gpkg target-schema.yaml admin4_fill.gpkg
+    topo-tools schema-fill admin4.gpkg admin4_fill.gpkg --name-field state_name --code-field state_code
 
 ## Example 4: custom depth column name
 

@@ -19,9 +19,10 @@ from topo_tools.api.schema_crosswalk import crosswalk
 crosswalk("example.parquet")
 ```
 
-`TARGET_SCHEMA_FILE`, `OUTPUT_FILE`, and `CROSSWALK_FILE` are all
-positional and optional, with the same defaults as standalone `schema-map`
-(crosswalk path) and `schema-refactor` (mapped-output path).
+`OUTPUT_FILE` and `CROSSWALK_FILE` are both positional and optional, with
+the same defaults as standalone `schema-map` (crosswalk path) and
+`schema-refactor` (mapped-output path). `--name-field`/`--code-field`
+default to `adm{n}_name`/`adm{n}_code` when omitted.
 
 To iterate: hand-edit the written crosswalk CSV, then re-run standalone
 `schema-refactor` on it. Re-running `schema-crosswalk` always maps fresh from scratch,

@@ -21,10 +21,14 @@ instead of repeating them.
 - The `schema-crosswalk` tool MAY reuse `schema-map`'s and `schema-refactor`'s logic directly;
   neither `schema-map` nor `schema-refactor` MUST depend on `schema-crosswalk`, or on each
   other (see `docs/explanation/schema_crosswalk.md`).
-- `schema-fill` and `dissolve` MAY both depend on `schema-map`'s
-  target-schema/level-detection helpers (`core/schema_map/_levels.py`);
-  `schema-map` MUST NOT depend on either (see `docs/adr/0075`,
+- `schema-fill`, `package-polygons`, `package-points`, and `package-lines`
+  MAY all depend on `schema-map`'s `name_field`/`code_field`/level-detection
+  helpers (`core/schema_map/_levels.py`, `core/schema_map/_level_columns.py`);
+  `schema-map` MUST NOT depend on any of them (see `docs/adr/0075`,
   `docs/adr/0092`).
+- `package-polygons`, `package-points`, and `package-lines` MAY all depend
+  on `core.dissolve`'s stage functions directly; `core.dissolve` MUST NOT
+  depend on any of them.
 - `edge-stitch`, `edge-match`, and `edge-mosaic` MAY opt into `schema-fill`'s
   fill logic from their own `api.*` layer only, via the private
   `api._schema_fill_compose` helper; `core.edge_stitch`, `core.edge_match`,

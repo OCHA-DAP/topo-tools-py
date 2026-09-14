@@ -1,11 +1,6 @@
-"""Loads a target-schema YAML config: the output naming templates for map."""
+"""Output naming templates for a discovered hierarchy level `n`."""
 
 from dataclasses import dataclass
-from pathlib import Path
-
-import yaml
-
-DEFAULT_TARGET_SCHEMA_PATH = Path(__file__).parent / "data" / "default.yaml"
 
 
 @dataclass(frozen=True)
@@ -16,26 +11,34 @@ class TargetSchema:
     code_field: str
 
 
-def load_target_schema(path: Path | str) -> TargetSchema:
-    """Load a target-schema YAML file into a TargetSchema."""
-    path = Path(path)
-    if not path.is_file():
-        msg = f"target schema file not found: {path}"
-        raise ValueError(msg)
-    data = yaml.safe_load(path.read_text())
-    if (
-        not isinstance(data, dict)
-        or "name_field" not in data
-        or "code_field" not in data
-    ):
+DEFAULT_TARGET_SCHEMA = TargetSchema(name_field="adm{n}_name", code_field="adm{n}_code")
+
+
+def _require_placeholder(name_field: str, code_field: str, context: str) -> None:
+    if "{n}" not in name_field or "{n}" not in code_field:
         msg = (
-            "target schema must be a mapping with top-level 'name_field' and "
-            f"'code_field' keys: {path}"
+            f"name_field/code_field must both contain a '{{n}}' placeholder: {context}"
         )
         raise ValueError(msg)
 
-    name_field, code_field = data["name_field"], data["code_field"]
-    if "{n}" not in name_field or "{n}" not in code_field:
-        msg = f"name_field/code_field must both contain a '{{n}}' placeholder: {path}"
-        raise ValueError(msg)
+
+def target_schema_from_fields(name_field: str, code_field: str) -> TargetSchema:
+    """Build a TargetSchema from inline templates instead of a YAML file."""
+    _require_placeholder(name_field, code_field, f"{name_field!r}/{code_field!r}")
     return TargetSchema(name_field=name_field, code_field=code_field)
+
+
+def resolve_explicit_target_schema(
+    name_field: str | None,
+    code_field: str | None,
+) -> TargetSchema | None:
+    """Resolve an explicit schema, or None to trigger structural auto-detection.
+
+    Raises ValueError if only one of name_field/code_field is given.
+    """
+    if (name_field is None) != (code_field is None):
+        msg = "name_field and code_field must be given together"
+        raise ValueError(msg)
+    if name_field is not None and code_field is not None:
+        return target_schema_from_fields(name_field, code_field)
+    return None

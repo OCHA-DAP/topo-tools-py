@@ -71,7 +71,8 @@ def match(  # noqa: C901, PLR0912, PLR0913, PLR0915
     prefer: str | None = None,
     multi_parent: bool = False,
     fill_schema: bool = False,
-    target_schema_path: str | Path | None = None,
+    name_field: str | None = None,
+    code_field: str | None = None,
     depth_column: str = "adm_lvl",
 ) -> None:
     """Match one or more children layers to their best-overlapping parent."""
@@ -95,7 +96,9 @@ def match(  # noqa: C901, PLR0912, PLR0913, PLR0915
         child_exclude=child_exclude,
         prefer=prefer,
     )
-    validate_fill_flags(fill_schema=fill_schema, target_schema_path=target_schema_path)
+    validate_fill_flags(
+        fill_schema=fill_schema, name_field=name_field, code_field=code_field
+    )
     passthrough = merge
 
     if isinstance(input_paths, (str, Path)):
@@ -163,7 +166,8 @@ def match(  # noqa: C901, PLR0912, PLR0913, PLR0915
                 child_exclude=child_exclude,
                 prefer=prefer,
                 fill_schema=fill_schema,
-                target_schema_path=target_schema_path,
+                name_field=name_field,
+                code_field=code_field,
                 depth_column=depth_column,
             )
         else:
@@ -270,7 +274,8 @@ def match(  # noqa: C901, PLR0912, PLR0913, PLR0915
                         name,
                         f"{name}_05",
                         requested=fill_schema,
-                        target_schema_path=target_schema_path,
+                        name_field=name_field,
+                        code_field=code_field,
                         depth_column=depth_column,
                         debug=debug,
                     )
@@ -332,7 +337,8 @@ def _match_multi_file(  # noqa: PLR0913, PLR0917
     child_exclude: list[str] | None,
     prefer: str | None,
     fill_schema: bool,
-    target_schema_path: str | Path | None,
+    name_field: str | None,
+    code_field: str | None,
     depth_column: str,
 ) -> None:
     """Load/assign one children file at a time, sharing one already-loaded parent.
@@ -454,7 +460,8 @@ def _match_multi_file(  # noqa: PLR0913, PLR0917
         name,
         f"{name}_05",
         requested=fill_schema,
-        target_schema_path=target_schema_path,
+        name_field=name_field,
+        code_field=code_field,
         depth_column=depth_column,
         debug=debug,
     )

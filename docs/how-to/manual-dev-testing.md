@@ -9,7 +9,7 @@ checkout, whether or not it's in a tagged release yet.
 uv run topo-tools <tool> <args...>
 ```
 
-e.g. `uv run topo-tools dissolve my_layer.gpkg --group-by adm2_pcode`. Args
+e.g. `uv run topo-tools package-polygons my_layer.gpkg`. Args
 differ per tool, see `docs/reference/{tool}.md` for the contract and
 `docs/tutorials/{tool}.md` for worked examples. `uv run topo-tools
 <tool> --help` lists the flags directly.
@@ -23,9 +23,9 @@ testing against that).
 ## Call the API directly
 
 ```python
-from topo_tools.api.dissolve import dissolve
+from topo_tools.api.package_polygons import package_polygons
 
-dissolve("my_layer.gpkg", group_by=["adm2_pcode"], debug=True)
+package_polygons("my_layer.gpkg", debug=True)
 ```
 
 Each tool's `api.{tool}.{tool}()` function takes the same settings as its

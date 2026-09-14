@@ -1,393 +1,115 @@
-"""Portability smoke tests: does dissolve() run to completion on this machine.
-
-Not a correctness suite: outputs.main already raises RuntimeError on
-coverage violations, so a clean run is already vetted by the pipeline itself.
-"""
+"""Unit tests for core.dissolve's column-classification logic."""
 
 import duckdb
 import pytest
-import yaml
-from click.testing import CliRunner
 
-from topo_tools.api.dissolve import dissolve
-from topo_tools.cli.main import cli
+from topo_tools.core.dissolve import _02_dissolve as dissolve_stage
 
-_STEPS = ["inputs", "dissolve", "outputs"]
-
-_BASE_ROWS = [
-    {
-        "adm2_pcode": "A1",
-        "adm1_pcode": "P1",
-        "adm2_name": "Alpha",
-        "adm1_name": "Province1",
-        "population": 100,
-        "wkt": "POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))",
-    },
-    {
-        "adm2_pcode": "A1",
-        "adm1_pcode": "P1",
-        "adm2_name": "Alpha",
-        "adm1_name": "Province1",
-        "population": 150,
-        "wkt": "POLYGON((1 0, 2 0, 2 1, 1 1, 1 0))",
-    },
-    {
-        "adm2_pcode": "A2",
-        "adm1_pcode": "P1",
-        "adm2_name": "Beta",
-        "adm1_name": "Province1",
-        "population": 80,
-        "wkt": "POLYGON((0 1, 1 1, 1 2, 0 2, 0 1))",
-    },
-]
-
-
-def _sql_literal(value: object) -> str:
-    if value is None:
-        return "NULL"
-    if isinstance(value, str):
-        return f"'{value}'"
-    return str(value)
-
-
-def _write_synthetic(path, rows: list[dict]) -> None:
-    cols = [k for k in rows[0] if k != "wkt"]
-    col_list = ", ".join([*cols, "geom"])
-    values = ", ".join(
-        "("
-        + ", ".join(_sql_literal(r[c]) for c in cols)
-        + f", ST_GeomFromText('{r['wkt']}'))"
-        for r in rows
-    )
-    with duckdb.connect() as conn:
-        conn.execute("INSTALL spatial; LOAD spatial;")
-        conn.execute(
-            f"CREATE TABLE synth AS SELECT * FROM (VALUES {values}) AS t({col_list})"
-        )
-        conn.execute(f"COPY synth TO '{path}'")
-
-
-@pytest.fixture
-def admin3_input(tmp_path):
-    path = tmp_path / "admin3.parquet"
-    _write_synthetic(path, _BASE_ROWS)
-    return path
-
-
-@pytest.fixture
-def admin3_with_null(tmp_path):
-    path = tmp_path / "admin3_null.parquet"
-    null_row = {
-        "adm2_pcode": None,
-        "adm1_pcode": "P1",
-        "adm2_name": None,
-        "adm1_name": "Province1",
-        "population": 20,
-        "wkt": "POLYGON((2 0, 3 0, 3 1, 2 1, 2 0))",
-    }
-    _write_synthetic(path, [*_BASE_ROWS, null_row])
-    return path
-
-
-@pytest.fixture
-def admin3_inconsistent_name(tmp_path):
-    path = tmp_path / "admin3_inconsistent.parquet"
-    rows = [dict(_BASE_ROWS[0]), dict(_BASE_ROWS[1]), dict(_BASE_ROWS[2])]
-    rows[1]["adm2_name"] = "AlphaTypo"
-    _write_synthetic(path, rows)
-    return path
-
-
-def _describe_columns(path) -> set[str]:
-    with duckdb.connect() as conn:
-        conn.execute("LOAD spatial")
-        return {
-            row[0]
-            for row in conn.execute(f"DESCRIBE SELECT * FROM '{path}'").fetchall()
-        }
-
-
-def _write_schema(path, name_field, code_field):
-    path.write_text(yaml.dump({"name_field": name_field, "code_field": code_field}))
-    return path
-
-
-_HIERARCHY_ROWS = [
-    {
-        "adm1_pcode": "P1",
-        "adm1_name": "Province1",
-        "adm2_pcode": "A1",
-        "adm2_name": "Alpha",
-        "adm2_name2": None,
-        "population": 100,
-        "wkt": "POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))",
-    },
-    {
-        "adm1_pcode": "P1",
-        "adm1_name": "Province1",
-        "adm2_pcode": "A2",
-        "adm2_name": "Beta",
-        "adm2_name2": None,
-        "population": 80,
-        "wkt": "POLYGON((0 1, 1 1, 1 2, 0 2, 0 1))",
-    },
+_ROWS = [
+    # adm1, adm2, name, area_sqkm, population, status, version, bbox, wkt
+    (
+        "P1",
+        "A1",
+        "Alpha",
+        10.0,
+        100,
+        "active",
+        1,
+        "junk1",
+        "POLYGON((0 0,1 0,1 1,0 1,0 0))",
+    ),
+    (
+        "P1",
+        "A2",
+        "Beta",
+        20.0,
+        200,
+        "pending",
+        1,
+        "junk2",
+        "POLYGON((1 0,2 0,2 1,1 1,1 0))",
+    ),
+    (
+        "P2",
+        "B1",
+        "Gamma",
+        5.0,
+        50,
+        "inactive",
+        1,
+        "junk3",
+        "POLYGON((0 1,1 1,1 2,0 2,0 1))",
+    ),
 ]
 
 
 @pytest.fixture
-def admin2_hierarchy_input(tmp_path):
-    path = tmp_path / "admin2_hierarchy.parquet"
-    _write_synthetic(path, _HIERARCHY_ROWS)
-    return path
+def conn():
+    with duckdb.connect() as connection:
+        connection.execute("INSTALL spatial; LOAD spatial;")
+        values = ", ".join(
+            f"('{p}', '{a}', '{n}', {area}, {pop}, '{status}', {version}, "
+            f"'{bbox}', ST_GeomFromText('{wkt}'))"
+            for p, a, n, area, pop, status, version, bbox, wkt in _ROWS
+        )
+        connection.execute(f"""--sql
+            CREATE TABLE t_01 AS
+            SELECT row_number() OVER () AS fid, *
+            FROM (VALUES {values})
+            AS v(adm1_pcode, adm2_pcode, adm2_name, area_sqkm, population,
+                 status, version, bbox, geom)
+        """)
+        yield connection
 
 
-@pytest.fixture
-def pcode_target_schema(tmp_path):
-    return _write_schema(
-        tmp_path / "schema.yaml", name_field="adm{n}_name", code_field="adm{n}_pcode"
-    )
-
-
-def test_cli_help():
-    result = CliRunner().invoke(cli, ["dissolve", "--help"])
-    assert result.exit_code == 0
-    assert "Aggregate a polygon layer" in result.output
-    assert "Examples:" in result.output
-
-
-def test_dissolve_auto_keeps_constant_drops_non_constant(admin3_input, tmp_path):
-    output_path = tmp_path / "out.parquet"
-    dissolve(
-        admin3_input,
-        output_path,
-        group_by=["adm2_pcode", "adm1_pcode"],
-        overwrite=True,
-    )
-
-    assert output_path.exists()
-    expected_row_count = 2
-    with duckdb.connect() as conn:
-        conn.execute("LOAD spatial")
-        row_count = conn.execute(f"SELECT COUNT(*) FROM '{output_path}'").fetchone()[0]
-    assert row_count == expected_row_count
-    # adm2_name/adm1_name are constant per group and auto-kept; population
-    # varies within group A1 (100 vs 150) and is auto-dropped.
-    assert _describe_columns(output_path) == {
-        "adm2_pcode",
-        "adm1_pcode",
-        "adm2_name",
-        "adm1_name",
-        "geometry",
+def test_varying_numeric_column_summed_by_default(conn):
+    dissolve_stage.main(conn, "t_01", "t_out", group_by=["adm1_pcode"])
+    rows = {
+        r[0]: (r[1], r[2])
+        for r in conn.execute(
+            'SELECT adm1_pcode, area_sqkm, population FROM "t_out"'
+        ).fetchall()
     }
+    assert rows["P1"] == (30.0, 300)
+    assert rows["P2"] == (5.0, 50)
 
 
-def test_dissolve_auto_drops_inconsistent_column_with_warning(
-    admin3_inconsistent_name, tmp_path, caplog
-):
-    output_path = tmp_path / "out.parquet"
-    with caplog.at_level("WARNING"):
-        dissolve(
-            admin3_inconsistent_name,
-            output_path,
-            group_by=["adm2_pcode", "adm1_pcode"],
-            overwrite=True,
-        )
-
-    assert "adm2_name" not in _describe_columns(output_path)
-    assert "adm1_name" in _describe_columns(output_path)
-    assert any("adm2_name" in record.message for record in caplog.records)
+def test_constant_column_kept_unaffected(conn):
+    dissolve_stage.main(conn, "t_01", "t_out", group_by=["adm1_pcode"])
+    versions = [r[0] for r in conn.execute('SELECT version FROM "t_out"').fetchall()]
+    assert versions == [1, 1]
 
 
-def test_dissolve_exclude_drops_column_unconditionally(
-    admin2_hierarchy_input, tmp_path, caplog
-):
-    output_path = tmp_path / "out.parquet"
-    with caplog.at_level("WARNING"):
-        dissolve(
-            admin2_hierarchy_input,
-            output_path,
+def test_varying_non_numeric_column_dropped(conn):
+    dissolve_stage.main(conn, "t_01", "t_out", group_by=["adm1_pcode"])
+    columns = {row[0] for row in conn.execute('DESCRIBE "t_out"').fetchall()}
+    assert "status" not in columns
+
+
+def test_noise_column_excluded_from_output(conn):
+    dissolve_stage.main(conn, "t_01", "t_out", group_by=["adm1_pcode"])
+    columns = {row[0] for row in conn.execute('DESCRIBE "t_out"').fetchall()}
+    assert "bbox" not in columns
+
+
+def test_aggregation_override_replaces_default_sum(conn):
+    dissolve_stage.main(
+        conn,
+        "t_01",
+        "t_out",
+        group_by=["adm1_pcode"],
+        aggregations={"area_sqkm": "max"},
+    )
+    rows = dict(conn.execute('SELECT adm1_pcode, area_sqkm FROM "t_out"').fetchall())
+    assert rows == {"P1": 20.0, "P2": 5.0}
+
+
+def test_unsupported_aggregation_raises(conn):
+    with pytest.raises(ValueError, match="unsupported aggregation"):
+        dissolve_stage.main(
+            conn,
+            "t_01",
+            "t_out",
             group_by=["adm1_pcode"],
-            exclude=["adm2_name2"],
-            overwrite=True,
+            aggregations={"area_sqkm": "median"},
         )
-
-    assert "adm2_name2" not in _describe_columns(output_path)
-    assert not any("adm2_name2" in record.message for record in caplog.records)
-
-
-def test_dissolve_exclude_unknown_column_ignored(admin3_input, tmp_path):
-    output_path = tmp_path / "out.parquet"
-    dissolve(
-        admin3_input,
-        output_path,
-        group_by=["adm2_pcode", "adm1_pcode"],
-        exclude=["does_not_exist"],
-        overwrite=True,
-    )
-
-    assert output_path.exists()
-
-
-def test_dissolve_target_schema_drops_finer_level_columns(
-    admin2_hierarchy_input, pcode_target_schema, tmp_path, caplog
-):
-    output_path = tmp_path / "out.parquet"
-    with caplog.at_level("WARNING"):
-        dissolve(
-            admin2_hierarchy_input,
-            output_path,
-            group_by=["adm1_pcode"],
-            target_schema_path=pcode_target_schema,
-            overwrite=True,
-        )
-
-    columns = _describe_columns(output_path)
-    assert not {"adm2_pcode", "adm2_name", "adm2_name2"} & columns
-    assert "adm1_name" in columns
-    assert not any(
-        "adm2" in record.message
-        for record in caplog.records
-        if "dropping" in record.message
-    )
-
-
-def test_dissolve_target_schema_no_matching_level_raises(
-    admin2_hierarchy_input, pcode_target_schema
-):
-    with pytest.raises(ValueError, match="no group_by column matches"):
-        dissolve(
-            admin2_hierarchy_input,
-            group_by=["population"],
-            target_schema_path=pcode_target_schema,
-            overwrite=True,
-        )
-
-
-def test_cli_exclude_and_target_schema_options(
-    admin2_hierarchy_input, pcode_target_schema, tmp_path
-):
-    exclude_out = tmp_path / "exclude_out.parquet"
-    result = CliRunner().invoke(
-        cli,
-        [
-            "dissolve",
-            str(admin2_hierarchy_input),
-            str(exclude_out),
-            "--group-by",
-            "adm1_pcode",
-            "--exclude",
-            "adm2_name2",
-        ],
-    )
-    assert result.exit_code == 0, result.output
-    assert "adm2_name2" not in _describe_columns(exclude_out)
-    assert "adm2_pcode" not in _describe_columns(exclude_out)
-
-    schema_out = tmp_path / "schema_out.parquet"
-    result = CliRunner().invoke(
-        cli,
-        [
-            "dissolve",
-            str(admin2_hierarchy_input),
-            str(schema_out),
-            "--group-by",
-            "adm1_pcode",
-            "--target-schema",
-            str(pcode_target_schema),
-        ],
-    )
-    assert result.exit_code == 0, result.output
-    assert not {"adm2_pcode", "adm2_name", "adm2_name2"} & _describe_columns(schema_out)
-
-
-def test_dissolve_null_group_forms_own_group(admin3_with_null, tmp_path):
-    output_path = tmp_path / "out.parquet"
-    dissolve(
-        admin3_with_null,
-        output_path,
-        group_by=["adm2_pcode", "adm1_pcode"],
-        overwrite=True,
-    )
-
-    # A1/P1, A2/P1, and NULL/P1 (the row lacking an adm2_pcode) each form
-    # their own group, matching GDAL's `combine --group-by` semantics.
-    expected_row_count = 3
-    with duckdb.connect() as conn:
-        conn.execute("LOAD spatial")
-        row_count = conn.execute(f"SELECT COUNT(*) FROM '{output_path}'").fetchone()[0]
-    assert row_count == expected_row_count
-
-
-def test_dissolve_missing_group_by_column_raises(admin3_input):
-    with pytest.raises(ValueError, match="column\\(s\\) not found"):
-        dissolve(admin3_input, group_by=["nonexistent_col"], overwrite=True)
-
-
-def test_dissolve_requires_non_empty_group_by(admin3_input):
-    with pytest.raises(ValueError, match="group_by must be a non-empty list"):
-        dissolve(admin3_input, group_by=[], overwrite=True)
-
-
-def test_dissolve_default_output_path(admin3_input):
-    dissolve(admin3_input, group_by=["adm2_pcode", "adm1_pcode"], overwrite=True)
-
-    expected = admin3_input.with_stem(admin3_input.stem + "_dissolved")
-    assert expected.exists()
-
-
-def test_dissolve_steps(admin3_input, tmp_path):
-    """Each pipeline stage runs standalone, reusing one tmp_dir's DuckDB file."""
-    output_path = tmp_path / "steps_out.parquet"
-    work_dir = tmp_path / "work"
-    for step in _STEPS:
-        dissolve(
-            admin3_input,
-            output_path,
-            group_by=["adm2_pcode", "adm1_pcode"],
-            tmp_dir=work_dir,
-            step=step,
-            overwrite=True,
-        )
-    assert output_path.exists()
-
-
-def test_cli_positional_args_and_group_by_option(admin3_input, tmp_path):
-    output_path = tmp_path / "cli_out.parquet"
-    result = CliRunner().invoke(
-        cli,
-        [
-            "dissolve",
-            str(admin3_input),
-            str(output_path),
-            "--group-by",
-            "adm2_pcode,adm1_pcode",
-        ],
-    )
-    assert result.exit_code == 0, result.output
-    assert output_path.exists()
-
-
-def test_cli_missing_group_by_errors(admin3_input, tmp_path):
-    output_path = tmp_path / "cli_out.parquet"
-    result = CliRunner().invoke(cli, ["dissolve", str(admin3_input), str(output_path)])
-    assert result.exit_code != 0
-    assert "--group-by" in result.output
-
-
-def test_cli_error_on_existing_output(admin3_input, tmp_path):
-    output_path = tmp_path / "exists.parquet"
-    output_path.touch()
-    result = CliRunner().invoke(
-        cli,
-        [
-            "dissolve",
-            str(admin3_input),
-            str(output_path),
-            "--group-by",
-            "adm2_pcode,adm1_pcode",
-            "--overwrite=false",
-        ],
-    )
-    assert result.exit_code != 0
-    assert result.exception is None or isinstance(result.exception, SystemExit)
-    assert "output already exists" in result.output

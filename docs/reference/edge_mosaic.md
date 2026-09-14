@@ -158,9 +158,10 @@ tools.
 - `edge-mosaic` MAY opt into cascading admin-hierarchy columns via
   `fill_schema`/`--fill-schema`, right after stitching and before export
   (both the single-file step loop and the multi-file combine path).
-  `target_schema_path`/`--target-schema` (default: the bundled generic
-  schema) and `depth_column`/`--depth-column` (default `adm_lvl`) narrow
-  it; both MUST raise `ValueError` if given without `fill_schema=True`.
+  `name_field`/`code_field`/`--name-field`/`--code-field` (given together
+  or both omitted; omitted falls back to structural auto-detection) and
+  `depth_column`/`--depth-column` (default `adm_lvl`) narrow it; all MUST
+  raise `ValueError` if given without `fill_schema=True`.
   `edge-mosaic` MUST raise `ValueError` if `depth_column` already names an
   existing column when `fill_schema` is set. `fill_schema` is independent
   of `merge`: it fills a per-row schema-depth gap left by the input data

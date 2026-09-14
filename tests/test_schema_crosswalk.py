@@ -4,7 +4,6 @@ import csv
 
 import duckdb
 import pytest
-import yaml
 from click.testing import CliRunner
 
 from topo_tools.api.schema_crosswalk import crosswalk
@@ -30,11 +29,6 @@ def _write_table(path, col_names, rows):
             f"CREATE TABLE synth AS SELECT * FROM (VALUES {values}) AS t({cols_decl})"
         )
         conn.execute(f"COPY synth TO '{path}'")
-
-
-def _write_schema(path, name_field, code_field):
-    path.write_text(yaml.dump({"name_field": name_field, "code_field": code_field}))
-    return path
 
 
 def _unit_square(i):
@@ -109,16 +103,6 @@ def structural_hierarchy_input(tmp_path):
     return path
 
 
-@pytest.fixture
-def structural_hierarchy_schema(tmp_path):
-    """Naming templates only; map infers structure without reading these."""
-    return _write_schema(
-        tmp_path / "structural_schema.yaml",
-        name_field="adm{n}_name",
-        code_field="adm{n}_pcode",
-    )
-
-
 def test_cli_help():
     result = CliRunner().invoke(cli, ["schema-crosswalk", "--help"])
     assert result.exit_code == 0
@@ -127,15 +111,16 @@ def test_cli_help():
 
 
 def test_end_to_end_writes_crosswalk_and_mapped_output(
-    structural_hierarchy_input, structural_hierarchy_schema, tmp_path
+    structural_hierarchy_input, tmp_path
 ):
     crosswalk_out = tmp_path / "out_crosswalk.csv"
     mapped_out = tmp_path / "out_mapped.parquet"
     crosswalk(
         structural_hierarchy_input,
-        structural_hierarchy_schema,
         mapped_out,
         crosswalk_out,
+        name_field="adm{n}_name",
+        code_field="adm{n}_pcode",
         overwrite=True,
     )
 
@@ -173,8 +158,13 @@ def test_end_to_end_writes_crosswalk_and_mapped_output(
     ]
 
 
-def test_default_output_paths(structural_hierarchy_input, structural_hierarchy_schema):
-    crosswalk(structural_hierarchy_input, structural_hierarchy_schema, overwrite=True)
+def test_default_output_paths(structural_hierarchy_input):
+    crosswalk(
+        structural_hierarchy_input,
+        name_field="adm{n}_name",
+        code_field="adm{n}_pcode",
+        overwrite=True,
+    )
 
     expected_mapped = structural_hierarchy_input.with_stem(
         structural_hierarchy_input.stem + "_mapped"
@@ -186,38 +176,37 @@ def test_default_output_paths(structural_hierarchy_input, structural_hierarchy_s
     assert expected_crosswalk.exists()
 
 
-def test_overwrite_required_for_both_outputs(
-    structural_hierarchy_input, structural_hierarchy_schema, tmp_path
-):
+def test_overwrite_required_for_both_outputs(structural_hierarchy_input, tmp_path):
     crosswalk_out = tmp_path / "out_crosswalk.csv"
     mapped_out = tmp_path / "out_mapped.parquet"
     crosswalk(
         structural_hierarchy_input,
-        structural_hierarchy_schema,
         mapped_out,
         crosswalk_out,
+        name_field="adm{n}_name",
+        code_field="adm{n}_pcode",
     )
 
     with pytest.raises(FileExistsError, match="output already exists"):
         crosswalk(
             structural_hierarchy_input,
-            structural_hierarchy_schema,
             mapped_out,
             crosswalk_out,
+            name_field="adm{n}_name",
+            code_field="adm{n}_pcode",
             overwrite=False,
         )
 
     crosswalk(
         structural_hierarchy_input,
-        structural_hierarchy_schema,
         mapped_out,
         crosswalk_out,
+        name_field="adm{n}_name",
+        code_field="adm{n}_pcode",
     )
 
 
-def test_cli_error_on_existing_output(
-    structural_hierarchy_input, structural_hierarchy_schema, tmp_path
-):
+def test_cli_error_on_existing_output(structural_hierarchy_input, tmp_path):
     mapped_out = tmp_path / "exists.parquet"
     mapped_out.touch()
     result = CliRunner().invoke(
@@ -225,8 +214,11 @@ def test_cli_error_on_existing_output(
         [
             "schema-crosswalk",
             str(structural_hierarchy_input),
-            str(structural_hierarchy_schema),
             str(mapped_out),
+            "--name-field",
+            "adm{n}_name",
+            "--code-field",
+            "adm{n}_pcode",
             "--overwrite=false",
         ],
     )
@@ -234,18 +226,17 @@ def test_cli_error_on_existing_output(
     assert "output already exists" in result.output
 
 
-def test_crosswalk_steps(
-    structural_hierarchy_input, structural_hierarchy_schema, tmp_path
-):
+def test_crosswalk_steps(structural_hierarchy_input, tmp_path):
     mapped_out = tmp_path / "steps_mapped.parquet"
     crosswalk_out = tmp_path / "steps_crosswalk.csv"
     work_dir = tmp_path / "work"
     for step in _STEPS:
         crosswalk(
             structural_hierarchy_input,
-            structural_hierarchy_schema,
             mapped_out,
             crosswalk_out,
+            name_field="adm{n}_name",
+            code_field="adm{n}_pcode",
             tmp_dir=work_dir,
             step=step,
             overwrite=True,

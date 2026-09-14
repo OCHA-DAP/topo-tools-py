@@ -7,6 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `package-polygons`, `package-points`, `package-lines`, and `package`
+  (API and CLI): a family of cartographic-derivative tools for web maps.
+  `package-polygons` dissolves a polygon layer into every detected coarser
+  admin level in one call; `package-points` produces one pole-of-
+  inaccessibility label point per admin unit per level, with every level's
+  own identity column (including a whole-table-constant root, e.g. a
+  single-country file's `adm0_*`, dissolved to its own single row) landing
+  under one name shared across every level (the source file's own naming
+  convention, e.g. `pcode`, or an explicit schema's fixed `code`/`name`)
+  rather than a level-numbered column like `adm1_pcode` ever surviving, and
+  any attribute that can't generalize to a coarser level excluded rather
+  than leaked as an impossible NULL; `package-lines` produces one
+  deduplicated boundary-line network tagged by adjacency and admin depth,
+  with each side's own detected identity families (e.g. `pcode`, `name`)
+  exposed under single-letter-prefixed generic columns (`a_pcode`/
+  `b_pcode`, `a_name`/`b_name`) rather than an untrustworthy
+  auto-generated fid; a row is exterior exactly when its `b_*` columns are
+  `NULL`, one level coarser than the coarsest detected level, with no
+  separate `boundary_type` column. Levels are auto-detected structurally
+  by default
+  (`core.schema_map`'s cardinality/containment matcher, no naming
+  convention assumed), or via an explicit `--name-field`/`--code-field`
+  pair or target-schema YAML.
+- `schema-fill` also gains structural auto-detection of every admin level
+  and its own code column, replacing the requirement for an explicit
+  target-schema YAML; `--name-field`/`--code-field`/`--target-schema`
+  remain available to force a specific naming convention.
+- `core.dissolve` (and every tool built on it) sums a numeric column that
+  varies within a group instead of dropping it, unless overridden per
+  column via `--aggregation column=function` (`sum`, `min`, `max`, `avg`,
+  `first`).
+
+### Fixed
+
+- `schema-map`'s structural level detection no longer lets an audit/
+  workflow column (e.g. `update_by`, `created_date`) outrank a file's real
+  admin hierarchy: date/time columns are excluded from chain candidacy
+  outright, a constant-root chain exemption only applies to an unbroken
+  prefix from the file's own root, and both that exemption and a
+  tolerance-based embedding check now require corroborating spatial
+  coherence when geometry is loaded, closing gaps found in UNHCR's
+  Moldova/Colombia/Ecuador/Tunisia/Greece/Sudan files.
+
+### Removed
+
+- **Breaking:** the standalone `dissolve` tool (API `dissolve()` and CLI
+  `dissolve`) is removed, replaced by `package-polygons`. `--group-by`
+  (arbitrary-column grouping) is dropped along with it: `package-polygons`
+  always auto-detects every admin level in one call instead, structurally
+  by default or via an explicit `--name-field`/`--code-field` pair or
+  target-schema YAML. A caller using `dissolve --group-by
+  adm2_pcode,adm1_pcode` should build a `schema-map` target-schema YAML
+  for their column naming convention and run `package-polygons` instead,
+  which produces every coarser level in one call rather than one
+  `--group-by` at a time.
+
 ## [0.5.6] - 2026-09-01
 
 ### Fixed

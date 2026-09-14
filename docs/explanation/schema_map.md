@@ -1,7 +1,8 @@
 # Map Explanation
 
-`schema-map` reads a source file's columns and a target-schema config (a bundled
-default, or user-supplied), and maps a source-column -> canonical-column
+`schema-map` reads a source file's columns and a `name_field`/`code_field`
+naming template (`adm{n}_name`/`adm{n}_code` by default, or user-supplied),
+and maps a source-column -> canonical-column
 crosswalk, without touching the file. It replaces what `hdx-cod-ab-ai`
 previously did by having a live Claude Code session freehand DuckDB
 `DESCRIBE` queries and its own judgment: matching here is embedding and
@@ -13,6 +14,27 @@ human confirming it first (see its "no auto-approve mode" requirement);
 `schema-map` never renames anything itself, it only writes a crosswalk for a
 human to review, edit, and hand to `schema-refactor`
 (`docs/explanation/schema_refactor.md`).
+
+## How it works, in plain terms
+
+`schema-map` figures out a file's admin hierarchy purely from how values
+relate to each other, never from column names or a fixed code shape:
+
+1. **Group columns that vary in lockstep.** Same distinct-value count and
+   values track together (a pcode and a name column for admin1, say) means
+   the same level.
+2. **Order the levels by nesting.** If every value of one group's column
+   belongs to exactly one value of another group's column, the first is
+   finer and nests inside the second.
+3. **Pick code vs. name per level.** Whichever column's values literally
+   contain its parent's value is `code`; the other is `name`.
+4. **Bracket the leftovers.** A column that didn't join a level cleanly
+   gets slotted in as `supplemental` if its cardinality fits between two
+   levels, or `ambiguous`/`unmatched` otherwise.
+5. **Write the crosswalk.** One row per source column, naming its target
+   level/role, for a human to review before anything is renamed.
+
+The sections below spell out the exact rules and edge cases behind each step.
 
 ## Why column names, and value shape, are never a matching signal
 
@@ -52,22 +74,21 @@ from topo_tools.api.schema_map import map
 map("example.parquet")
 ```
 
-`TARGET_SCHEMA_FILE` (positional, optional) defaults to the bundled generic
-schema. `OUTPUT_FILE` (positional, optional) defaults to `INPUT_FILE` with a
-`_crosswalk.csv` name.
+`OUTPUT_FILE` (positional, optional) defaults to `INPUT_FILE` with a
+`_crosswalk.csv` name. `--name-field`/`--code-field` default to
+`adm{n}_name`/`adm{n}_code` when omitted.
 
 Run `topo-tools schema-map --help` for the full, always-current option
 list.
 
-## Target-schema config
+## Target naming templates
 
-The target schema is config, not hardcoded, so `schema-map` works on any
-dataset, not just COD-AB; omit `TARGET_SCHEMA_FILE` to use the bundled
-default (`topo_tools/core/schema_map/data/default.yaml`), or pass your own. A
-config is just two naming templates, `name_field` and `code_field` (e.g.
-`"adm{n}_name"`/`"adm{n}_code"`), each containing a `{n}` placeholder for
-the discovered admin level. They control output naming only; `schema-map` never
-reads them while deciding what belongs to which level.
+The output naming is config, not hardcoded, so `schema-map` works on any
+dataset, not just COD-AB; omit `--name-field`/`--code-field` to render
+`adm{n}_name`/`adm{n}_code`, or pass your own pair (each containing a `{n}`
+placeholder for the discovered admin level, given together or not at all).
+They control output naming only; `schema-map` never reads them while
+deciding what belongs to which level.
 
 ## Pipeline
 
@@ -100,8 +121,11 @@ reads them while deciding what belongs to which level.
    (DISTINCT) = 0`) is excluded from this step entirely: two all-null
    columns are vacuously bijective with each other and with nothing else,
    no real evidence either way, the same principle `_embeds()` already
-   applies (see `docs/adr/0069`). It still appears in the crosswalk,
-   correctly falling through to `unmatched`.
+   applies (see `docs/adr/0069`). A date/time column is excluded the same
+   way, categorically: a fully-populated pair like `created_date`/
+   `update_date` can coincidentally embed into a near-unique code/name
+   column and build a chain longer than the real hierarchy. Both still
+   appear in the crosswalk, correctly falling through to `unmatched`.
 2. **Build the hierarchy as a longest path over the full containment
    DAG, embedding-justified except at a true constant**
    (`_build_chain()`, `core/schema_map/_02_map.py`): dynamic programming over
@@ -123,6 +147,20 @@ reads them while deciding what belongs to which level.
    (Syria's `Admin_Unit.shp` has `SY14` genuinely duplicating five other
    governorates' district codes, a real multi-value anomaly, not a
    placeholder, so it correctly stays unresolved, see `docs/adr/0071`).
+   The constant-root exemption only ever applies to an unbroken
+   count-1 prefix starting at the file's own root, never a later,
+   coincidentally-constant column further down the chain, and on a
+   length tie a code-shaped candidate is preferred over a name-shaped one
+   (an audit column otherwise chaining as far as a real admin hierarchy
+   purely by coincidence, see `docs/adr/0100`). Both the root exemption
+   (when it's the edge's only justification) and the single-violator
+   tolerance additionally require the finer column to be spatially
+   coherent (its own value groups explain most of the file's centroid
+   spread) whenever geometry is loaded on the table, a safety net against
+   an audit column that passes the cheap statistical test but carries no
+   real geographic information; a column reaching the chain through
+   direct, tolerance-free embedding is never subject to this check (see
+   `docs/adr/0100`).
    Testing every pair, not just neighbors, lets a finer level reconnect
    past one that doesn't nest cleanly: a "loose" cross-cutting attribute
    can still get baked into a compound code's construction (an urban/rural

@@ -17,11 +17,9 @@ from topo_tools.core.io import (
 from topo_tools.core.schema_fill import _01_inputs as inputs
 from topo_tools.core.schema_fill import _02_fill as fill_stage
 from topo_tools.core.schema_fill import _03_outputs as outputs
+from topo_tools.core.schema_map._level_columns import detect_level_columns
 from topo_tools.core.schema_map._levels import detect_levels
-from topo_tools.core.schema_map._target_schema import (
-    DEFAULT_TARGET_SCHEMA_PATH,
-    load_target_schema,
-)
+from topo_tools.core.schema_map._target_schema import resolve_explicit_target_schema
 
 logger = getLogger(__name__)
 
@@ -36,9 +34,10 @@ _STEP_TABLES = {
 
 def fill(  # noqa: PLR0913
     input_path: str | Path,
-    target_schema_path: str | Path | None = None,
     output_path: str | Path | None = None,
     *,
+    name_field: str | None = None,
+    code_field: str | None = None,
     threads: int | None = None,
     tmp_dir: str | Path | None = None,
     overwrite: bool = True,
@@ -48,18 +47,14 @@ def fill(  # noqa: PLR0913
 ) -> None:
     """Cascade admin-hierarchy columns down for one input file.
 
-    target_schema_path defaults to the bundled generic schema.
+    Omitting name_field/code_field triggers structural auto-detection.
     """
     if step is not None and step not in _STEP_ORDER:
         msg = f"step must be one of {_STEP_ORDER}, got {step!r}"
         raise ValueError(msg)
 
     input_path = resolve_input_path(input_path)
-    target_schema_path = (
-        Path(target_schema_path)
-        if target_schema_path is not None
-        else DEFAULT_TARGET_SCHEMA_PATH
-    )
+    schema = resolve_explicit_target_schema(name_field, code_field)
     output_path = (
         Path(output_path)
         if output_path is not None
@@ -82,11 +77,13 @@ def fill(  # noqa: PLR0913
             if debug:
                 logger.info("=== %s ===", s)
             if s == "inputs":
-                schema = load_target_schema(target_schema_path)
                 inputs.main(conn, name, input_path, schema)
             elif s == "fill":
-                schema = load_target_schema(target_schema_path)
-                levels = detect_levels(conn, f"{name}_01", schema)
+                levels = (
+                    detect_levels(conn, f"{name}_01", schema)
+                    if schema is not None
+                    else sorted(detect_level_columns(conn, f"{name}_01"))
+                )
                 fill_stage.main(
                     conn,
                     f"{name}_01",

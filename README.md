@@ -9,7 +9,7 @@
 
 `topo-tools` is a collection of DuckDB-powered geospatial topology utilities
 for cleaning and reconciling administrative boundary polygons. It ships
-thirteen tools, usable from the CLI or as a Python package. Composite tools
+sixteen tools, usable from the CLI or as a Python package. Composite tools
 are nested under the primitives they chain internally; every primitive is
 also usable standalone:
 
@@ -25,7 +25,10 @@ also usable standalone:
     - **[edge-clip](docs/explanation/edge_clip.md)**: assigns each child to its parent, then clips it to that parent's geometry.
     - **[edge-stitch](docs/explanation/edge_stitch.md)**: closes seams in an already-tiled polygon layer with one whole-table coverage-clean pass.
 - **[change](docs/explanation/change.md)**: compares two versions of a polygon layer and classifies every unit as unchanged, renamed, modified, split, merged, created, or removed.
-- **[dissolve](docs/explanation/dissolve.md)**: aggregates a polygon layer into a coarser one by grouping on attribute columns and unioning geometry per group.
+- **[package](docs/explanation/package.md)**: runs package-polygons, package-points, and package-lines against one input in a single call.
+  - **[package-polygons](docs/explanation/package_polygons.md)**: dissolves a polygon layer into every detected coarser admin level in a single call.
+  - **[package-points](docs/explanation/package_points.md)**: one label point per admin unit per detected level, using the pole of inaccessibility.
+  - **[package-lines](docs/explanation/package_lines.md)**: one deduplicated line network of admin boundaries, tagged by the coarsest level each segment belongs to.
 
 ## Installation
 
