@@ -57,11 +57,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** the standalone `dissolve` tool (API `dissolve()` and CLI
   `dissolve`) is removed, replaced by `package-polygons`. `--group-by`
   (arbitrary-column grouping) is dropped along with it: `package-polygons`
-  always auto-detects every admin level from a target-schema YAML instead.
-  A caller using `dissolve --group-by adm2_pcode,adm1_pcode` should build
-  a `schema-map` target-schema YAML for their column naming convention and
-  run `package-polygons` instead, which produces every coarser level in
-  one call rather than one `--group-by` at a time.
+  always auto-detects every admin level in one call instead, structurally
+  by default or via an explicit `--name-field`/`--code-field` pair or
+  target-schema YAML. A caller using `dissolve --group-by
+  adm2_pcode,adm1_pcode` should build a `schema-map` target-schema YAML
+  for their column naming convention and run `package-polygons` instead,
+  which produces every coarser level in one call rather than one
+  `--group-by` at a time.
 
 ## [0.5.6] - 2026-09-01
 
