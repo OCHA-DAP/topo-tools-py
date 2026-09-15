@@ -64,8 +64,7 @@ def _resolve_side(
         canonical = cols.group_by[0]
         verify_functional_cluster(conn, table, canonical, cols.group_by)
         columns[n] = canonical
-        other = [c for c in cols.identity_columns if c != canonical]
-        names[n] = other[0] if other else None
+        names[n] = cols.name_column
         level_columns[n] = cols
     return SideLevels(
         columns=columns, names=names, schema=None, level_columns=level_columns

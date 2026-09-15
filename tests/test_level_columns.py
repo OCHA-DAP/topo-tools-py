@@ -76,6 +76,25 @@ def test_detect_level_columns_excludes_bijective_lookalike_from_identity(conn):
     assert "area_sqkm" not in result[finer_level].identity_columns
 
 
+def test_name_column_ignores_digit_shaped_numeric_attributes(conn):
+    """name_column must resolve to the real name, not a digit-containing DOUBLE."""
+    conn.execute("""--sql
+        CREATE TABLE t_01 AS
+        SELECT row_number() OVER () AS fid, *
+        FROM (VALUES
+            ('P1', 'Alphaland', 12.5, 1.1, 2.1,
+             ST_GeomFromText('POLYGON((0 0,1 0,1 1,0 1,0 0))')),
+            ('P2', 'Betaland', 34.5, 3.3, 4.4,
+             ST_GeomFromText('POLYGON((1 0,2 0,2 1,1 1,1 0))')),
+            ('P3', 'Gammaland', 56.5, 5.5, 6.6,
+             ST_GeomFromText('POLYGON((2 0,3 0,3 1,2 1,2 0))'))
+        ) AS v(adm1_pcode, adm1_name, area_sqkm, center_lat, center_lon, geom)
+    """)
+    result = detect_level_columns(conn, "t_01")
+    (level,) = result
+    assert result[level].name_column == "adm1_name"
+
+
 def test_detect_level_columns_ignores_floating_point_embed_coincidence(conn):
     """A low-cardinality flag must not masquerade as a level via a float's digits."""
     conn.execute("""--sql

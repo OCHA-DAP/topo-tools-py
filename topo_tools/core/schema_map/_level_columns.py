@@ -22,6 +22,7 @@ class LevelColumns:
     group_by: list[str]
     identity_columns: list[str]
     has_code: bool = True
+    name_column: str | None = None
 
 
 def _common_prefix_suffix(names: list[str]) -> tuple[str, str]:
@@ -147,11 +148,15 @@ def detect_level_columns(
         has_code = level == root_level or any(
             rows[c].role == "code" for c in all_columns_by_level[level]
         )
+        name_column = next(
+            (c for c in all_columns_by_level[level] if rows[c].role == "name"), None
+        )
         if level not in anchors:
             result[level] = LevelColumns(
                 group_by=group_by,
                 identity_columns=list(all_columns_by_level[level]),
                 has_code=has_code,
+                name_column=name_column,
             )
             continue
 
@@ -170,7 +175,10 @@ def detect_level_columns(
             if is_level_identity_column(c, prefix, anchor, suffix)
         ] + completed
         result[level] = LevelColumns(
-            group_by=group_by + completed, identity_columns=identity, has_code=has_code
+            group_by=group_by + completed,
+            identity_columns=identity,
+            has_code=has_code,
+            name_column=name_column,
         )
     displayed = {display.get(level, level): v for level, v in result.items()}
     leaf = detect_leaf_level(conn, table, displayed)
@@ -323,7 +331,9 @@ def detect_leaf_level(
     )
     if not valid:
         return None
-    return LevelColumns(group_by=valid, identity_columns=valid, has_code=False)
+    return LevelColumns(
+        group_by=valid, identity_columns=valid, has_code=False, name_column=valid[0]
+    )
 
 
 def group_families_by_level(
