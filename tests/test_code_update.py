@@ -112,6 +112,16 @@ _ALL_CLASSES_OLD_ROWS = [
         "adm1_name": "RL8",
         "wkt": "POLYGON((70 0, 71 0, 71 1, 70 1, 70 0))",
     },
+    {
+        "adm1_pcode": "AA.009",
+        "adm1_name": "CX1",
+        "wkt": "POLYGON((80 0, 82 0, 82 2, 80 2, 80 0))",
+    },
+    {
+        "adm1_pcode": "AA.010",
+        "adm1_name": "CX2",
+        "wkt": "POLYGON((82 0, 84 0, 84 2, 82 2, 82 0))",
+    },
 ]
 _ALL_CLASSES_NEW_ROWS = [
     {
@@ -154,8 +164,19 @@ _ALL_CLASSES_NEW_ROWS = [
         "adm1_name": "RL8",
         "wkt": "POLYGON((70.9 0, 71.9 0, 71.9 1, 70.9 1, 70.9 0))",
     },
+    {
+        "adm1_pcode": "x10",
+        "adm1_name": "CXA",
+        "wkt": "POLYGON((80 0, 84 0, 84 1, 80 1, 80 0))",
+    },
+    {
+        "adm1_pcode": "x11",
+        "adm1_name": "CXB",
+        "wkt": "POLYGON((80 1, 84 1, 84 2, 80 2, 80 1))",
+    },
 ]
 _EXPECTED_SPLIT_COUNT = 2
+_EXPECTED_COMPLEX_COUNT = 2
 
 
 @pytest.fixture
@@ -181,6 +202,7 @@ def all_classes_result(tmp_path):
         name_field_b="adm{n}_name",
         code_field_b="adm{n}_pcode",
         link_by_name=True,
+        tau_match=0.4,
     )
 
     rows = _read_changelog(changelog_path)
@@ -267,6 +289,18 @@ def test_relocated_identity_linked_with_predecessor(all_classes_result):
     assert relocated[0]["code_outcome"] == "new"
     assert relocated[0]["match_method"] == "identity"
     assert predecessor_by_code[relocated[0]["new_code"]] == "AA.008"
+
+
+def test_complex_cluster_retires_olds_no_predecessor_on_survivors(all_classes_result):
+    rows, predecessor_by_code = all_classes_result
+    complex_retired = _rows_where(
+        rows, relationship_class="complex", code_outcome="retired"
+    )
+    complex_new = _rows_where(rows, relationship_class="complex", code_outcome="new")
+    assert {r["old_code"] for r in complex_retired} == {"AA.009", "AA.010"}
+    assert len(complex_new) == _EXPECTED_COMPLEX_COUNT
+    assert len({r["cluster_id"] for r in [*complex_retired, *complex_new]}) == 1
+    assert all(predecessor_by_code[r["new_code"]] is None for r in complex_new)
 
 
 def test_multilevel_cascade_rewrites_unchanged_children_under_new_parent(tmp_path):
