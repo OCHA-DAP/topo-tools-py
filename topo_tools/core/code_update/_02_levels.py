@@ -44,15 +44,23 @@ def _resolve_side(
         )
 
     raw = detect_level_columns_or_single(conn, table)
-    coded = [cols for _, cols in sorted(raw.items()) if cols.group_by]
+    coded = [(n, cols) for n, cols in sorted(raw.items()) if cols.group_by]
     if not coded:
         msg = f"no admin hierarchy level detected in {table}"
+        raise ValueError(msg)
+    missing = [n for n, cols in coded if not cols.has_code]
+    if missing:
+        msg = (
+            f"no existing code column to overwrite for level(s) {missing} in "
+            f"{table}; pass --code-field-a/--name-field-a or --code-field-b/"
+            "--name-field-b explicitly"
+        )
         raise ValueError(msg)
 
     columns: dict[int, str] = {}
     names: dict[int, str | None] = {}
     level_columns: dict[int, LevelColumns] = {}
-    for n, cols in enumerate(coded, start=1):
+    for n, (_, cols) in enumerate(coded, start=1):
         canonical = cols.group_by[0]
         verify_functional_cluster(conn, table, canonical, cols.group_by)
         columns[n] = canonical

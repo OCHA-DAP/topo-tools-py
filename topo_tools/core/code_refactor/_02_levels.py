@@ -25,13 +25,20 @@ def main(
     level_columns = detect_level_columns_or_single(conn, table)
     # Relative depth, not admin0 convention: a truly constant coarsest
     # column is dropped before reaching here, so every level found is rankable.
-    coded = [cols for _, cols in sorted(level_columns.items()) if cols.group_by]
+    coded = [(n, cols) for n, cols in sorted(level_columns.items()) if cols.group_by]
     if not coded:
         msg = f"no admin hierarchy level detected in {table}"
         raise ValueError(msg)
+    missing = [n for n, cols in coded if not cols.has_code]
+    if missing:
+        msg = (
+            f"no existing code column to overwrite for level(s) {missing} in "
+            f"{table}; pass --code-field/--name-field explicitly"
+        )
+        raise ValueError(msg)
 
     result: dict[int, str] = {}
-    for n, cols in enumerate(coded, start=1):
+    for n, (_, cols) in enumerate(coded, start=1):
         canonical = cols.group_by[0]
         verify_functional_cluster(conn, table, canonical, cols.group_by)
         result[n] = canonical

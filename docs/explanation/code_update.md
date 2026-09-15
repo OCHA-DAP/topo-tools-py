@@ -13,11 +13,15 @@ OLD and NEW are loaded, reprojected, and coverage-cleaned independently
 are then resolved independently too, each via the identical explicit-
 pair-or-structural-fallback contract `code-refactor` uses
 (`docs/explanation/code_refactor.md`): `--code-field-a`/`--name-field-a`
-for OLD, `--code-field-b`/`--name-field-b` for NEW. A level-count mismatch
-between the two resolutions raises `ValueError` immediately, before any
-dissolve or classify work starts, since a real level-count change (a new
-admin tier added or dropped) needs a human decision, not an automatic
-pass that would otherwise silently misalign levels by depth.
+for OLD, `--code-field-b`/`--name-field-b` for NEW. A resolved level with
+no code column at all (only a name, `has_code=False`, see
+`docs/adr/0106`) raises `ValueError`: neither side's resolution ever
+creates a column, so a codeless level needs an explicit `--code-field-a`/
+`-b` pointed at a real one. A level-count mismatch between the two
+resolutions raises `ValueError` immediately, before any dissolve or
+classify work starts, since a real level-count change (a new admin tier
+added or dropped) needs a human decision, not an automatic pass that
+would otherwise silently misalign levels by depth.
 
 `core.code.detect_code_format()` runs against OLD's own resolved
 **finest** level, never level 0: a root-only value like `AFG` has no

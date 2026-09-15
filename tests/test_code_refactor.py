@@ -284,6 +284,56 @@ def test_mismatched_code_name_field_raises(tmp_path):
         )
 
 
+def test_trailing_name_only_level_raises(tmp_path):
+    """A finest level with no code column can't be cold-started without --code-field."""
+    rows = [
+        {
+            "adm1_pcode": "P1",
+            "adm1_name": "Province1",
+            "adm2_pcode": "A1",
+            "adm2_name": "AlphaCounty",
+            "adm3_name": "Ward1",
+            "wkt": "POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))",
+        },
+        {
+            "adm1_pcode": "P1",
+            "adm1_name": "Province1",
+            "adm2_pcode": "A2",
+            "adm2_name": "BetaCounty",
+            "adm3_name": "Ward2",
+            "wkt": "POLYGON((1 0, 2 0, 2 1, 1 1, 1 0))",
+        },
+        {
+            "adm1_pcode": "P2",
+            "adm1_name": "Province2",
+            "adm2_pcode": "B1",
+            "adm2_name": "GammaCounty",
+            "adm3_name": "Ward1",
+            "wkt": "POLYGON((0 1, 1 1, 1 2, 0 2, 0 1))",
+        },
+        {
+            "adm1_pcode": "P2",
+            "adm1_name": "Province2",
+            "adm2_pcode": "B2",
+            "adm2_name": "DeltaCounty",
+            "adm3_name": "Ward2",
+            "wkt": "POLYGON((1 1, 2 1, 2 2, 1 2, 1 1))",
+        },
+        {
+            "adm1_pcode": "P3",
+            "adm1_name": "Province3",
+            "adm2_pcode": "C1",
+            "adm2_name": "EpsilonCounty",
+            "adm3_name": "Ward3",
+            "wkt": "POLYGON((2 0, 3 0, 3 1, 2 1, 2 0))",
+        },
+    ]
+    input_path = tmp_path / "leaf.parquet"
+    _write_synthetic(input_path, rows)
+    with pytest.raises(ValueError, match="no existing code column"):
+        code_refactor(input_path, root_code="AA", delimiter=".", min_width=3)
+
+
 def test_default_output_path(tmp_path):
     input_path = tmp_path / "leaf.parquet"
     _write_synthetic(input_path, _TWO_LEVEL_ROWS)

@@ -18,6 +18,10 @@ shares with `code-refactor`.
   fallback contract `code-refactor` uses (`docs/reference/code_refactor.md`):
   `name_field_a`/`code_field_a` (or structural auto-detection) for OLD,
   `name_field_b`/`code_field_b` (or structural auto-detection) for NEW.
+- `code-update` MUST raise `ValueError` ("no existing code column to
+  overwrite") if either side resolves a level with no code column at all
+  (e.g. a trailing finest level with only a name column, see
+  `docs/adr/0106`), rather than silently skipping that level.
 - `code-update` MUST raise `ValueError` ("level mismatch") if OLD's and
   NEW's resolved level counts differ, before any dissolve/classify stage
   runs: a real level-count change needs a human decision, not an automatic

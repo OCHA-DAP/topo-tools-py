@@ -23,6 +23,10 @@ shares with `code-update`.
   containment only, no naming convention assumed).
 - `code-refactor` MUST raise `ValueError` ("no admin hierarchy level
   detected") if structural auto-detection finds zero levels.
+- `code-refactor` MUST raise `ValueError` ("no existing code column to
+  overwrite") if any resolved level has no code column at all (e.g. a
+  trailing finest level with only a name column, see `docs/adr/0106`),
+  rather than silently skipping that level or overwriting its name column.
 - Every resolved level MUST be renumbered to a clean, relative `1..N`
   sequence, coarsest first; a genuinely constant coarsest column (e.g. a
   single-country file's own admin0 code) is dropped before reaching this

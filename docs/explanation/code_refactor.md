@@ -19,7 +19,11 @@ code_field)` first, and if that returns `None` (neither flag given),
 structural auto-detection (`detect_level_columns_or_single()` +
 `verify_functional_cluster()`) takes over. Zero levels detected raises
 `ValueError`, since a hierarchy that can't be located at all has nothing
-for the tool to rank.
+for the tool to rank. A resolved level with no code column at all (only a
+name, `has_code=False`, see `docs/adr/0106`) also raises `ValueError`: `code-
+refactor` only ever overwrites an existing column's values, it never
+creates one, so a codeless level needs `--code-field` pointed at a real
+column before it can be ranked at all.
 
 Resolved levels are renumbered to a clean `1..N`, coarsest first,
 regardless of how many raw columns existed or what they were named. A
