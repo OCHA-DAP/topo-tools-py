@@ -129,6 +129,7 @@ parent codes:
   requested.
 - `link_mode` MUST be `"either"` or `"both"`; any other value MUST raise
   `ValueError`.
-- `step`, if given, MUST be one of `inputs`, `levels`, `dissolve`,
-  `classify`, `reparent`, `assign`, `outputs`; any other value MUST raise
-  `ValueError`.
+- `step`, if given, MUST be one of `inputs`, `levels`, `process`,
+  `outputs`; any other value MUST raise `ValueError`. `process` runs
+  dissolve, classify, reparent, and assign for every level, one level
+  fully before the next (see `docs/adr/0105`).

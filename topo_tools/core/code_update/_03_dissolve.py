@@ -1,4 +1,4 @@
-"""Dissolves OLD and NEW into every detected level, independently, for classify."""
+"""Dissolves OLD and NEW into one level, independently, for classify."""
 
 from duckdb import DuckDBPyConnection
 
@@ -35,11 +35,11 @@ def main(  # noqa: PLR0913
     name: str,
     old_table: str,
     new_table: str,
+    n: int,
     *,
     side_a: SideLevels,
     side_b: SideLevels,
 ) -> None:
-    """Dissolve `{name}_dsl_{n}_a`/`_b` for every level in side_a/side_b's columns."""
-    for n in sorted(side_a.columns):
-        _dissolve_side(conn, old_table, f"{name}_dsl_{n}_a", n, side_a)
-        _dissolve_side(conn, new_table, f"{name}_dsl_{n}_b", n, side_b)
+    """Dissolve `{name}_dsl_{n}_a`/`_b` for level n."""
+    _dissolve_side(conn, old_table, f"{name}_dsl_{n}_a", n, side_a)
+    _dissolve_side(conn, new_table, f"{name}_dsl_{n}_b", n, side_b)

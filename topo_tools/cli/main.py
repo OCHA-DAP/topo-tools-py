@@ -1235,9 +1235,7 @@ def code_refactor(  # noqa: PLR0913, PLR0917
 @click.option(
     "--step",
     envvar="STEP",
-    type=click.Choice(
-        ["inputs", "levels", "dissolve", "classify", "reparent", "assign", "outputs"]
-    ),
+    type=click.Choice(["inputs", "levels", "process", "outputs"]),
     default=None,
     help="Run only one named stage.",
 )

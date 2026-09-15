@@ -42,12 +42,16 @@ def main(  # noqa: PLR0913
     side_a: SideLevels,
     side_b: SideLevels,
     new_code_by_fid: dict[int, dict[int, str]],
+    raw_val_by_fid: dict[int, dict[int, str]],
     changelog: list[ChangeRow],
     fmt: CodeFormat,
     predecessor_field: str = "predecessor_code",
     debug: bool = False,
 ) -> None:
-    """Write each level's new code into finest_table under OLD's own column names."""
+    """Write each level's new code into finest_table under OLD's own column names.
+
+    raw_val_by_fid supplies the fid -> raw NEW value lookup without needing dsl_{n}_b.
+    """
     _flag_overflow(changelog, fmt)
     existing = {r[0] for r in conn.execute(f'DESCRIBE "{finest_table}"').fetchall()}
 
@@ -66,20 +70,22 @@ def main(  # noqa: PLR0913
         existing.add(predecessor_field)
     pred_mapping = f"{name}_out_map_predecessor"
     conn.execute(f"""--sql
-        CREATE OR REPLACE TEMP TABLE "{pred_mapping}" (fid BIGINT, predecessor VARCHAR)
+        CREATE OR REPLACE TEMP TABLE "{pred_mapping}" (
+            raw_val VARCHAR, predecessor VARCHAR
+        )
     """)
     conn.executemany(
-        f'INSERT INTO "{pred_mapping}" VALUES (?, ?)', list(predecessor_by_fid.items())
+        f'INSERT INTO "{pred_mapping}" VALUES (?, ?)',
+        [
+            (raw_val_by_fid[finest][b_fid], predecessor)
+            for b_fid, predecessor in predecessor_by_fid.items()
+        ],
     )
     finest_raw_col = side_b.columns[finest]
     conn.execute(f"""--sql
         UPDATE "{finest_table}" t
         SET "{predecessor_field}" = m.predecessor
-        FROM (
-            SELECT dsl."{finest_raw_col}" AS raw_val, pm.predecessor
-            FROM "{name}_dsl_{finest}_b" dsl
-            JOIN "{pred_mapping}" pm ON pm.fid = dsl.fid
-        ) m
+        FROM "{pred_mapping}" m
         WHERE t."{finest_raw_col}" = m.raw_val
     """)
     conn.execute(f'DROP TABLE IF EXISTS "{pred_mapping}"')
@@ -94,20 +100,19 @@ def main(  # noqa: PLR0913
 
         mapping = f"{name}_out_map_{n}"
         conn.execute(f"""--sql
-            CREATE OR REPLACE TEMP TABLE "{mapping}" (fid BIGINT, new_code VARCHAR)
+            CREATE OR REPLACE TEMP TABLE "{mapping}" (raw_val VARCHAR, new_code VARCHAR)
         """)
         conn.executemany(
             f'INSERT INTO "{mapping}" VALUES (?, ?)',
-            list(new_code_by_fid[n].items()),
+            [
+                (raw_val_by_fid[n][fid], code)
+                for fid, code in new_code_by_fid[n].items()
+            ],
         )
         conn.execute(f"""--sql
             UPDATE "{finest_table}" t
             SET "{output_col}" = m.new_code
-            FROM (
-                SELECT dsl."{raw_col}" AS raw_val, mp.new_code
-                FROM "{name}_dsl_{n}_b" dsl
-                JOIN "{mapping}" mp ON mp.fid = dsl.fid
-            ) m
+            FROM "{mapping}" m
             WHERE t."{raw_col}" = m.raw_val
         """)
         conn.execute(f'DROP TABLE IF EXISTS "{mapping}"')

@@ -3,8 +3,10 @@
 from logging import getLogger
 from pathlib import Path
 
+from duckdb import DuckDBPyConnection
+
 from topo_tools.core.change._constants import TAU_MATCH_DEFAULT, TAU_SAME_DEFAULT
-from topo_tools.core.code import TABLE_COPY_OPTS
+from topo_tools.core.code import TABLE_COPY_OPTS, CodeFormat
 from topo_tools.core.code_update import _01_inputs as inputs
 from topo_tools.core.code_update import _02_levels as levels_stage
 from topo_tools.core.code_update import _03_dissolve as dissolve_stage
@@ -12,6 +14,8 @@ from topo_tools.core.code_update import _04_classify as classify_stage
 from topo_tools.core.code_update import _05_reparent as reparent_stage
 from topo_tools.core.code_update import _06_assign as assign_stage
 from topo_tools.core.code_update import _07_outputs as outputs_stage
+from topo_tools.core.code_update._02_levels import SideLevels
+from topo_tools.core.code_update._06_assign import ChangeRow
 from topo_tools.core.duckdb_utils import (
     maybe_export_debug_tables,
     pipeline_connection,
@@ -26,28 +30,87 @@ from topo_tools.core.io import (
 
 logger = getLogger(__name__)
 
-_STEP_ORDER = [
-    "inputs",
-    "levels",
-    "dissolve",
-    "classify",
-    "reparent",
-    "assign",
-    "outputs",
-]
+_STEP_ORDER = ["inputs", "levels", "process", "outputs"]
 
 _STEP_TABLES = {
     "inputs": ["{n}_a_01", "{n}_b_01"],
     "levels": [],
-    "dissolve": [],
-    "classify": [],
-    "reparent": [],
-    "assign": [],
+    "process": [],
     "outputs": [],
 }
 
 
-def code_update(  # noqa: C901, PLR0912, PLR0913, PLR0915
+def _process_level(  # noqa: PLR0913
+    conn: DuckDBPyConnection,
+    name: str,
+    n: int,
+    prev_level: int | None,
+    *,
+    side_a: SideLevels,
+    side_b: SideLevels,
+    fmt: CodeFormat,
+    tau_match: float,
+    tau_same: float,
+    link_by_code: bool,
+    link_by_name: bool,
+    link_mode: str,
+    code_column_a: str | None,
+    code_column_b: str | None,
+    name_column_a: str | None,
+    name_column_b: str | None,
+    new_code_by_fid: dict[int, dict[int, str]],
+    raw_val_by_fid: dict[int, dict[int, str]],
+    changelog: list[ChangeRow],
+) -> None:
+    """Dissolve, classify, reparent, and assign one level, then drop its geometry.
+
+    Keeps only this level's `_dsl_{n}_b` resident afterward, as the next level's
+    reparent parent; every other per-level table is dropped once consumed.
+    """
+    dissolve_stage.main(
+        conn, name, f"{name}_a_01", f"{name}_b_01", n, side_a=side_a, side_b=side_b
+    )
+    raw_col_b = side_b.columns[n]
+    raw_val_by_fid[n] = dict(
+        conn.execute(f'SELECT fid, "{raw_col_b}" FROM "{name}_dsl_{n}_b"').fetchall()
+    )
+    classify_stage.main(
+        conn,
+        name,
+        n,
+        tau_match=tau_match,
+        tau_same=tau_same,
+        link_by_code=link_by_code,
+        link_by_name=link_by_name,
+        link_mode=link_mode,
+        code_col_a=code_column_a or side_a.columns[n],
+        code_col_b=code_column_b or side_b.columns[n],
+        name_col_a=name_column_a or side_a.names[n],
+        name_col_b=name_column_b or side_b.names[n],
+    )
+    if prev_level is not None:
+        reparent_stage.main(conn, name, n, prev_level)
+    assign_stage.main(
+        conn,
+        name,
+        n,
+        prev_level,
+        side_a=side_a,
+        side_b=side_b,
+        fmt=fmt,
+        new_code_by_fid=new_code_by_fid,
+        changelog=changelog,
+    )
+    conn.execute(f'DROP TABLE IF EXISTS "{name}_dsl_{n}_a"')
+    conn.execute(f'DROP TABLE IF EXISTS "{name}_chg_{n}_03a"')
+    conn.execute(f'DROP TABLE IF EXISTS "{name}_chg_{n}_03b"')
+    conn.execute(f'DROP TABLE IF EXISTS "{name}_chg_{n}_03c"')
+    if prev_level is not None:
+        conn.execute(f'DROP TABLE IF EXISTS "{name}_reparent_{n}_02_assign"')
+        conn.execute(f'DROP TABLE IF EXISTS "{name}_dsl_{prev_level}_b"')
+
+
+def code_update(  # noqa: C901, PLR0913, PLR0915
     old_path: str | Path,
     new_path: str | Path,
     output_path: str | Path | None = None,
@@ -119,7 +182,9 @@ def code_update(  # noqa: C901, PLR0912, PLR0913, PLR0915
     ):
         logger.info("starting: %s", name)
         side_a = side_b = fmt = None
-        new_code_by_fid = changelog = None
+        new_code_by_fid: dict[int, dict[int, str]] | None = None
+        raw_val_by_fid: dict[int, dict[int, str]] = {}
+        changelog: list[ChangeRow] | None = None
 
         def _ensure_levels() -> None:
             nonlocal side_a, side_b, fmt
@@ -138,14 +203,38 @@ def code_update(  # noqa: C901, PLR0912, PLR0913, PLR0915
                 min_width=min_width,
             )
 
-        def _ensure_assign() -> None:
+        def _ensure_process() -> None:
             nonlocal new_code_by_fid, changelog
             _ensure_levels()
             if new_code_by_fid is not None:
                 return
-            new_code_by_fid, changelog = assign_stage.main(
-                conn, name, side_a=side_a, side_b=side_b, fmt=fmt
-            )
+            new_code_by_fid = {}
+            changelog = []
+            prev_level = None
+            for n in sorted(side_a.columns):
+                _process_level(
+                    conn,
+                    name,
+                    n,
+                    prev_level,
+                    side_a=side_a,
+                    side_b=side_b,
+                    fmt=fmt,
+                    tau_match=tau_match,
+                    tau_same=tau_same,
+                    link_by_code=link_by_code,
+                    link_by_name=link_by_name,
+                    link_mode=link_mode,
+                    code_column_a=code_column_a,
+                    code_column_b=code_column_b,
+                    name_column_a=name_column_a,
+                    name_column_b=name_column_b,
+                    new_code_by_fid=new_code_by_fid,
+                    raw_val_by_fid=raw_val_by_fid,
+                    changelog=changelog,
+                )
+                prev_level = n
+            conn.execute(f'DROP TABLE IF EXISTS "{name}_dsl_{prev_level}_b"')
 
         for s in _STEP_ORDER:
             if step and step != s:
@@ -156,40 +245,10 @@ def code_update(  # noqa: C901, PLR0912, PLR0913, PLR0915
                 inputs.main(conn, name, old_path, new_path)
             elif s == "levels":
                 _ensure_levels()
-            elif s == "dissolve":
-                _ensure_levels()
-                dissolve_stage.main(
-                    conn,
-                    name,
-                    f"{name}_a_01",
-                    f"{name}_b_01",
-                    side_a=side_a,
-                    side_b=side_b,
-                )
-            elif s == "classify":
-                _ensure_levels()
-                classify_stage.main(
-                    conn,
-                    name,
-                    side_a=side_a,
-                    side_b=side_b,
-                    tau_match=tau_match,
-                    tau_same=tau_same,
-                    link_by_code=link_by_code,
-                    link_by_name=link_by_name,
-                    link_mode=link_mode,
-                    code_column_a=code_column_a,
-                    code_column_b=code_column_b,
-                    name_column_a=name_column_a,
-                    name_column_b=name_column_b,
-                )
-            elif s == "reparent":
-                _ensure_levels()
-                reparent_stage.main(conn, name, side_b=side_b)
-            elif s == "assign":
-                _ensure_assign()
+            elif s == "process":
+                _ensure_process()
             elif s == "outputs":
-                _ensure_assign()
+                _ensure_process()
                 outputs_stage.main(
                     conn,
                     name,
@@ -199,6 +258,7 @@ def code_update(  # noqa: C901, PLR0912, PLR0913, PLR0915
                     side_a=side_a,
                     side_b=side_b,
                     new_code_by_fid=new_code_by_fid,
+                    raw_val_by_fid=raw_val_by_fid,
                     changelog=changelog,
                     fmt=fmt,
                     debug=debug,

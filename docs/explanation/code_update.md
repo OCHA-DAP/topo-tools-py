@@ -144,3 +144,23 @@ one row with `old_code=NULL`, a `merge` gives N retired rows plus one new
 row, and a `complex` cluster gives one row per actually-linked old/new
 pair straight from `change`'s own pairwise table, never a full N×M
 cross-product.
+
+## Memory profile: level-major, not stage-major
+
+`_03_dissolve` through `_06_assign` run as one per-level loop, ascending,
+rather than four stages each looping over every level (`docs/adr/0105`).
+A level's own OLD dissolve table drops once that level's `assign` step
+reads it; its NEW dissolve table stays resident one extra iteration (the
+next level's `reparent` step needs it as the parent geometry), then
+drops. `_07_outputs` needs no dissolve table at all: each level's `fid ->
+raw column value` mapping is captured into a small Python dict right
+after that level's own dissolve runs, before its NEW dissolve table would
+otherwise be dropped.
+
+This bounds peak resident geometry to roughly two levels' dissolved
+tables at a time, not every level simultaneously. It does not bound
+`_01_inputs`'s own memory cost: coverage-cleaning the two full
+finest-level input files (`core.io.read_reproject_and_clean()`, shared by
+every tool that reads a layer) can itself peak several GB on a large,
+topologically messy input, before any per-level work starts, a cost
+orthogonal to `code-update`'s own per-level architecture.
