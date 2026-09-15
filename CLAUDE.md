@@ -4,15 +4,16 @@
 
 `topo-tools` is a Python package of DuckDB-powered geospatial topology utilities,
 `pip install`-able and importable, mirroring the organization of the sister JS app
-at `../topo-tools` (a DuckDB-WASM web app with the same tools). It ships sixteen
+at `../topo-tools` (a DuckDB-WASM web app with the same tools). It ships eighteen
 tools, all used for improving administrative boundary datasets and matching
 sub-national boundaries to national boundaries (import-linter contracts
 governing which tool may depend on which are in `docs/reference/shared.md`).
 Tools are named `{group}-{verb}`: **edge** (boundary-fitting between layers),
 **topo** (single-layer topology defects), **schema** (column crosswalking),
 and **package** (cartographic derivatives for web maps); `change` and bare
-`package` stand alone for now. Four are primitives, each standalone AND
-reused internally by the composite tools below them:
+`package` stand alone for now, as do `code-refactor` and `code-update`. Four
+are primitives, each standalone AND reused internally by the composite tools
+below them:
 
 - **edge-extend**: extends polygon boundaries outward using Voronoi diagrams, producing a complete coverage layer that fills gaps (coastlines, disputed areas, water bodies).
 - **edge-clip**: assigns each child to its parent (always `assign-one`), then clips it to that parent's geometry, one `parent_fid` at a time in its own subprocess; a strict one-children-file/one-parent-file/one-output primitive (`edge-mosaic` owns batching many children files against one shared parent load, see `docs/adr/0080`). See `docs/explanation/edge_clip.md`.
@@ -30,6 +31,8 @@ reused internally by the composite tools below them:
 - **schema-refactor**: renames/drops columns per a crosswalk from `schema-map` (likely hand-edited first). See `docs/explanation/schema_refactor.md`.
 - **schema-crosswalk**: `schema-map` → `schema-refactor`, in one call, so a user can see mapped values right away and iterate by hand-editing the written crosswalk and re-running `schema-refactor` on it. See `docs/explanation/schema_crosswalk.md`.
 - **schema-fill**: stamps a new `adm_lvl` column (overridable via `--depth-column`) with each row's real depth, then cascades each admin-hierarchy column down to that depth, pinned per row so a genuine NULL at a row's own real depth is never backfilled from a shallower ancestor; levels derived structurally by default, or via an explicit `--name-field`/`--code-field` pair; run against an already-clipped/stitched layer, then `package-polygons` to dissolve every level normally. See `docs/explanation/schema_fill.md`.
+- **code-refactor**: cold-starts a hierarchical code on a flat, finest-level input, levels resolved structurally by default (or via an explicit `--name-field`/`--code-field` pair), each level's units ranked under their parent and assigned a fresh sequential code in a configurable `--root-code`/`--delimiter`/`--min-width` format (`core.code`, a shared leaf). See `docs/explanation/code_refactor.md`, `docs/explanation/code.md`.
+- **code-update**: reconciles an already-coded OLD layer against an uncoded NEW candidate, classifying every unit via `core.change`'s own engine and applying a changelog-driven retention policy (retain/replace/retire) per unit, cascading a changed parent's new code prefix down to every unchanged/renamed descendant. Format (`root_code`/`delimiter`/`min_width`) auto-detects off OLD's own existing codes unless overridden. See `docs/explanation/code_update.md`, `docs/explanation/code.md`.
 
 ## Deployment Targets
 
@@ -51,32 +54,35 @@ are the one exception, see `docs/explanation/edge_match.md`). Three layers,
 each with a specific job (mirroring `geoparquet-io`'s `core`/`api`/`cli`
 split):
 
-- `topo_tools/core/{edge_extend,assign,edge_clip,edge_stitch,topo_detect,dissolve,schema_fill,package_polygons,package_points,package_lines,edge_match,edge_mosaic,topo_clean,change}/`:
+- `topo_tools/core/{edge_extend,assign,edge_clip,edge_stitch,topo_detect,dissolve,schema_fill,package_polygons,package_points,package_lines,edge_match,edge_mosaic,topo_clean,change,code_refactor,code_update}/`:
   stage implementations. `core.edge_match`/`core.edge_mosaic` call
   `core.edge_clip`/`core.edge_stitch` stage functions directly (not through
   their own `api.*()`), the same pattern `core.edge_match` uses to call
   `core.edge_extend`'s stage functions directly, `core.topo_clean` uses to
   call `core.topo_detect`'s issue-detection stage function directly (see
-  `docs/adr/0028`), and `core.package_polygons`/`core.package_points`/
+  `docs/adr/0028`), `core.package_polygons`/`core.package_points`/
   `core.package_lines` use to call `core.dissolve`'s stage functions
-  directly, once per detected admin level. `core.assign` has no
+  directly, once per detected admin level, and `core.code_update` uses to
+  call `core.dissolve`'s, `core.change`'s, and `core.assign`'s stage
+  functions directly (see `docs/adr/0103`). `core.assign` has no
   `api.*()`/CLI pipeline of its own, so it's called one layer up instead,
-  directly from `api.edge_mosaic`/`api.edge_clip`/`api.edge_match`.
-  `core.assign`/`core.edge_clip`/`core.edge_stitch`/`core.topo_detect`/
-  `core.dissolve` are themselves neutral leaves, alongside
-  `core.constants`/`core.coverage`/`core.io`/`core.duckdb_utils`/
-  `core.units`; every tool package may import any of these ten, none of
-  them may import back, except `core.dissolve`'s one narrow, explicit
-  carve-out below. `core.schema_map` is not a neutral leaf but MAY be
-  imported by `core.schema_fill`, `core.dissolve`, `core.package_polygons`,
-  `core.package_points`, and `core.package_lines` specifically (the
+  directly from `api.edge_mosaic`/`api.edge_clip`/`api.edge_match`/
+  `api.code_update`. `core.assign`/`core.edge_clip`/`core.edge_stitch`/
+  `core.topo_detect`/`core.dissolve`/`core.code` are themselves neutral
+  leaves, alongside `core.constants`/`core.coverage`/`core.io`/
+  `core.duckdb_utils`/`core.units`; every tool package may import any of
+  these eleven, none of them may import back, except `core.dissolve`'s one
+  narrow, explicit carve-out below. `core.schema_map` is not a neutral leaf
+  but MAY be imported by `core.schema_fill`, `core.dissolve`,
+  `core.package_polygons`, `core.package_points`, `core.package_lines`,
+  `core.code_refactor`, and `core.code_update` specifically (the
   `name_field`/`code_field`/level-detection mechanism,
   `core/schema_map/_levels.py`, `core/schema_map/_level_columns.py`), never
   the reverse (see `docs/adr/0075`,
   `docs/adr/0092`); `schema-fill` does not call `core.dissolve` itself, a
   caller runs `package-polygons` separately after filling (see
   `docs/explanation/schema_fill.md`).
-- `topo_tools/api/{edge_extend,edge_clip,edge_stitch,topo_detect,schema_fill,package_polygons,package_points,package_lines,package,edge_match,edge_mosaic,topo_clean,change}.py`:
+- `topo_tools/api/{edge_extend,edge_clip,edge_stitch,topo_detect,schema_fill,package_polygons,package_points,package_lines,package,edge_match,edge_mosaic,topo_clean,change,code_refactor,code_update}.py`:
   public API functions; each chains its own tool's stages for exactly one
   file (or file pair) per call, except `edge-mosaic`'s and `edge-match`'s
   children roles, which MAY span multiple files (see
@@ -147,6 +153,7 @@ per-tool table names are in `docs/explanation/{tool}.md`.
 - **`schema-crosswalk` reuses `schema-map`'s and `schema-refactor`'s stage functions directly rather than re-implementing matching or renaming**, the same primitive-reuse pattern as `topo-clean`/`topo-detect` (`docs/adr/0028`), but split across two independent `name` sub-namespaces (`{name}` for `schema-map`'s tables, `f"{name}_apply"` for `schema-refactor`'s) since both hardcode `"{name}_02"` for different data. The apply namespace's `_01` table is a DuckDB **view** over the already-loaded input, not a copy, per this project's memory-constrained deployment targets; it MUST be dropped before any `DROP TABLE IF EXISTS` targets that name, since DuckDB raises a Catalog Error dropping a view as a table even with `IF EXISTS`. See `docs/explanation/schema_crosswalk.md`.
 - **`schema-fill`/`package-polygons`/`package-points`/`package-lines`/`package` all detect every hierarchy level structurally by default (`core.schema_map`'s cardinality/containment matcher, no naming convention assumed), never a hardcoded column-naming convention or column count**, or via an explicit `name_field`/`code_field` pair (`--name-field`/`--code-field`, given together or not at all). Structural auto-detection groups each level's columns by a shared naming anchor (`_level_anchors()`, `core/schema_map/_level_columns.py`): the text every level's own code column shares with every other level's, as a common prefix and (of what's left) a common suffix, so the differing middle part (a digit like `1`/`2`/`3`, or a whole word like `state`/`county`) can anchor a sibling column at either end (`is_level_identity_column()`), never assuming a digit or a fixed position. `schema-fill` stamps a depth column (`adm_lvl` by default, overridable via `depth_column`/`--depth-column`) from the *original* (pre-fill) code columns so a caller can tell a genuine leaf-depth row from one only ever filled down; every level past a row's own stamped depth is pinned to that row's own value at (or nearest below) that depth, per row, never a shared file-wide level, so a genuine NULL at a row's own real depth is left untouched rather than backfilled from a shallower ancestor (see `docs/adr/0075`, `docs/adr/0093`); `package-polygons`'s own unmodified per-level `core.dissolve` call then carries the depth column through automatically via its existing auto-keep-constant-column behavior.
 - **`package-polygons`/`package-points`/`package-lines` reuse `core.dissolve`'s stage functions directly rather than re-implementing aggregation**, the same primitive-reuse pattern `edge-match` uses on `edge-extend` (see `docs/explanation/package_polygons.md`, `docs/explanation/package_points.md`, `docs/explanation/package_lines.md`).
+- **`core.code`'s next-available integer per parent is derived only from codes live in the current run, never a persisted registry.** `code-update` seeds it with that level's own just-computed retained (`unchanged`/`renamed`) set, so a code retired this run (a `merge`'s old codes, a `removed` unit's code) may be immediately reused by an unrelated new/split/merge/created unit at the same level, same run; a code removed in an earlier run is not tracked at all (see `docs/adr/0102`, `docs/explanation/code.md`).
 
 ### Supported Formats
 
@@ -202,6 +209,12 @@ uv run topo-tools schema-refactor example.geojson example_crosswalk.csv
 # Run the schema-crosswalk tool (schema-map + schema-refactor in one call)
 uv run topo-tools schema-crosswalk example.geojson
 
+# Run the code-refactor tool (cold-start a hierarchical code, ranked per parent)
+uv run topo-tools code-refactor admin2.geojson --root-code AFG --delimiter . --min-width 3
+
+# Run the code-update tool (reconcile an already-coded OLD layer against an uncoded NEW candidate)
+uv run topo-tools code-update admin1_old.geojson admin1_new.geojson
+
 # Format and lint
 uv run ruff format && uv run ruff check
 ```
@@ -238,6 +251,6 @@ file (or an old/new comparison pair, for `change`) from the catalog.
 
 - `docs/tutorials/{tool}.md`: GDAL-style getting-started examples per tool
 - `docs/reference/{tool}.md`: behavior contract per tool (`shared.md` for common settings/gates)
-- `docs/explanation/{tool}.md`: stage-by-stage detail for `edge_extend`, `topology`, `assign`, `edge_clip`, `edge_stitch`, `topo_detect`, `edge_match`, `edge_mosaic`, `topo_clean`, `change`, `schema_map`, `schema_refactor`, `schema_crosswalk`, `schema_fill`, `package_polygons`, `package_points`, `package_lines`, `package`; notable: `topology.md` has the SPATIAL_JOIN memory bug, `performance.md` has thread-scaling benchmarks + the RTREE experiment, `voronoi-memory.md` has per-file resampling distance and memory ceilings for `phl_admin3`/`idn_admin3`, `edge_match.md` has the `check_gaps` caveat
+- `docs/explanation/{tool}.md`: stage-by-stage detail for `edge_extend`, `topology`, `assign`, `edge_clip`, `edge_stitch`, `topo_detect`, `edge_match`, `edge_mosaic`, `topo_clean`, `change`, `schema_map`, `schema_refactor`, `schema_crosswalk`, `schema_fill`, `package_polygons`, `package_points`, `package_lines`, `package`, `code`, `code_refactor`, `code_update`; notable: `topology.md` has the SPATIAL_JOIN memory bug, `performance.md` has thread-scaling benchmarks + the RTREE experiment, `voronoi-memory.md` has per-file resampling distance and memory ceilings for `phl_admin3`/`idn_admin3`, `edge_match.md` has the `check_gaps` caveat
 - `.claude/skills/`: `publishing` (PyPI release via OIDC), `verify-duckdb-function` (DuckDB/spatial function lookup), `at-scale-testing` (portolan catalog layout, picking a test file/pair), `manual-dev-testing` (running any tool against your own data)
 - `docs/adr/README.md`: how to decide ADR vs. `docs/explanation/` vs. CLAUDE.md's Key Patterns; `docs/adr/` itself holds the decision records

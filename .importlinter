@@ -268,3 +268,67 @@ source_modules =
     topo_tools.core.schema_map
 forbidden_modules =
     topo_tools.core.package_lines
+
+[importlinter:contract:core-code-is-leaf]
+name = core.code must not depend on any tool package
+type = forbidden
+source_modules =
+    topo_tools.core.code
+forbidden_modules =
+    topo_tools.core.code_refactor
+    topo_tools.core.code_update
+
+[importlinter:contract:code_refactor-and-code_update-may-use-schema_map-not-reverse]
+name = code_refactor/code_update may depend on schema_map; schema_map must not depend on either
+type = forbidden
+source_modules =
+    topo_tools.core.schema_map
+forbidden_modules =
+    topo_tools.core.code_refactor
+    topo_tools.core.code_update
+
+[importlinter:contract:code_update-may-use-dissolve-not-reverse]
+name = code_update may depend on dissolve; dissolve must not depend on code_update
+type = forbidden
+source_modules =
+    topo_tools.core.dissolve
+forbidden_modules =
+    topo_tools.core.code_update
+
+[importlinter:contract:code_update-may-use-change-not-reverse]
+name = code_update may depend on change; change must not depend on code_update
+type = forbidden
+source_modules =
+    topo_tools.core.change
+forbidden_modules =
+    topo_tools.core.code_update
+
+[importlinter:contract:code_update-may-use-assign-not-reverse]
+name = code_update may depend on assign; assign must not depend on code_update
+type = forbidden
+source_modules =
+    topo_tools.core.assign
+forbidden_modules =
+    topo_tools.core.code_update
+
+[importlinter:contract:code_update-may-not-use-edge_extend-edge_match-edge_mosaic-topo_clean]
+name = code_update must not depend on edge_extend/edge_match/edge_mosaic/topo_clean
+type = forbidden
+source_modules =
+    topo_tools.core.code_update
+forbidden_modules =
+    topo_tools.core.edge_extend
+    topo_tools.core.edge_match
+    topo_tools.core.edge_mosaic
+    topo_tools.core.topo_clean
+
+[importlinter:contract:edge_extend-edge_match-edge_mosaic-topo_clean-may-not-use-code_update]
+name = edge_extend/edge_match/edge_mosaic/topo_clean must not depend on code_update
+type = forbidden
+source_modules =
+    topo_tools.core.edge_extend
+    topo_tools.core.edge_match
+    topo_tools.core.edge_mosaic
+    topo_tools.core.topo_clean
+forbidden_modules =
+    topo_tools.core.code_update

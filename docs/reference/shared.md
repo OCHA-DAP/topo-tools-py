@@ -34,6 +34,20 @@ instead of repeating them.
   `api._schema_fill_compose` helper; `core.edge_stitch`, `core.edge_match`,
   and `core.edge_mosaic` themselves MUST NOT depend on `core.schema_fill`
   or `core.schema_map` (see `docs/adr/0095`).
+- `core.code` (the shared code-format/cascade/rewrite primitive) MUST NOT
+  depend on `code-refactor` or `code-update`.
+- `code-refactor` and `code-update` MAY depend on `schema_map`'s
+  `name_field`/`code_field`/level-detection helpers; `schema_map` MUST NOT
+  depend on either.
+- `code-update` MAY depend on `core.dissolve`'s stage function directly;
+  `core.dissolve` MUST NOT depend on `code-update`.
+- `code-update` MAY depend on `core.change`'s overlap and classify stage
+  functions directly; `core.change` MUST NOT depend on `code-update`.
+- `code-update` MAY depend on `core.assign.assign_many()`; `core.assign`
+  MUST NOT depend on `code-update`.
+- `code-update` MUST NOT depend on `edge-extend`, `edge-match`,
+  `edge-mosaic`, or `topo-clean`, and none of them MUST depend on
+  `code-update`.
 
 ## Multi-file combine ordering
 
@@ -184,6 +198,44 @@ rows, reusing the schema above:
 This gives standalone `edge-clip` its only issues-report capability: it produces
 one only when `match_column`/`parent_match_column`/`child_match_column` is
 supplied and it yields at least one row (see `docs/reference/edge_clip.md`).
+
+## Hierarchical code format and retention
+
+`code-refactor` and `code-update` (`docs/reference/code_refactor.md`,
+`docs/reference/code_update.md`) share one `CodeFormat` primitive
+(`core.code`, `root_code`/`delimiter`/`min_width`, no default values) and
+its supporting functions:
+
+- `resolve_code_format(root_code, delimiter, min_width)` MUST raise
+  `ValueError` unless `root_code` is non-empty, `delimiter` is exactly one
+  character, and `min_width` is positive. `root_code` MUST NOT be
+  shape-checked otherwise; a disputed-territory or other non-ISO3 string
+  works identically to an ISO3 one.
+- `assign_new_codes()` MUST always rank rows per parent into a fresh
+  sequential integer before formatting; it MUST NOT reformat or pass
+  through a raw source value as-is, since that value may be non-numeric,
+  gappy, or duplicated across siblings.
+- A parent whose live/assigned child count exceeds `10 ** min_width - 1`
+  MUST NOT have its already-assigned, lower-numbered children's codes
+  repadded; an overflowing child's own tail component MUST simply grow
+  past `min_width` instead (`lpad` truncates an over-width string, unlike
+  Python's `zfill`, so the target width is widened to the tail's own
+  length first).
+- `next_available_integer()` MUST derive a parent's next unused integer
+  only from a given list of currently-live codes, never a persisted
+  registry; a code no longer in that list (retired, or never included) MAY
+  be immediately reused for an unrelated unit at the same parent (see
+  `docs/adr/0102`).
+- `detect_code_format()` MUST infer `delimiter` as the single
+  non-alphanumeric character common to every sampled code, `root_code` as
+  the shared first delimiter-split component, and `min_width` as the
+  **mode** (most common), not the min or max, width pooled across every
+  non-root component of every sampled code; it MUST raise `ValueError` if
+  any of the three can't be confidently inferred, never falling back to a
+  hardcoded literal.
+- `rewrite_child_code(old_code, new_parent_code, fmt)` MUST reattach
+  `old_code`'s own final (tail) component onto `new_parent_code`,
+  unchanged otherwise.
 
 ## Parent-column carry-forward
 
