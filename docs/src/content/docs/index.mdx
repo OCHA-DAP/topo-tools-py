@@ -1,0 +1,38 @@
+---
+title: Home
+description: Documentation for topo-tools-py, DuckDB-powered geospatial topology utilities.
+template: splash
+hero:
+  tagline: DuckDB-powered geospatial topology utilities for cleaning and reconciling administrative boundary polygons, as a Python/CLI package and library.
+  actions:
+    - text: Reference
+      link: reference/
+      icon: right-arrow
+    - text: Tutorials
+      link: tutorials/
+      icon: right-arrow
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## One topology engine, four kinds of docs
+
+<CardGrid stagger>
+	<Card title="Tutorials" icon="open-book">
+		Learning-oriented, hand-holding lessons for someone new to the repo.
+		See the [tutorials](tutorials/) section.
+	</Card>
+	<Card title="How-to" icon="pencil">
+		Task-oriented guides for someone who already knows what they're doing.
+		See the [how-to](how-to/) section.
+	</Card>
+	<Card title="Explanation" icon="puzzle">
+		Stage-by-stage detail and design rationale for each tool.
+		See the [explanation](explanation/) section.
+	</Card>
+	<Card title="Reference" icon="information">
+		Plain-English, verifiable behavior contracts for each tool.
+		See the [reference](reference/) section.
+	</Card>
+</CardGrid>

@@ -13,22 +13,24 @@ sixteen tools, usable from the CLI or as a Python package. Composite tools
 are nested under the primitives they chain internally; every primitive is
 also usable standalone:
 
-- **[schema-crosswalk](docs/explanation/schema_crosswalk.md)**: infers a source-column to target-schema crosswalk and immediately applies it, in one call.
-  - **[schema-map](docs/explanation/schema_map.md)**: infers a polygon layer's admin hierarchy structurally and proposes a source to target-schema crosswalk for review.
-  - **[schema-refactor](docs/explanation/schema_refactor.md)**: applies a crosswalk CSV, from schema-map or hand-edited, to rename or drop columns. Geometry passes through unchanged.
-- **[schema-fill](docs/explanation/schema_fill.md)**: cascades each admin-hierarchy column down from its nearest non-NULL shallower level and stamps a depth column.
-- **[topo-clean](docs/explanation/topo_clean.md)**: detects and fixes gap/overlap defects in a single polygon layer, reporting issues for manual review.
-  - **[topo-detect](docs/explanation/topo_detect.md)**: scans a single polygon layer for gap/overlap coverage defects and reports them, without fixing anything.
-- **[edge-match](docs/explanation/edge_match.md)**: fits a finer child polygon layer into a coarser parent layer, grouping and extending each child to fill gaps within its own parent.
-  - **[edge-extend](docs/explanation/edge_extend.md)**: fills gaps around a polygon layer (missing coastline, disputed areas, water bodies) with a Voronoi extension, producing full coverage.
-  - **[edge-mosaic](docs/explanation/edge_mosaic.md)**: re-clips an already-extended child layer into a new/different parent layer, skipping Voronoi extension entirely.
-    - **[edge-clip](docs/explanation/edge_clip.md)**: assigns each child to its parent, then clips it to that parent's geometry.
-    - **[edge-stitch](docs/explanation/edge_stitch.md)**: closes seams in an already-tiled polygon layer with one whole-table coverage-clean pass.
-- **[change](docs/explanation/change.md)**: compares two versions of a polygon layer and classifies every unit as unchanged, renamed, modified, split, merged, created, or removed.
-- **[package](docs/explanation/package.md)**: runs package-polygons, package-points, and package-lines against one input in a single call.
-  - **[package-polygons](docs/explanation/package_polygons.md)**: dissolves a polygon layer into every detected coarser admin level in a single call.
-  - **[package-points](docs/explanation/package_points.md)**: one label point per admin unit per detected level, using the pole of inaccessibility.
-  - **[package-lines](docs/explanation/package_lines.md)**: one deduplicated line network of admin boundaries, tagged by the coarsest level each segment belongs to.
+Full documentation: <https://ocha-dap.github.io/topo-tools-py/>
+
+- **[schema-crosswalk](docs/src/content/docs/explanation/schema_crosswalk.md)**: infers a source-column to target-schema crosswalk and immediately applies it, in one call.
+  - **[schema-map](docs/src/content/docs/explanation/schema_map.md)**: infers a polygon layer's admin hierarchy structurally and proposes a source to target-schema crosswalk for review.
+  - **[schema-refactor](docs/src/content/docs/explanation/schema_refactor.md)**: applies a crosswalk CSV, from schema-map or hand-edited, to rename or drop columns. Geometry passes through unchanged.
+- **[schema-fill](docs/src/content/docs/explanation/schema_fill.md)**: cascades each admin-hierarchy column down from its nearest non-NULL shallower level and stamps a depth column.
+- **[topo-clean](docs/src/content/docs/explanation/topo_clean.md)**: detects and fixes gap/overlap defects in a single polygon layer, reporting issues for manual review.
+  - **[topo-detect](docs/src/content/docs/explanation/topo_detect.md)**: scans a single polygon layer for gap/overlap coverage defects and reports them, without fixing anything.
+- **[edge-match](docs/src/content/docs/explanation/edge_match.md)**: fits a finer child polygon layer into a coarser parent layer, grouping and extending each child to fill gaps within its own parent.
+  - **[edge-extend](docs/src/content/docs/explanation/edge_extend.md)**: fills gaps around a polygon layer (missing coastline, disputed areas, water bodies) with a Voronoi extension, producing full coverage.
+  - **[edge-mosaic](docs/src/content/docs/explanation/edge_mosaic.md)**: re-clips an already-extended child layer into a new/different parent layer, skipping Voronoi extension entirely.
+    - **[edge-clip](docs/src/content/docs/explanation/edge_clip.md)**: assigns each child to its parent, then clips it to that parent's geometry.
+    - **[edge-stitch](docs/src/content/docs/explanation/edge_stitch.md)**: closes seams in an already-tiled polygon layer with one whole-table coverage-clean pass.
+- **[change](docs/src/content/docs/explanation/change.md)**: compares two versions of a polygon layer and classifies every unit as unchanged, renamed, modified, split, merged, created, or removed.
+- **[package](docs/src/content/docs/explanation/package.md)**: runs package-polygons, package-points, and package-lines against one input in a single call.
+  - **[package-polygons](docs/src/content/docs/explanation/package_polygons.md)**: dissolves a polygon layer into every detected coarser admin level in a single call.
+  - **[package-points](docs/src/content/docs/explanation/package_points.md)**: one label point per admin unit per detected level, using the pole of inaccessibility.
+  - **[package-lines](docs/src/content/docs/explanation/package_lines.md)**: one deduplicated line network of admin boundaries, tagged by the coarsest level each segment belongs to.
 
 ## Installation
 
