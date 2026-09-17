@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-09-17
+
+### Added
+
+- `code-refactor` (API and CLI): cold-starts a hierarchical code on a flat,
+  finest-level input, levels resolved structurally by default (or via an
+  explicit `--name-field`/`--code-field` pair), each level's units ranked
+  under their parent and assigned a fresh sequential code in a
+  configurable `--root-code`/`--delimiter`/`--min-width` format.
+- `code-update` (API and CLI): reconciles an already-coded OLD layer
+  against an uncoded NEW candidate, classifying every unit via `change`'s
+  own engine and applying a changelog-driven retain/replace/retire policy
+  per unit, cascading a changed parent's new code prefix down to every
+  unchanged/renamed descendant. Format auto-detects off OLD's own existing
+  codes unless overridden.
+- `schema-map`'s structural level detection now finds a trailing, name-only
+  finest level (no code column of its own); `code-refactor`/`code-update`
+  raise `ValueError` for such a level instead of silently producing no
+  code for it.
+
+### Fixed
+
+- `code-update`'s name-column resolution now uses a real `name_column`
+  (from already-computed role info) instead of a positional guess, which
+  could silently link on a numeric attribute column (e.g. `area_sqkm`)
+  instead of the real name column for a single-level file.
+
 ## [0.6.0] - 2026-09-14
 
 ### Added
@@ -450,7 +477,8 @@ Initial release: four tools, CLI + Python API for each.
   unit as unchanged/renamed/modified/relocated/split/merge/complex/created/
   removed, via spatial overlap and optional code/name identity linking.
 
-[Unreleased]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.5.6...v0.6.0
 [0.5.6]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.5.5...v0.5.6
 [0.5.5]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.5.4...v0.5.5
