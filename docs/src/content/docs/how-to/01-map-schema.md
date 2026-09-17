@@ -3,7 +3,7 @@ title: "1. Map the source schema"
 ---
 
 First step of [preparing an administrative boundary
-release](/how-to/). Every command in this series
+release](../). Every command in this series
 runs as written against a small synthetic fixture committed to this repo:
 
 <https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/tests/fixtures/how_to_district_raw.parquet>
@@ -34,4 +34,4 @@ its `target_column` before applying the crosswalk:
 The mapped output now has just `adm0_name`, `adm0_code`, `adm1_name`,
 `adm1_code`, and `geometry`.
 
-Next: [fix internal topology](/how-to/02-fix-topology/).
+Next: [fix internal topology](../02-fix-topology/).
