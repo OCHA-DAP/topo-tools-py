@@ -10,9 +10,9 @@ two small synthetic fixtures committed to this repo, so every command is
 copy-paste runnable. See each tool's own reference/explanation page for
 its full behavior contract; this series only chains them.
 
-1. [Map the source schema](/how-to/01-map-schema/)
-2. [Fix internal topology](/how-to/02-fix-topology/)
-3. [Assign hierarchical codes](/how-to/03-assign-codes/)
-4. [Fit a finer level into one district](/how-to/04-fit-finer-level/) (uncommon, safe to skip)
-5. [Fill attributes and derive ancestor levels](/how-to/05-fill-and-derive-ancestors/)
-6. [Package for output](/how-to/06-package-for-output/)
+1. [Map the source schema](01-map-schema/)
+2. [Fix internal topology](02-fix-topology/)
+3. [Assign hierarchical codes](03-assign-codes/)
+4. [Fit a finer level into one district](04-fit-finer-level/) (uncommon, safe to skip)
+5. [Fill attributes and derive ancestor levels](05-fill-and-derive-ancestors/)
+6. [Package for output](06-package-for-output/)

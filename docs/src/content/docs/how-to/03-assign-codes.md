@@ -3,8 +3,8 @@ title: "3. Assign hierarchical codes"
 ---
 
 Third step of [preparing an administrative boundary
-release](/how-to/). Continues from the cleaned
-output of [step 2](/how-to/02-fix-topology/).
+release](../). Continues from the cleaned
+output of [step 2](../02-fix-topology/).
 
     topo-tools code-refactor district_topo.parquet district_coded.parquet \
       --root-code TT --delimiter . --min-width 2
@@ -18,6 +18,6 @@ candidate instead of cold-starting uses `code-update` (see its own
 reference/tutorial page); that tool always writes a changelog CSV rather
 than an issues file.
 
-Next: [fit a finer level into one district](/how-to/04-fit-finer-level/)
+Next: [fit a finer level into one district](../04-fit-finer-level/)
 (uncommon, safe to skip), or straight to [deriving ancestor
-levels](/how-to/05-fill-and-derive-ancestors/).
+levels](../05-fill-and-derive-ancestors/).

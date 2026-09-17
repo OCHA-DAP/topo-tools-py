@@ -3,9 +3,9 @@ title: "4. Fit a finer level into one district (uncommon)"
 ---
 
 Optional step of [preparing an administrative boundary
-release](/how-to/). Skip this unless a source
+release](../). Skip this unless a source
 authority also provides a level finer than your base level. Continues from
-the coded output of [step 3](/how-to/03-assign-codes/), plus a second
+the coded output of [step 3](../03-assign-codes/), plus a second
 fixture:
 
 <https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/tests/fixtures/how_to_neighborhood_raw.parquet>
@@ -29,4 +29,4 @@ The fixture's two neighborhoods cover only part of district `TT.02.04`
 file written (nothing to report).
 
 Next: [derive ancestor levels and fill hierarchy
-attributes](/how-to/05-fill-and-derive-ancestors/).
+attributes](../05-fill-and-derive-ancestors/).
