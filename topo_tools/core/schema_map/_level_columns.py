@@ -12,6 +12,7 @@ from topo_tools.core.schema_map._target_schema import DEFAULT_TARGET_SCHEMA
 
 _MIN_LEVELS_TO_DIFF = 2
 _LEVEL_DIGIT_RE = re.compile(r"\d+")
+_MIN_PAIRS_FOR_LEAF_TOLERANCE = 2
 
 
 @dataclass(frozen=True)
@@ -21,6 +22,7 @@ class LevelColumns:
     group_by: list[str]
     identity_columns: list[str]
     has_code: bool = True
+    name_column: str | None = None
 
 
 def _common_prefix_suffix(names: list[str]) -> tuple[str, str]:
@@ -146,11 +148,15 @@ def detect_level_columns(
         has_code = level == root_level or any(
             rows[c].role == "code" for c in all_columns_by_level[level]
         )
+        name_column = next(
+            (c for c in all_columns_by_level[level] if rows[c].role == "name"), None
+        )
         if level not in anchors:
             result[level] = LevelColumns(
                 group_by=group_by,
                 identity_columns=list(all_columns_by_level[level]),
                 has_code=has_code,
+                name_column=name_column,
             )
             continue
 
@@ -169,9 +175,16 @@ def detect_level_columns(
             if is_level_identity_column(c, prefix, anchor, suffix)
         ] + completed
         result[level] = LevelColumns(
-            group_by=group_by + completed, identity_columns=identity, has_code=has_code
+            group_by=group_by + completed,
+            identity_columns=identity,
+            has_code=has_code,
+            name_column=name_column,
         )
-    return {display.get(level, level): v for level, v in result.items()}
+    displayed = {display.get(level, level): v for level, v in result.items()}
+    leaf = detect_leaf_level(conn, table, displayed)
+    if leaf is not None:
+        displayed[max(displayed) + 1] = leaf
+    return displayed
 
 
 def detect_level_codes(conn: DuckDBPyConnection, table: str) -> dict[int, str]:
@@ -258,6 +271,69 @@ def detect_root_level(
     if not root_columns:
         return None
     return LevelColumns(group_by=[], identity_columns=root_columns, has_code=True)
+
+
+def _is_parent_scoped_unique(
+    conn: DuckDBPyConnection, table: str, parent_column: str, column: str
+) -> bool:
+    """Check (parent_column, column) pairs are each distinct, tolerating noise."""
+    parent_id = quote_identifier(parent_column)
+    column_id = quote_identifier(column)
+    populated, combos = conn.execute(f"""--sql
+        SELECT COUNT(*), COUNT(DISTINCT ({parent_id}, {column_id}))
+        FROM {quote_identifier(table)}
+        WHERE {column_id} IS NOT NULL
+    """).fetchone()
+    if populated == 0:
+        return False
+    tolerance = 1 if populated > _MIN_PAIRS_FOR_LEAF_TOLERANCE else 0
+    return populated - combos <= tolerance
+
+
+def detect_leaf_level(
+    conn: DuckDBPyConnection, table: str, level_columns: dict[int, LevelColumns]
+) -> LevelColumns | None:
+    """Detect a finer, name-only level one past the deepest one already found.
+
+    Mirrors detect_root_level(), checked unique scoped to its own parent.
+    """
+    real_levels = {k: v for k, v in level_columns.items() if k != 0}
+    if not real_levels:
+        return None
+    deepest = max(real_levels)
+    parent_code = detect_level_codes(conn, table).get(deepest)
+    if parent_code is None:
+        return None
+
+    families = group_families_by_level(conn, table, level_columns)
+    table_columns = [
+        r[0] for r in conn.execute(f"DESCRIBE {quote_identifier(table)}").fetchall()
+    ]
+    assigned = {c for cols in level_columns.values() for c in cols.identity_columns}
+    candidates: set[str] = set()
+    for per_level in families.values():
+        anchors = _level_anchors(per_level)
+        if deepest not in anchors:
+            continue
+        prefix, anchor, suffix = anchors[deepest]
+        match = _LEVEL_DIGIT_RE.search(anchor)
+        if match is None:
+            continue
+        next_anchor = str(int(match.group()) + 1)
+        candidates.update(
+            c
+            for c in table_columns
+            if c not in assigned
+            and is_level_identity_column(c, prefix, next_anchor, suffix)
+        )
+    valid = sorted(
+        c for c in candidates if _is_parent_scoped_unique(conn, table, parent_code, c)
+    )
+    if not valid:
+        return None
+    return LevelColumns(
+        group_by=valid, identity_columns=valid, has_code=False, name_column=valid[0]
+    )
 
 
 def group_families_by_level(

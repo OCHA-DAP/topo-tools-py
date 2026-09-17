@@ -4,6 +4,7 @@ import duckdb
 import pytest
 
 from topo_tools.core.schema_map._level_columns import (
+    detect_leaf_level,
     detect_level_columns,
     detect_root_level,
     group_families_by_level,
@@ -73,6 +74,25 @@ def test_detect_level_columns_excludes_bijective_lookalike_from_identity(conn):
     result = detect_level_columns(conn, "t_01")
     finer_level = max(result)
     assert "area_sqkm" not in result[finer_level].identity_columns
+
+
+def test_name_column_ignores_digit_shaped_numeric_attributes(conn):
+    """name_column must resolve to the real name, not a digit-containing DOUBLE."""
+    conn.execute("""--sql
+        CREATE TABLE t_01 AS
+        SELECT row_number() OVER () AS fid, *
+        FROM (VALUES
+            ('P1', 'Alphaland', 12.5, 1.1, 2.1,
+             ST_GeomFromText('POLYGON((0 0,1 0,1 1,0 1,0 0))')),
+            ('P2', 'Betaland', 34.5, 3.3, 4.4,
+             ST_GeomFromText('POLYGON((1 0,2 0,2 1,1 1,1 0))')),
+            ('P3', 'Gammaland', 56.5, 5.5, 6.6,
+             ST_GeomFromText('POLYGON((2 0,3 0,3 1,2 1,2 0))'))
+        ) AS v(adm1_pcode, adm1_name, area_sqkm, center_lat, center_lon, geom)
+    """)
+    result = detect_level_columns(conn, "t_01")
+    (level,) = result
+    assert result[level].name_column == "adm1_name"
 
 
 def test_detect_level_columns_ignores_floating_point_embed_coincidence(conn):
@@ -332,6 +352,37 @@ def test_detect_root_level_word_anchored(conn):
     root = detect_root_level(conn, "t_01", level_columns)
     assert root is not None
     assert set(root.identity_columns) == {"country_code", "country_name"}
+
+
+def test_detect_level_columns_finds_trailing_name_only_leaf(conn):
+    """A name repeated under different parents can't be checked unique globally."""
+    conn.execute("""--sql
+        CREATE TABLE t_01 AS
+        SELECT row_number() OVER () AS fid, *
+        FROM (VALUES
+            ('P1', 'Province1', 'A1', 'AlphaCounty', 'Ward1',
+             ST_GeomFromText('POLYGON((0 0,1 0,1 1,0 1,0 0))')),
+            ('P1', 'Province1', 'A2', 'BetaCounty', 'Ward2',
+             ST_GeomFromText('POLYGON((1 0,2 0,2 1,1 1,1 0))')),
+            ('P2', 'Province2', 'B1', 'GammaCounty', 'Ward1',
+             ST_GeomFromText('POLYGON((0 1,1 1,1 2,0 2,0 1))')),
+            ('P2', 'Province2', 'B2', 'DeltaCounty', 'Ward2',
+             ST_GeomFromText('POLYGON((1 1,2 1,2 2,1 2,1 1))')),
+            ('P3', 'Province3', 'C1', 'EpsilonCounty', 'Ward3',
+             ST_GeomFromText('POLYGON((2 0,3 0,3 1,2 1,2 0))'))
+        ) AS v(adm1_pcode, adm1_name, adm2_pcode, adm2_name, adm3_name, geom)
+    """)
+    result = detect_level_columns(conn, "t_01")
+    leaf_level = max(result)
+    assert result[leaf_level].group_by == ["adm3_name"]
+    assert result[leaf_level].has_code is False
+    assert "adm3_name" not in result[leaf_level - 1].group_by
+
+
+def test_detect_leaf_level_returns_none_without_a_naming_anchor(conn):
+    _load_two_level_table(conn)
+    level_columns = detect_level_columns(conn, "t_01")
+    assert detect_leaf_level(conn, "t_01", level_columns) is None
 
 
 def test_group_families_by_level_word_based_anchor(conn):

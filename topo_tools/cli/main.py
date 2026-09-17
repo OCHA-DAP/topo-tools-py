@@ -19,6 +19,8 @@ from topo_tools.api import schema_map as _schema_map
 from topo_tools.api import schema_refactor as _schema_refactor
 from topo_tools.api import topo_clean as _topo_clean
 from topo_tools.api import topo_detect as _topo_detect
+from topo_tools.api.code_refactor import code_refactor as _code_refactor
+from topo_tools.api.code_update import code_update as _code_update
 from topo_tools.api.package_lines import package_lines as _package_lines
 from topo_tools.api.package_points import package_points as _package_points
 from topo_tools.api.package_polygons import package_polygons as _package_polygons
@@ -967,6 +969,343 @@ def change(  # noqa: PLR0913, PLR0917
             code_column_b=code_column_b,
             name_column_a=name_column_a,
             name_column_b=name_column_b,
+            threads=threads,
+            tmp_dir=tmp_dir,
+            overwrite=overwrite,
+            debug=debug,
+            step=step,
+        )
+    except (FileExistsError, ValueError, RuntimeError) as e:
+        raise click.ClickException(str(e)) from e
+
+
+@cli.command(name="code-refactor")
+@click.argument("input_file", envvar="INPUT_FILE")
+@click.argument("output_file", envvar="OUTPUT_FILE", required=False, default=None)
+@click.argument("issues_file", envvar="ISSUES_FILE", required=False, default=None)
+@click.option("--root-code", envvar="ROOT_CODE", required=True, help="Root code value.")
+@click.option(
+    "--delimiter", envvar="DELIMITER", required=True, help="Single-character delimiter."
+)
+@click.option(
+    "--min-width",
+    envvar="MIN_WIDTH",
+    type=int,
+    required=True,
+    help="Zero-pad floor for each code's own tail component.",
+)
+@click.option(
+    "--name-field",
+    envvar="NAME_FIELD",
+    default=None,
+    help="Name-field template, e.g. 'adm{n}_name' (requires --code-field; "
+    "default: structural auto-detection).",
+)
+@click.option(
+    "--code-field",
+    envvar="CODE_FIELD",
+    default=None,
+    help="Code-field template, e.g. 'adm{n}_code' (requires --name-field; "
+    "default: structural auto-detection).",
+)
+@click.option(
+    "--overwrite",
+    envvar="OVERWRITE",
+    type=bool,
+    default=True,
+    show_default=True,
+    help="Overwrite an existing output; pass --overwrite=false to error instead.",
+)
+@click.option(
+    "--threads", envvar="THREADS", type=int, default=None, help="DuckDB thread count."
+)
+@click.option(
+    "--debug",
+    envvar="DEBUG",
+    is_flag=True,
+    help="Keep intermediate tables, export to Parquet, log timing/memory per query.",
+)
+@click.option(
+    "--tmp-dir",
+    envvar="TMP_DIR",
+    default=None,
+    help="Intermediate DuckDB + Parquet location.",
+)
+@click.option(
+    "--step",
+    envvar="STEP",
+    type=click.Choice(["inputs", "levels", "assign", "outputs"]),
+    default=None,
+    help="Run only one named stage.",
+)
+def code_refactor(  # noqa: PLR0913, PLR0917
+    input_file: str,
+    output_file: str | None,
+    issues_file: str | None,
+    root_code: str,
+    delimiter: str,
+    min_width: int,
+    name_field: str | None,
+    code_field: str | None,
+    overwrite: bool,  # noqa: FBT001
+    threads: int | None,
+    debug: bool,  # noqa: FBT001
+    tmp_dir: str | None,
+    step: str | None,
+) -> None:
+    r"""Cold-start a hierarchical code on one input file, ranked per parent.
+
+    Each level's own code column is written into in place, no separate
+    output-naming flag; OUTPUT_FILE defaults to INPUT_FILE with a "_coded"
+    suffix. ISSUES_FILE (tabular, overflow rows only) defaults to
+    OUTPUT_FILE with an "_issues" suffix, written only when non-empty.
+
+    \b
+    Examples:
+      # Default naming, levels auto-detected structurally
+      topo-tools code-refactor admin2.geojson --root-code AFG --delimiter . \
+        --min-width 3
+
+      \b
+      # Explicit code/name columns, when auto-detection is ambiguous
+      topo-tools code-refactor admin2.geojson --root-code AFG --delimiter . \
+        --min-width 3 --code-field adm{n}_code --name-field adm{n}_name
+    """
+    logger.info("--debug=%s", debug)
+    try:
+        _code_refactor(
+            input_file,
+            Path(output_file) if output_file is not None else None,
+            Path(issues_file) if issues_file is not None else None,
+            root_code=root_code,
+            delimiter=delimiter,
+            min_width=min_width,
+            name_field=name_field,
+            code_field=code_field,
+            threads=threads,
+            tmp_dir=tmp_dir,
+            overwrite=overwrite,
+            debug=debug,
+            step=step,
+        )
+    except (FileExistsError, ValueError, RuntimeError) as e:
+        raise click.ClickException(str(e)) from e
+
+
+@cli.command(name="code-update")
+@click.argument("old_file", envvar="OLD_FILE")
+@click.argument("new_file", envvar="NEW_FILE")
+@click.argument("output_file", envvar="OUTPUT_FILE", required=False, default=None)
+@click.argument("changelog_file", envvar="CHANGELOG_FILE", required=False, default=None)
+@click.option(
+    "--root-code",
+    envvar="ROOT_CODE",
+    default=None,
+    help="Root code value; auto-detected off OLD's own codes if omitted.",
+)
+@click.option(
+    "--delimiter",
+    envvar="DELIMITER",
+    default=None,
+    help="Single-character delimiter; auto-detected off OLD's own codes if omitted.",
+)
+@click.option(
+    "--min-width",
+    envvar="MIN_WIDTH",
+    type=int,
+    default=None,
+    help="Zero-pad floor; auto-detected off OLD's own codes if omitted.",
+)
+@click.option(
+    "--name-field-a",
+    envvar="NAME_FIELD_A",
+    default=None,
+    help="OLD name-field template, e.g. 'adm{n}_name' (requires --code-field-a; "
+    "default: structural auto-detection).",
+)
+@click.option(
+    "--code-field-a",
+    envvar="CODE_FIELD_A",
+    default=None,
+    help="OLD code-field template, e.g. 'adm{n}_pcode' (requires --name-field-a; "
+    "default: structural auto-detection).",
+)
+@click.option(
+    "--name-field-b",
+    envvar="NAME_FIELD_B",
+    default=None,
+    help="NEW name-field template (requires --code-field-b; "
+    "default: structural auto-detection).",
+)
+@click.option(
+    "--code-field-b",
+    envvar="CODE_FIELD_B",
+    default=None,
+    help="NEW code-field template (requires --name-field-b; "
+    "default: structural auto-detection).",
+)
+@click.option(
+    "--code-column-a",
+    envvar="CODE_COLUMN_A",
+    default=None,
+    help="Old-side identity-link code column; defaults to the resolved per-level "
+    "code column.",
+)
+@click.option(
+    "--code-column-b",
+    envvar="CODE_COLUMN_B",
+    default=None,
+    help="New-side identity-link code column; defaults to the resolved per-level "
+    "code column.",
+)
+@click.option(
+    "--name-column-a",
+    envvar="NAME_COLUMN_A",
+    default=None,
+    help="Old-side identity-link name column; defaults to the resolved per-level "
+    "name column.",
+)
+@click.option(
+    "--name-column-b",
+    envvar="NAME_COLUMN_B",
+    default=None,
+    help="New-side identity-link name column; defaults to the resolved per-level "
+    "name column.",
+)
+@click.option(
+    "--tau-match",
+    envvar="TAU_MATCH",
+    type=float,
+    default=TAU_MATCH_DEFAULT,
+    show_default=True,
+    help="Minimum overlap coverage for two units to be spatially linked.",
+)
+@click.option(
+    "--tau-same",
+    envvar="TAU_SAME",
+    type=float,
+    default=TAU_SAME_DEFAULT,
+    show_default=True,
+    help="Minimum IoU for a 1:1 linked pair to be unchanged/renamed rather than "
+    "modified.",
+)
+@click.option(
+    "--link-by-code",
+    envvar="LINK_BY_CODE",
+    is_flag=True,
+    help="Also link units sharing a unique code value across versions.",
+)
+@click.option(
+    "--link-by-name",
+    envvar="LINK_BY_NAME",
+    is_flag=True,
+    help="Also link units sharing a unique name value across versions.",
+)
+@click.option(
+    "--link-mode",
+    envvar="LINK_MODE",
+    type=click.Choice(["either", "both"]),
+    default="either",
+    show_default=True,
+    help="How code/name identity matches combine (only matters if both flags are set).",
+)
+@click.option(
+    "--overwrite",
+    envvar="OVERWRITE",
+    type=bool,
+    default=True,
+    show_default=True,
+    help="Overwrite an existing output; pass --overwrite=false to error instead.",
+)
+@click.option(
+    "--threads", envvar="THREADS", type=int, default=None, help="DuckDB thread count."
+)
+@click.option(
+    "--debug",
+    envvar="DEBUG",
+    is_flag=True,
+    help="Keep intermediate tables, export to Parquet, log timing/memory per query.",
+)
+@click.option(
+    "--tmp-dir",
+    envvar="TMP_DIR",
+    default=None,
+    help="Intermediate DuckDB + Parquet location.",
+)
+@click.option(
+    "--step",
+    envvar="STEP",
+    type=click.Choice(["inputs", "levels", "process", "outputs"]),
+    default=None,
+    help="Run only one named stage.",
+)
+def code_update(  # noqa: PLR0913, PLR0917
+    old_file: str,
+    new_file: str,
+    output_file: str | None,
+    changelog_file: str | None,
+    root_code: str | None,
+    delimiter: str | None,
+    min_width: int | None,
+    name_field_a: str | None,
+    code_field_a: str | None,
+    name_field_b: str | None,
+    code_field_b: str | None,
+    code_column_a: str | None,
+    code_column_b: str | None,
+    name_column_a: str | None,
+    name_column_b: str | None,
+    tau_match: float,
+    tau_same: float,
+    link_by_code: bool,  # noqa: FBT001
+    link_by_name: bool,  # noqa: FBT001
+    link_mode: str,
+    overwrite: bool,  # noqa: FBT001
+    threads: int | None,
+    debug: bool,  # noqa: FBT001
+    tmp_dir: str | None,
+    step: str | None,
+) -> None:
+    r"""Reconcile an already-coded OLD layer against an uncoded NEW candidate.
+
+    OLD_FILE is the previous already-coded version, NEW_FILE is the uncoded
+    candidate version. OUTPUT_FILE (NEW's geometry, coded) defaults to
+    NEW_FILE with a "_coded" suffix. CHANGELOG_FILE (tabular, always written)
+    defaults to OUTPUT_FILE with a "_changelog" suffix.
+
+    \b
+    Examples:
+      # Basic run, format and levels auto-detected off OLD's own codes
+      topo-tools code-update admin1_old.geojson admin1_new.geojson
+
+      \b
+      # Identity-link on a shared source code, for relocated units
+      topo-tools code-update old.gpkg new.gpkg --link-by-code \
+        --code-column-a srcid --code-column-b srcid
+    """
+    logger.info("--debug=%s", debug)
+    try:
+        _code_update(
+            old_file,
+            new_file,
+            Path(output_file) if output_file is not None else None,
+            Path(changelog_file) if changelog_file is not None else None,
+            root_code=root_code,
+            delimiter=delimiter,
+            min_width=min_width,
+            name_field_a=name_field_a,
+            code_field_a=code_field_a,
+            name_field_b=name_field_b,
+            code_field_b=code_field_b,
+            code_column_a=code_column_a,
+            code_column_b=code_column_b,
+            name_column_a=name_column_a,
+            name_column_b=name_column_b,
+            tau_match=tau_match,
+            tau_same=tau_same,
+            link_by_code=link_by_code,
+            link_by_name=link_by_name,
+            link_mode=link_mode,
             threads=threads,
             tmp_dir=tmp_dir,
             overwrite=overwrite,
