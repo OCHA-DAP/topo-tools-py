@@ -7,62 +7,6 @@ tutorial takes a beginner from zero to a working result step by step.
 
 <div class="grid cards" markdown>
 
--   :material-shape-polygon-plus:{ .lg .middle } **edge-extend**
-
-    ---
-
-    Extend polygon boundaries outward with Voronoi diagrams to fill gaps.
-
-    [:octicons-arrow-right-24: edge-extend](edge_extend)
-
--   :material-map-search-outline:{ .lg .middle } **topo-detect**
-
-    ---
-
-    Scan a polygon layer for gap/overlap coverage defects.
-
-    [:octicons-arrow-right-24: topo-detect](topo_detect)
-
--   :material-broom:{ .lg .middle } **topo-clean**
-
-    ---
-
-    Detect and fix coverage defects in a single layer.
-
-    [:octicons-arrow-right-24: topo-clean](topo_clean)
-
--   :material-scissors-cutting:{ .lg .middle } **edge-clip**
-
-    ---
-
-    Assign each child to its parent, then clip it to that parent's geometry.
-
-    [:octicons-arrow-right-24: edge-clip](edge_clip)
-
--   :material-needle:{ .lg .middle } **edge-stitch**
-
-    ---
-
-    Close seams in an already-tiled layer with one coverage-clean pass.
-
-    [:octicons-arrow-right-24: edge-stitch](edge_stitch)
-
--   :material-puzzle-outline:{ .lg .middle } **edge-match**
-
-    ---
-
-    Fit a child layer into a coarser parent/clip layer.
-
-    [:octicons-arrow-right-24: edge-match](edge_match)
-
--   :material-view-grid-outline:{ .lg .middle } **edge-mosaic**
-
-    ---
-
-    Re-clip an already-extended child layer into a new parent layer.
-
-    [:octicons-arrow-right-24: edge-mosaic](edge_mosaic)
-
 -   :material-compare:{ .lg .middle } **change**
 
     ---
@@ -70,5 +14,48 @@ tutorial takes a beginner from zero to a working result step by step.
     Compare an old/new polygon layer pair and classify every unit.
 
     [:octicons-arrow-right-24: change](change)
+
+-   :material-tag-multiple-outline:{ .lg .middle } **Code**
+
+    ---
+
+    code-refactor, code-update: assign or reconcile hierarchical codes.
+
+    [:octicons-arrow-right-24: Code](code_refactor)
+
+-   :material-swap-horizontal:{ .lg .middle } **Edge**
+
+    ---
+
+    edge-clip, edge-extend, edge-match, edge-mosaic, edge-stitch: fit and
+    stitch boundary layers together.
+
+    [:octicons-arrow-right-24: Edge](edge_clip)
+
+-   :material-package-variant-closed:{ .lg .middle } **Package**
+
+    ---
+
+    package, package-lines, package-points, package-polygons: cartographic
+    outputs for a web map.
+
+    [:octicons-arrow-right-24: Package](package)
+
+-   :material-table-edit:{ .lg .middle } **Schema**
+
+    ---
+
+    schema-crosswalk, schema-fill, schema-map, schema-refactor: crosswalk
+    and fill a column schema.
+
+    [:octicons-arrow-right-24: Schema](schema_crosswalk)
+
+-   :material-vector-polygon:{ .lg .middle } **Topo**
+
+    ---
+
+    topo-clean, topo-detect: detect and fix single-layer coverage defects.
+
+    [:octicons-arrow-right-24: Topo](topo_clean)
 
 </div>

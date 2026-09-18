@@ -26,125 +26,40 @@ name instead of repeated in each tool's page.
 
     [:octicons-arrow-right-24: change](change)
 
--   :material-auto-fix:{ .lg .middle } **code-refactor**
+-   :material-tag-multiple-outline:{ .lg .middle } **Code**
 
     ---
 
-    Cold-start a hierarchical code on a flat, finest-level input.
+    code-refactor, code-update: assign or reconcile hierarchical codes.
 
-    [:octicons-arrow-right-24: code-refactor](code_refactor)
+    [:octicons-arrow-right-24: Code](code_refactor)
 
--   :material-update:{ .lg .middle } **code-update**
-
-    ---
-
-    Reconcile an already-coded OLD layer against an uncoded NEW candidate.
-
-    [:octicons-arrow-right-24: code-update](code_update)
-
--   :material-scissors-cutting:{ .lg .middle } **edge-clip**
+-   :material-swap-horizontal:{ .lg .middle } **Edge**
 
     ---
 
-    Assign each child to its parent, then clip it to that parent's geometry.
+    edge-clip, edge-extend, edge-match, edge-mosaic, edge-stitch: fit and
+    stitch boundary layers together.
 
-    [:octicons-arrow-right-24: edge-clip](edge_clip)
+    [:octicons-arrow-right-24: Edge](edge_clip)
 
--   :material-shape-polygon-plus:{ .lg .middle } **edge-extend**
-
-    ---
-
-    Extend polygon boundaries outward with Voronoi diagrams to fill gaps.
-
-    [:octicons-arrow-right-24: edge-extend](edge_extend)
-
--   :material-puzzle-outline:{ .lg .middle } **edge-match**
+-   :material-package-variant-closed:{ .lg .middle } **Package**
 
     ---
 
-    Fit a child layer into a coarser parent/clip layer.
+    package, package-lines, package-points, package-polygons: cartographic
+    outputs for a web map.
 
-    [:octicons-arrow-right-24: edge-match](edge_match)
+    [:octicons-arrow-right-24: Package](package)
 
--   :material-view-grid-outline:{ .lg .middle } **edge-mosaic**
-
-    ---
-
-    Re-clip an already-extended child layer into a new parent layer.
-
-    [:octicons-arrow-right-24: edge-mosaic](edge_mosaic)
-
--   :material-needle:{ .lg .middle } **edge-stitch**
+-   :material-table-edit:{ .lg .middle } **Schema**
 
     ---
 
-    Close seams in an already-tiled layer with one coverage-clean pass.
+    schema-crosswalk, schema-fill, schema-map, schema-refactor: crosswalk
+    and fill a column schema.
 
-    [:octicons-arrow-right-24: edge-stitch](edge_stitch)
-
--   :material-package-variant-closed:{ .lg .middle } **package**
-
-    ---
-
-    Run package-polygons, package-points, and package-lines in one call.
-
-    [:octicons-arrow-right-24: package](package)
-
--   :material-vector-polyline:{ .lg .middle } **package-lines**
-
-    ---
-
-    One deduplicated line network of admin boundaries, tagged by adjacency.
-
-    [:octicons-arrow-right-24: package-lines](package_lines)
-
--   :material-dots-hexagon:{ .lg .middle } **package-points**
-
-    ---
-
-    One label point per admin unit, using the pole of inaccessibility.
-
-    [:octicons-arrow-right-24: package-points](package_points)
-
--   :material-vector-polygon:{ .lg .middle } **package-polygons**
-
-    ---
-
-    Dissolve a polygon layer into every detected coarser admin level.
-
-    [:octicons-arrow-right-24: package-polygons](package_polygons)
-
--   :material-swap-horizontal-bold:{ .lg .middle } **schema-crosswalk**
-
-    ---
-
-    schema-map and schema-refactor in one call.
-
-    [:octicons-arrow-right-24: schema-crosswalk](schema_crosswalk)
-
--   :material-format-color-fill:{ .lg .middle } **schema-fill**
-
-    ---
-
-    Fill down admin columns and stamp each row's real depth.
-
-    [:octicons-arrow-right-24: schema-fill](schema_fill)
-
--   :material-sitemap:{ .lg .middle } **schema-map**
-
-    ---
-
-    Map a source-column to target-schema crosswalk, structurally.
-
-    [:octicons-arrow-right-24: schema-map](schema_map)
-
--   :material-table-edit:{ .lg .middle } **schema-refactor**
-
-    ---
-
-    Rename/drop columns per a crosswalk from schema-map.
-
-    [:octicons-arrow-right-24: schema-refactor](schema_refactor)
+    [:octicons-arrow-right-24: Schema](schema_crosswalk)
 
 -   :material-share-variant-outline:{ .lg .middle } **shared**
 
@@ -154,20 +69,12 @@ name instead of repeated in each tool's page.
 
     [:octicons-arrow-right-24: shared](shared)
 
--   :material-broom:{ .lg .middle } **topo-clean**
+-   :material-vector-polygon:{ .lg .middle } **Topo**
 
     ---
 
-    Detect and fix coverage defects in a single layer.
+    topo-clean, topo-detect: detect and fix single-layer coverage defects.
 
-    [:octicons-arrow-right-24: topo-clean](topo_clean)
-
--   :material-map-search-outline:{ .lg .middle } **topo-detect**
-
-    ---
-
-    Scan a polygon layer for gap/overlap coverage defects.
-
-    [:octicons-arrow-right-24: topo-detect](topo_detect)
+    [:octicons-arrow-right-24: Topo](topo_clean)
 
 </div>
