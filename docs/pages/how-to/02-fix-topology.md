@@ -3,8 +3,8 @@ title: "2. Fix internal topology"
 ---
 
 Second step of [preparing an administrative boundary
-release](../). Continues from the mapped
-output of [step 1](../01-map-schema/).
+release](./). Continues from the mapped
+output of [step 1](01-map-schema/).
 
     topo-tools topo-clean district_mapped.parquet district_topo.parquet \
       --issues-file district_topo_issues.parquet --maximum-gap-width all
@@ -15,4 +15,4 @@ and `district_topo_issues.parquet` records them (`kind='gap'`,
 `--maximum-gap-width`, to inspect a real dataset's own gap/overlap
 distribution before deciding that setting.
 
-Next: [assign hierarchical codes](../03-assign-codes/).
+Next: [assign hierarchical codes](03-assign-codes/).
