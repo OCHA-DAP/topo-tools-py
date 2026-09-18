@@ -17,6 +17,7 @@ export default defineConfig({
 				{ icon: 'github', label: 'topo-tools-py', href: 'https://github.com/OCHA-DAP/topo-tools-py' },
 			],
 			sidebar: [
+				{ label: 'For agents', items: [{ autogenerate: { directory: 'agents' } }] },
 				{ label: 'Tutorials', items: [{ autogenerate: { directory: 'tutorials' } }] },
 				{ label: 'How-to', items: [{ autogenerate: { directory: 'how-to' } }] },
 				{ label: 'Explanation', items: [{ autogenerate: { directory: 'explanation' } }] },
