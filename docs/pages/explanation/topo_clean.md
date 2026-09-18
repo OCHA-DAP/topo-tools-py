@@ -1,5 +1,5 @@
 ---
-title: "Cleaning Reference"
+title: "topo-clean"
 ---
 
 `topo-clean` detects and fixes coverage defects (gaps, overlaps) in a single

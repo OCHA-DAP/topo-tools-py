@@ -3,7 +3,7 @@ title: "5. Fill attributes and derive ancestor levels"
 ---
 
 Fifth step of [preparing an administrative boundary
-release](./). Continues from the coded
+release](administrative-boundary-release/). Continues from the coded
 output of [step 3](03-assign-codes/).
 
     topo-tools schema-fill district_coded.parquet district_filled.parquet

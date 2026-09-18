@@ -3,7 +3,7 @@ title: "2. Fix internal topology"
 ---
 
 Second step of [preparing an administrative boundary
-release](./). Continues from the mapped
+release](administrative-boundary-release/). Continues from the mapped
 output of [step 1](01-map-schema/).
 
     topo-tools topo-clean district_mapped.parquet district_topo.parquet \

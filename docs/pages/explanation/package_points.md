@@ -1,5 +1,5 @@
 ---
-title: "Package-Points Explanation"
+title: "package-points"
 ---
 
 `package-points` produces one label point per admin unit per detected

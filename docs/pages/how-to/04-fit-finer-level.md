@@ -3,7 +3,7 @@ title: "4. Fit a finer level into one district (uncommon)"
 ---
 
 Optional step of [preparing an administrative boundary
-release](./). Skip this unless a source
+release](administrative-boundary-release/). Skip this unless a source
 authority also provides a level finer than your base level. Continues from
 the coded output of [step 3](03-assign-codes/), plus a second
 fixture:

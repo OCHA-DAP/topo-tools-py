@@ -1,5 +1,5 @@
 ---
-title: "Change Reference"
+title: "change"
 ---
 
 `change` compares two versions of a polygon layer (old and new) and

@@ -1,5 +1,5 @@
 ---
-title: "Matching Reference"
+title: "edge-match"
 ---
 
 `edge-match` fits a **child** polygon layer into a coarser **parent**/clip layer

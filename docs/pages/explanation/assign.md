@@ -1,5 +1,5 @@
 ---
-title: "Assign Explanation"
+title: "assign"
 ---
 
 `assign-many` and `assign-one` are two internal crosswalk strategies in

@@ -1,5 +1,5 @@
 ---
-title: "Topology Reference"
+title: "topology"
 ---
 
 ## DuckDB vs `gdal vector clean-coverage`

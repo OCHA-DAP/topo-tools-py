@@ -1,5 +1,5 @@
 ---
-title: "Package-Polygons Explanation"
+title: "package-polygons"
 ---
 
 `package-polygons` replaces the standalone `dissolve` tool: instead of a

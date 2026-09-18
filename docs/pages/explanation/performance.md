@@ -1,5 +1,5 @@
 ---
-title: "Performance Notes"
+title: "performance"
 ---
 
 Benchmarks and analysis for memory-constrained deployment (DuckDB-WASM, Docker).

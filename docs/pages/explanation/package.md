@@ -1,5 +1,5 @@
 ---
-title: "Package Explanation"
+title: "package"
 ---
 
 `package` runs `package-polygons`, `package-points`, and `package-lines`

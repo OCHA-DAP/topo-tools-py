@@ -1,5 +1,5 @@
 ---
-title: "Package-Lines Explanation"
+title: "package-lines"
 ---
 
 `package-lines` produces one deduplicated line network of admin
