@@ -1,5 +1,5 @@
 ---
-title: "Refactor Explanation"
+title: "schema-refactor"
 ---
 
 `schema-refactor` takes a crosswalk file (written by `schema-map`, likely hand-edited

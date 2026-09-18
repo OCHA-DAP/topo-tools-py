@@ -1,5 +1,5 @@
 ---
-title: "Crosswalk Explanation"
+title: "schema-crosswalk"
 ---
 
 `schema-crosswalk` runs `schema-map` immediately followed by `schema-refactor` in one call,

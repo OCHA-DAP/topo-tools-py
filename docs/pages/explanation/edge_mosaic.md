@@ -1,5 +1,5 @@
 ---
-title: "Mosaic Explanation"
+title: "edge-mosaic"
 ---
 
 `edge-mosaic` fits a **child** layer that is already the finished output of a

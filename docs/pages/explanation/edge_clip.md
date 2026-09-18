@@ -1,5 +1,5 @@
 ---
-title: "Clip Explanation"
+title: "edge-clip"
 ---
 
 `edge-clip` is the standalone extraction of the clipping step `edge-match` and

@@ -3,7 +3,7 @@ title: "1. Map the source schema"
 ---
 
 First step of [preparing an administrative boundary
-release](./). Every command in this series
+release](administrative-boundary-release/). Every command in this series
 runs as written against a small synthetic fixture committed to this repo:
 
 <https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/tests/fixtures/how_to_district_raw.parquet>

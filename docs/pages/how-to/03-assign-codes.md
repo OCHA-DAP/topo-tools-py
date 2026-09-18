@@ -3,7 +3,7 @@ title: "3. Assign hierarchical codes"
 ---
 
 Third step of [preparing an administrative boundary
-release](./). Continues from the cleaned
+release](administrative-boundary-release/). Continues from the cleaned
 output of [step 2](02-fix-topology/).
 
     topo-tools code-refactor district_topo.parquet district_coded.parquet \

@@ -1,5 +1,5 @@
 ---
-title: "code-refactor Explanation"
+title: "code-refactor"
 ---
 
 `code-refactor` cold-starts a hierarchical code on any flat, finest-level

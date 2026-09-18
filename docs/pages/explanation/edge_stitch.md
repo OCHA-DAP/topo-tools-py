@@ -1,5 +1,5 @@
 ---
-title: "Stitch Explanation"
+title: "edge-stitch"
 ---
 
 `edge-stitch` closes seams in an already-tiled polygon layer with one

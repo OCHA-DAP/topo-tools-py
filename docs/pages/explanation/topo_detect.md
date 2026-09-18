@@ -1,5 +1,5 @@
 ---
-title: "Detect Explanation"
+title: "topo-detect"
 ---
 
 `topo-detect` scans a single polygon layer for gap/overlap coverage defects and

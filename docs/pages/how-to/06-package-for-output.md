@@ -3,7 +3,7 @@ title: "6. Package for output"
 ---
 
 Last step of [preparing an administrative boundary
-release](./). Run `package` directly
+release](administrative-boundary-release/). Run `package` directly
 against the coded output of [step 3](03-assign-codes/), not the
 schema-filled output of step 5: `package-points`/`package-lines` each
 stamp their own depth column and would collide with an existing `adm_lvl`

@@ -1,5 +1,5 @@
 ---
-title: "Code Explanation"
+title: "code"
 ---
 
 `core.code` is the shared primitive behind `code-refactor` and

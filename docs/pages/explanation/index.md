@@ -1,22 +1,24 @@
 ---
-title: "Reference"
+title: "Explanation"
 ---
 
-Plain-English, verifiable reference material for each tool, using RFC 2119
-keywords:
+Understanding-oriented design rationale for each tool: why it works the
+way it does, stage by stage, including tradeoffs and rejected
+alternatives.
 
-- **MUST** / **MUST NOT**: required; a violation is a bug.
-- **SHOULD** / **SHOULD NOT**: expected default behavior.
-- **MAY**: explicitly allowed, not required.
-
-`docs/reference/` states *what* each tool currently does, verified directly
-against source. Tests enforce a subset of these contracts; reference docs
-are not a substitute for tests, and a code change must keep both in sync.
-
-A rule identical across more than one tool goes in `shared`, referenced by
-name instead of repeated in each tool's page.
+`docs/explanation/` states *why* each tool is built the way it is.
+`docs/reference/` states *what* it currently does; `docs/adr/` records the
+one-off decisions behind both.
 
 <div class="grid cards" markdown>
+
+-   :material-gavel:{ .lg .middle } **assign**
+
+    ---
+
+    Assign each child to a parent, majority vote or per-child plurality.
+
+    [:octicons-arrow-right-24: assign](assign)
 
 -   :material-compare:{ .lg .middle } **change**
 
@@ -25,6 +27,14 @@ name instead of repeated in each tool's page.
     Compare an old/new polygon layer pair and classify every unit.
 
     [:octicons-arrow-right-24: change](change)
+
+-   :material-code-tags:{ .lg .middle } **code**
+
+    ---
+
+    Shared next-available-integer-per-parent leaf used by code-refactor/code-update.
+
+    [:octicons-arrow-right-24: code](code)
 
 -   :material-auto-fix:{ .lg .middle } **code-refactor**
 
@@ -114,6 +124,14 @@ name instead of repeated in each tool's page.
 
     [:octicons-arrow-right-24: package-polygons](package_polygons)
 
+-   :material-speedometer:{ .lg .middle } **performance**
+
+    ---
+
+    Thread-scaling benchmarks and the RTREE experiment.
+
+    [:octicons-arrow-right-24: performance](performance)
+
 -   :material-swap-horizontal-bold:{ .lg .middle } **schema-crosswalk**
 
     ---
@@ -146,14 +164,6 @@ name instead of repeated in each tool's page.
 
     [:octicons-arrow-right-24: schema-refactor](schema_refactor)
 
--   :material-share-variant-outline:{ .lg .middle } **shared**
-
-    ---
-
-    Common settings and gates shared across every tool.
-
-    [:octicons-arrow-right-24: shared](shared)
-
 -   :material-broom:{ .lg .middle } **topo-clean**
 
     ---
@@ -169,5 +179,21 @@ name instead of repeated in each tool's page.
     Scan a polygon layer for gap/overlap coverage defects.
 
     [:octicons-arrow-right-24: topo-detect](topo_detect)
+
+-   :material-shape-outline:{ .lg .middle } **topology**
+
+    ---
+
+    The SPATIAL_JOIN memory bug and other topology-cleaning notes.
+
+    [:octicons-arrow-right-24: topology](topology)
+
+-   :material-memory:{ .lg .middle } **voronoi-memory**
+
+    ---
+
+    Per-file resampling distance and memory ceilings for large countries.
+
+    [:octicons-arrow-right-24: voronoi-memory](voronoi-memory)
 
 </div>

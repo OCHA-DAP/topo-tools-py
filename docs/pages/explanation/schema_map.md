@@ -1,5 +1,5 @@
 ---
-title: "Map Explanation"
+title: "schema-map"
 ---
 
 `schema-map` reads a source file's columns and a `name_field`/`code_field`

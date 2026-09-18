@@ -1,5 +1,5 @@
 ---
-title: "Usage, How it Works & Example Use Cases"
+title: "edge-extend"
 ---
 
 ## Usage

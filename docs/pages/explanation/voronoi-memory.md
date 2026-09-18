@@ -1,5 +1,5 @@
 ---
-title: "Voronoi resampling distance and memory ceilings"
+title: "voronoi-memory"
 ---
 
 `attempt.py` picks a per-file starting resampling distance rather than

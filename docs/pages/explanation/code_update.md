@@ -1,5 +1,5 @@
 ---
-title: "code-update Explanation"
+title: "code-update"
 ---
 
 `code-update` reconciles an already-coded OLD layer against an uncoded
