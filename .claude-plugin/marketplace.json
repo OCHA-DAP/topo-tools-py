@@ -1,0 +1,11 @@
+{
+  "name": "topo-tools",
+  "owner": { "name": "OCHA-DAP" },
+  "plugins": [
+    {
+      "name": "topo-tools",
+      "source": "./plugins/topo-tools",
+      "description": "Agent skills for topo-tools boundary-cleaning workflows."
+    }
+  ]
+}
