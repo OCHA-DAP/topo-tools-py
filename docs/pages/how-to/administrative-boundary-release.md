@@ -5,8 +5,8 @@ title: "Overview"
 Chains several tools to take a raw administrative boundary delivery
 through to a clean, coded, packaged release. Each step below runs against
 two small synthetic fixtures committed to this repo, so every command is
-copy-paste runnable. See each tool's own reference/explanation page for
-its full behavior contract; this series only chains them.
+copy-paste runnable. See each tool's own reference/explanation page for what it does, exactly;
+this series only chains them.
 
 1. [Map the source schema](01-map-schema/)
 2. [Fix internal topology](02-fix-topology/)
