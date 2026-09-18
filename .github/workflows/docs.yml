@@ -18,32 +18,23 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: docs/package-lock.json
-      - working-directory: docs
-        run: npm ci
+      - uses: astral-sh/setup-uv@v7
+      - run: uv sync --group docs
       - uses: actions/configure-pages@v4
-        id: pages
       - working-directory: docs
-        run: npm run build
-        env:
-          BASE_PATH: ${{ steps.pages.outputs.base_path }}
-      - name: Mirror the deployed base path for link checking
-        working-directory: docs
+        run: uv run zensical build --clean
+      - name: Prepare link check root
         run: |
           mkdir -p /tmp/lychee-root
-          ln -s "$PWD/dist" "/tmp/lychee-root${{ steps.pages.outputs.base_path }}"
+          ln -s "$GITHUB_WORKSPACE/docs/site" /tmp/lychee-root/topo-tools-py
       - name: Check for broken links
         uses: lycheeverse/lychee-action@v2.9.0
         with:
-          args: --offline --no-progress --root-dir /tmp/lychee-root 'docs/dist/**/*.html'
+          args: --offline --no-progress --root-dir /tmp/lychee-root 'docs/site/**/*.html'
           lycheeVersion: v0.24.2
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: docs/dist
+          path: docs/site
 
   deploy:
     needs: build

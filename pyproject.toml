@@ -30,6 +30,7 @@ topo-tools = "topo_tools.cli.main:cli"
 
 [dependency-groups]
 dev = ["import-linter", "pre-commit", "pytest", "pytest-xdist", "ruff"]
+docs = ["zensical>=0.0.58"]
 
 [tool.pytest.ini_options]
 addopts = "-n auto"
