@@ -16,6 +16,16 @@ jobs:
       - run: uv run ruff check
       - run: uv run lint-imports
 
+  skill-links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check skill links
+        uses: lycheeverse/lychee-action@v2.9.0
+        with:
+          args: --no-progress 'plugins/**/*.md'
+          lycheeVersion: v0.24.2
+
   test:
     strategy:
       fail-fast: false

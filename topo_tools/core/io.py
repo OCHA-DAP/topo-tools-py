@@ -129,7 +129,7 @@ def reproject_select_sql(
         msg = (
             f"no geometry column found reading {path}{layer_note}; this source "
             "may have multiple layers that couldn't be auto-detected (a known "
-            "gap for FileGDB) -- find the layer name (e.g. `gdal vector info "
+            "gap for FileGDB). Find the layer name (e.g. `gdal vector info "
             f"{path}`) and pass layer= (CLI: --layer)"
         )
         raise ValueError(msg)
@@ -201,10 +201,8 @@ def read_and_reproject(
     if count == 0:
         layer_note = f" (layer={layer!r})" if layer else ""
         msg = (
-            f"read 0 features from {path}{layer_note}; DuckDB spatial's bundled "
-            "GDAL build may not support this exact source format/version (seen "
-            "with some FileGDBs that a system-installed GDAL reads fine) -- try "
-            "re-exporting it first, e.g. `gdal vector convert` to GeoParquet/GPKG"
+            f"read 0 features from {path}{layer_note}. Try re-exporting it "
+            "first, e.g. `gdal vector convert` or `pyogrio` to GeoParquet/GPKG"
         )
         raise ValueError(msg)
 
