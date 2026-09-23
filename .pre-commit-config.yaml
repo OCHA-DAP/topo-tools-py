@@ -27,3 +27,8 @@ repos:
         entry: uv run lint-imports
         language: system
         pass_filenames: false
+      - id: skill-links
+        name: skill-links (lychee)
+        entry: .github/scripts/check_skill_links.sh
+        language: script
+        files: ^plugins/.*\.md$
