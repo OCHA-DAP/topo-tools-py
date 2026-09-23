@@ -12,20 +12,24 @@ Standalone (PEP 723) script, run with uv:
     uv run <skill-dir>/scripts/fetch_reference.py <iso3>
 
 Downloads the GDB from HDX, converts all layers to GeoParquet in
-data/{iso3}/{ref_version}/, and prints the ref/new version numbers. The GDB
-is deleted after conversion. Reads every layer through pyogrio in bounded
-chunks (never DuckDB's own ST_Read on the raw GDB, which silently returns
-0 rows on real HDX GDBs) and accumulates each chunk into a file-backed
-DuckDB table, so peak Python memory is one chunk, not the whole layer.
+02_working/{iso3}/{version}/00a_old/, and prints the old/new version numbers.
+The GDB is deleted after conversion. With no HDX release, prints
+ref_version=none version=v01 and exits cleanly. Reads every layer through
+pyogrio in bounded chunks (never DuckDB's own ST_Read on the raw GDB, which
+silently returns 0 rows on real HDX GDBs) and accumulates each chunk into a
+file-backed DuckDB table, so peak Python memory is one chunk, not the whole
+layer.
 """
 
 import argparse
 import json
 import logging
-import shutil
 import sys
+import tempfile
+import urllib.error
 import urllib.request
 import zipfile
+from http import HTTPStatus
 from pathlib import Path
 
 import duckdb
@@ -51,22 +55,20 @@ _DTYPE_KIND_TO_SQL = {
 }
 
 
-def download_gdb(iso3: str, country_dir: Path) -> Path:
-    """Download and extract the HDX COD-AB GDB. Returns the .gdb path."""
-    existing = [
-        p for p in country_dir.glob("**/*.gdb") if "00-originals" not in p.parts
-    ]
-    if existing:
-        log.info("GDB already present: %s", existing[0])
-        return existing[0]
-
+def download_gdb(iso3: str, country_dir: Path) -> Path | None:
+    """Download and extract the HDX COD-AB GDB. Returns None if HDX has none."""
     url = _HDX_API.format(iso3=iso3)
     log.info("Querying HDX for cod-ab-%s...", iso3)
-    with urllib.request.urlopen(url) as resp:  # noqa: S310 (url is the hardcoded HDX API, always https)
-        data = json.load(resp)
+    try:
+        with urllib.request.urlopen(url) as resp:  # noqa: S310 (url is the hardcoded HDX API, always https)
+            data = json.load(resp)
+    except urllib.error.HTTPError as e:
+        if e.code == HTTPStatus.NOT_FOUND:
+            return None
+        raise
 
     if not data.get("success"):
-        sys.exit(f"HDX dataset not found: cod-ab-{iso3}")
+        return None
 
     resources = data["result"]["resources"]
     gdb_resources = [
@@ -76,7 +78,7 @@ def download_gdb(iso3: str, country_dir: Path) -> Path:
         or ".gdb" in r.get("name", "").lower()
     ]
     if not gdb_resources:
-        sys.exit(f"No GDB resource found in HDX dataset cod-ab-{iso3}")
+        return None
 
     resource = gdb_resources[0]
     download_url = resource["url"]
@@ -97,7 +99,7 @@ def download_gdb(iso3: str, country_dir: Path) -> Path:
         zf.extractall(country_dir)
     zip_path.unlink()
 
-    gdbs = [p for p in country_dir.glob("**/*.gdb") if "00-originals" not in p.parts]
+    gdbs = list(country_dir.glob("**/*.gdb"))
     if not gdbs:
         sys.exit("Extracted zip but no .gdb found, check the HDX resource")
     return gdbs[0]
@@ -215,39 +217,40 @@ def convert_layer(
 
 
 def main() -> None:
-    """Fetch the reference GDB for one ISO3 and convert it to GeoParquet."""
+    """Fetch the HDX release for one ISO3 and convert it into 00a_old/."""
     parser = argparse.ArgumentParser(
-        description="Fetch HDX COD-AB reference GDB and convert to GeoParquet.",
+        description="Fetch HDX COD-AB release GDB and convert to GeoParquet.",
     )
     parser.add_argument("iso3", help="Country ISO3 code (e.g. syr)")
+    parser.add_argument(
+        "--working-dir", type=Path, default=Path("02_working"), help="Working tier root"
+    )
     args = parser.parse_args()
     iso3 = args.iso3.lower()
 
-    country_dir = Path("data") / iso3
-    country_dir.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_dir = Path(tmp)
+        gdb = download_gdb(iso3, tmp_dir)
+        if gdb is None:
+            log.info("No HDX release for cod-ab-%s.", iso3)
+            log.info("ref_version=none version=v01")
+            return
 
-    gdb = download_gdb(iso3, country_dir)
+        layers = get_layers(gdb)
+        ref_version = normalize_version(get_version(gdb, layers))
+        new_version = increment_version(ref_version)
+        log.info("Old: %s  New: %s\n", ref_version, new_version)
 
-    layers = get_layers(gdb)
-    ref_version = normalize_version(get_version(gdb, layers))
-    new_version = increment_version(ref_version)
-    log.info("Reference: %s  New: %s\n", ref_version, new_version)
+        old_dir = args.working_dir / iso3 / new_version / "00a_old"
+        con = duckdb.connect(str(tmp_dir / "fetch_reference.duckdb"))
+        con.execute("INSTALL spatial; LOAD spatial;")
+        log.info("Old -> %s/", old_dir)
+        try:
+            for layer in layers:
+                convert_layer(con, gdb, layer, old_dir / f"{layer}.parquet")
+        finally:
+            con.close()
 
-    db_path = country_dir / ".fetch_reference.duckdb"
-    con = duckdb.connect(str(db_path))
-    con.execute("INSTALL spatial; LOAD spatial;")
-
-    ref_out = country_dir / ref_version
-    log.info("Reference -> %s/", ref_out)
-    try:
-        for layer in layers:
-            convert_layer(con, gdb, layer, ref_out / f"{layer}.parquet")
-    finally:
-        con.close()
-        db_path.unlink()
-
-    shutil.rmtree(gdb)
-    log.info("\nCleaned up GDB.")
     log.info("ref_version=%s version=%s", ref_version, new_version)
 
 

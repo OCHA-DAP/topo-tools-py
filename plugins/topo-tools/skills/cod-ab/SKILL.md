@@ -33,28 +33,38 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
    `[tool.topo-tools-cod-ab]` table to the new `pyproject.toml`, then the
    same refresh. Run every command below via `uv run topo-tools ...`.
    `pyogrio` covers layer introspection on multi-layer source files (GDB,
-   GPKG) throughout this skill.
-3. Create the root-level `drop/` folder if it doesn't already exist, then
-   check it and `data/` for existing country folders.
-   - Files exist in `drop/`: for each, ask the user which country it
-     belongs to, run `uv run <skill-dir>/scripts/fetch_reference.py {iso3}`
-     to determine `{ref_version}`/`{version}` and fetch the HDX reference
-     layers, then move the file to `data/{iso3}/{version}/00-originals/`.
-   - `drop/` is empty and no country folders exist in `data/`: ask the
-     user which country they want to start processing, or point them to
-     `drop/` to add source files.
-   - `drop/` is empty and exactly one country folder exists: ask the
-     user to confirm they want to continue working on it.
-   - `drop/` is empty and multiple country folders exist: ask the user
-     which one to work on.
+   GPKG) throughout this skill. Add `01_inputs/`, `*.parquet`, and `*.gdb/`
+   to the workspace `.gitignore`.
+3. Create `01_inputs/`, `02_working/`, and `03_outputs/` at the workspace
+   root if missing, then check `01_inputs/` and `02_working/`.
+   - Files exist in `01_inputs/`: for each, ask the user its country and
+     whether it's the new source, the old (previous) version, or a file
+     returned by an external reviewer (then ask which candidate it
+     responds to, see [Candidates](#candidates)). For a new source, run
+     `uv run <skill-dir>/scripts/fetch_reference.py {iso3}`: it writes the
+     HDX release to `02_working/{iso3}/{version}/00a_old/` and prints
+     `ref_version`/`version` (`ref_version=none version=v01` when HDX has
+     none). If the user also dropped an old version, ask which one to
+     compare against. For a user-supplied old version, ask its version;
+     `{version}` is the next one after it. Propose `{version}` and have the
+     user confirm it, renaming the folder if they change it. Convert each
+     file to GeoParquet (pyogrio for GDB/GPKG layers) into `00a_old/` or
+     `00b_new/`. Delete it from `01_inputs/` only after every converted
+     layer's feature count matches its source layer's
+     (`pyogrio.read_info(...)["features"]`); on a mismatch, stop and keep
+     the file.
+   - `01_inputs/` is empty and `02_working/` has no country folders: ask
+     the user which country to start, or point them to `01_inputs/`.
+   - `01_inputs/` is empty and exactly one country folder exists: ask the
+     user to confirm they want to continue it.
+   - `01_inputs/` is empty and multiple country folders exist: ask which
+     one to work on.
 
-   Set `{iso3}` to the lowercase ISO3 country code for the rest of this
-   skill. `{ref_version}` is the most recent HDX-published release for
-   that country; `{version}` is the next release being prepared (e.g.
-   `v03` after `v02`), both determined automatically from HDX, never
-   asked of the user.
-4. Check `data/{iso3}/{version}/` for existing stage folders
-   (`01-schema/` through `05-packaging/`). Each stage's own tool output,
+   Set `{iso3}` to the lowercase ISO3 code and `{version}` to the
+   confirmed `vNN` for the rest of this skill. `00a_old/` is absent when
+   there's no previous version.
+4. Check `02_working/{iso3}/{version}/` for stage folders (`01_schema/`
+   through `05_packaging/`). Each stage's own tool output,
    and, where produced, its issues file, is the audit trail, no separate
    report file. A stage counts as complete only when its defining output
    exists, not just an issues file (a stage that ran
@@ -64,17 +74,17 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
 
    | Stage | Defining output |
    | --- | --- |
-   | `01-schema/` | the schema-refactored file |
-   | `02-geometry/` | the topo-cleaned file (edge-match and the dissolve check are conditional, skip if not applicable) |
-   | `03-codes/` | the code-refactored file |
-   | `04-names/` | the names issues file (present, any row count, even zero, since this stage has no other output) |
-   | `05-packaging/` | the `release/` bundle |
+   | `01_schema/` | the schema-refactored file |
+   | `02_geometry/` | the topo-cleaned file (edge-match and the dissolve check are conditional, skip if not applicable) |
+   | `03_codes/` | the code-refactored file |
+   | `04_names/` | the names issues file (present, any row count, even zero, since this stage has no other output) |
+   | `05_packaging/` | one parquet per output layer |
 
    The highest-numbered stage with its defining output present marks the
    last completed stage; resume at the next one. No stage folders yet
-   (only `00-originals/`): start at stage 1.
+   (only `00a_old/`/`00b_new/`): start at stage 1.
 5. If starting at stage 1 (no stage folders exist yet, per step 4), inspect
-   the raw file(s) in `00-originals/` before proposing stage 1. For a
+   the source file(s) in `00b_new/` before proposing stage 1. For a
    multi-layer archive (GDB, GPKG), list layers first. For each candidate
    file/layer, report feature count, column names, and a few sample
    p-code/name values via DuckDB. Confirm with the user: which level is
@@ -86,7 +96,7 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
 ## Stages
 
 Work through these in order, writing each stage's own output into its
-matching `data/{iso3}/{version}/0N-stage/` folder (the linked guides below
+matching `02_working/{iso3}/{version}/0N_stage/` folder (the linked guides below
 use generic placeholder filenames, substitute your own paths there).
 
 1. [Map the source schema](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/01-schema.md)
@@ -94,3 +104,26 @@ use generic placeholder filenames, substitute your own paths there).
 3. [Assign hierarchical codes](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/03-codes.md)
 4. [Review names](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/04-names.md)
 5. [Package for output](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/05-packaging.md)
+
+## Candidates
+
+After stage 5, export each release candidate (`rc`) sent for review:
+
+1. Set `{NN}` to the next candidate number after the highest in
+   `03_outputs/{iso3}/{version}/`, starting at `01`. Never overwrite an
+   existing candidate.
+2. Write every `05_packaging/` parquet as one layer of
+   `03_outputs/{iso3}/{version}/{iso3}_{version}_rc{NN}.gdb` via
+   `pyogrio.write_dataframe(..., driver="OpenFileGDB",
+   layer_options={"TARGET_ARCGIS_VERSION": "ARCGIS_PRO_3_2_OR_LATER"})`
+   (without it, integer columns become Float64).
+3. Write `{iso3}_{version}_rc{NN}_review.gdb` alongside it: each
+   stage's issues file as a layer named after its stage, plus `change`
+   output comparing this candidate against the previous one (`rc01`:
+   against `00a_old/`, skipped when absent).
+4. Commit the CSVs under `02_working/{iso3}/{version}/` to the workspace
+   git repo.
+
+For a file returned by the reviewer (step 3 of Setup), ask which stage it
+re-enters at, place it there as GeoParquet or CSV, and rerun from that
+stage.
