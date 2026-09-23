@@ -6,6 +6,18 @@ description: Clean, code, and package COD-AB administrative boundary polygons wi
 Guide the user through cleaning and reconciling a COD-AB administrative
 boundary layer with topo-tools.
 
+File a GitHub issue against this repo, rather than patching around it,
+whenever a command crashes or raises unexpectedly, output looks wrong (bad
+geometry, a miscount, a column that shouldn't be null), or behavior differs
+across platforms (macOS/Linux/Windows path handling, available memory): use
+the
+[bug report template](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/.github/ISSUE_TEMPLATE/bug_report.yml).
+When a stage needs something `topo-tools` can't currently do, use the
+[feature request template](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/.github/ISSUE_TEMPLATE/feature_request.yml)
+instead. See
+[CONTRIBUTING.md](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/CONTRIBUTING.md)
+for either.
+
 ## Setup
 
 1. Check whether `uv` resolves on `PATH`. If not, install it with its
@@ -41,14 +53,44 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
    that country; `{version}` is the next release being prepared (e.g.
    `v03` after `v02`), both determined automatically from HDX, never
    asked of the user.
+4. Check `data/{iso3}/{version}/` for existing stage folders
+   (`01-schema/` through `05-packaging/`). Each stage's own tool output,
+   and, where produced, its issues file, is the audit trail, no separate
+   report file. A stage counts as complete only when its defining output
+   exists, not just an issues file (a stage that ran
+   `topo-clean`/`edge-match`/`code-refactor` and stopped at the issues
+   file, without writing the tool's own `OUTPUT_FILE`, is in progress,
+   not done: resume there, don't skip past it):
+
+   | Stage | Defining output |
+   | --- | --- |
+   | `01-schema/` | the schema-refactored file |
+   | `02-geometry/` | the topo-cleaned file (edge-match and the dissolve check are conditional, skip if not applicable) |
+   | `03-codes/` | the code-refactored file |
+   | `04-names/` | the names issues file (present, any row count, even zero, since this stage has no other output) |
+   | `05-packaging/` | the `release/` bundle |
+
+   The highest-numbered stage with its defining output present marks the
+   last completed stage; resume at the next one. No stage folders yet
+   (only `00-originals/`): start at stage 1.
+5. If starting at stage 1 (no stage folders exist yet, per step 4), inspect
+   the raw file(s) in `00-originals/` before proposing stage 1. For a
+   multi-layer archive (GDB, GPKG), list layers first. For each candidate
+   file/layer, report feature count, column names, and a few sample
+   p-code/name values via DuckDB. Confirm with the user: which level is
+   the base (the authoritative geometry level, ancestors are derived by
+   dissolve in stage 2) and the country's ISO2 code (used as stage 3's
+   `--root-code` under the legacy p-code scheme). Skip this step when
+   resuming past stage 1.
 
 ## Stages
 
-Work through these in order:
+Work through these in order, writing each stage's own output into its
+matching `data/{iso3}/{version}/0N-stage/` folder (the linked guides below
+use generic placeholder filenames, substitute your own paths there).
 
-1. [Map the source schema](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/01-map-schema.md)
-2. [Fix internal topology](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/02-fix-topology.md)
-3. [Assign hierarchical codes](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/03-assign-codes.md)
-4. [Fit a finer level into one district](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/04-fit-finer-level.md)
-5. [Fill attributes and derive ancestor levels](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/05-fill-and-derive-ancestors.md)
-6. [Package for output](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/06-package-for-output.md)
+1. [Map the source schema](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/01-schema.md)
+2. [Clean geometry](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/02-geometry.md)
+3. [Assign hierarchical codes](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/03-codes.md)
+4. [Review names](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/04-names.md)
+5. [Package for output](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/05-packaging.md)

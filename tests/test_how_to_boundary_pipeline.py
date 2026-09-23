@@ -1,4 +1,4 @@
-"""Runs the how-to guide's command sequence against its committed fixtures."""
+"""Integration test: chains schema through package against committed fixtures."""
 
 import csv
 from pathlib import Path
@@ -28,7 +28,7 @@ def _rows(path, columns="*") -> list[tuple]:
 
 @pytest.fixture
 def pipeline(tmp_path):
-    """Run stages 1-3 (schema, topology, codes) once; stages 4-6 branch from here."""
+    """Run schema mapping through coding once; matching/fill/package branch here."""
     crosswalk_path = tmp_path / "crosswalk.csv"
     schema_map(_DISTRICT_RAW, crosswalk_path)
 
