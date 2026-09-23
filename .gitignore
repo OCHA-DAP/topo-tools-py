@@ -15,4 +15,5 @@ old_*
 outputs/
 scripts/
 !.github/scripts/
+!plugins/**/scripts/
 tmp/
