@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "docs/**"
+      - "plugins/**"
   workflow_dispatch:
 
 concurrency:
@@ -23,6 +24,41 @@ jobs:
       - uses: actions/configure-pages@v6
       - working-directory: docs
         run: uv run zensical build --clean
+      - name: Build git-free plugin archive
+        run: |
+          set -euo pipefail
+          mtime="$(git log -1 --format=%ct HEAD -- plugins/topo-tools)"
+          git archive --format=zip \
+            --mtime="@${mtime} +0000" \
+            --prefix=topo-tools/ \
+            -o docs/site/topo-tools-plugin.zip \
+            HEAD:plugins/topo-tools
+      - name: Generate marketplace manifest
+        run: |
+          set -euo pipefail
+          sha256="$(sha256sum docs/site/topo-tools-plugin.zip | cut -d' ' -f1)"
+          plugin_name="$(jq -r '.name' plugins/topo-tools/.claude-plugin/plugin.json)"
+          plugin_description="$(jq -r '.description' plugins/topo-tools/.claude-plugin/plugin.json)"
+          jq -n \
+            --arg name "$plugin_name" \
+            --arg description "$plugin_description" \
+            --arg sha256 "$sha256" \
+            '{
+              name: "topo-tools",
+              owner: { name: "OCHA-DAP" },
+              plugins: [
+                {
+                  name: $name,
+                  description: $description,
+                  source: {
+                    source: "archive",
+                    url: "https://ocha-dap.github.io/topo-tools-py/topo-tools-plugin.zip",
+                    sha256: $sha256
+                  }
+                }
+              ]
+            }' > docs/site/marketplace.json
+          jq empty docs/site/marketplace.json
       - name: Prepare link check root
         run: |
           mkdir -p /tmp/lychee-root

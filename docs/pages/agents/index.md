@@ -13,11 +13,5 @@ administrative boundary data needs cleaning and pick the matching tool.
 Formal install of the [`topo-tools`](https://github.com/OCHA-DAP/topo-tools-py/blob/main/plugins/topo-tools) plugin:
 
 ```bash
-/plugin marketplace add OCHA-DAP/topo-tools-py
-```
-
-Then, once that confirms:
-
-```bash
-/plugin install topo-tools@topo-tools
+/plugin install topo-tools --marketplace https://ocha-dap.github.io/topo-tools-py/marketplace.json
 ```

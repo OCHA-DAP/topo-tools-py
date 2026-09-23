@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "claude plugin update topo-tools@topo-tools",
+            "async": true
+          }
+        ]
+      }
+    ]
+  }
+}
