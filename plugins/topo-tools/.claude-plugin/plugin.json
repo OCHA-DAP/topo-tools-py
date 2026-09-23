@@ -1,6 +1,5 @@
 {
   "name": "topo-tools",
   "description": "Agent skills for topo-tools boundary-cleaning workflows.",
-  "version": "1.0.0",
   "author": { "name": "OCHA-DAP" }
 }
