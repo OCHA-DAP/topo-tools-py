@@ -37,9 +37,11 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
 3. Create `01_inputs/`, `02_working/`, and `03_outputs/` at the workspace
    root if missing, then check `01_inputs/` and `02_working/`.
    - Files exist in `01_inputs/`: for each, ask the user its country and
-     whether it's the new source, the old (previous) version, or a file
-     returned by an external reviewer (then ask which candidate it
-     responds to, see [Candidates](#candidates)). For a new source, run
+     whether it's the new source or the old (previous) version, plus a
+     third option, a file returned by an external reviewer, only when
+     `03_outputs/` already holds a candidate for that country (then ask
+     which candidate it responds to, see [Candidates](#candidates)). For a
+     new source, run
      `uv run <skill-dir>/scripts/fetch_reference.py {iso3}`: it writes the
      HDX release to `02_working/{iso3}/{version}/00a_old/` and prints
      `ref_version`/`version` (`ref_version=none version=v01` when HDX has
@@ -47,10 +49,12 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
      compare against. For a user-supplied old version, ask its version;
      `{version}` is the next one after it. Propose `{version}` and have the
      user confirm it, renaming the folder if they change it. Extract a
-     `.zip` into `01_inputs/` first and treat each dataset inside it
+     `.zip` into `01_inputs/` first with
+     `uv run python -m zipfile -e {zip} 01_inputs/`, not `unzip` (it
+     misreads non-UTF-8 member names), and treat each dataset inside it
      (`.shp`, `.gdb`, `.gpkg`, `.geojson`) as its own file. Convert each
      file to GeoParquet (pyogrio for GDB/GPKG layers) into `00a_old/` or
-     `00b_new/`. Delete it from `01_inputs/` (a zip together with
+     `00b_new/`, named after its source with accents stripped. Delete it from `01_inputs/` (a zip together with
      everything extracted from it) only after every converted layer's
      feature count matches its source layer's
      (`pyogrio.read_info(...)["features"]`); on a mismatch, stop and keep
@@ -95,7 +99,8 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
    stage 3's `--root-code` under the legacy p-code scheme). Propose the
    deepest level, but flag it if it looks partial or low quality (doesn't
    cover the whole country, has missing codes/names, or far fewer units
-   than its parent level implies), since the user may then pick a
+   than its parent level implies; judge from feature counts and total
+   bounds, never file sizes), since the user may then pick a
    shallower one. Keep every supplied file/layer in `00b_new/` as a
    reference; the higher-level ones feed stage 2's dissolve check. Skip
    this step when resuming past stage 1.
