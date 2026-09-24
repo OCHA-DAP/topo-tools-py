@@ -42,7 +42,7 @@ log = logging.getLogger(__name__)
 
 _HDX_API = "https://data.humdata.org/api/3/action/package_show?id=cod-ab-{iso3}"
 _COPY_OPTIONS = (
-    "FORMAT PARQUET, COMPRESSION ZSTD, COMPRESSION_LEVEL 15, GEOPARQUET_VERSION 'BOTH'"
+    "FORMAT PARQUET, COMPRESSION ZSTD, COMPRESSION_LEVEL 15, GEOPARQUET_VERSION 'V2'"
 )
 _CHUNK_SIZE = 10_000
 _DTYPE_KIND_TO_SQL = {
