@@ -23,9 +23,10 @@ for either.
 Whenever a step writes Parquet with DuckDB directly, not through a
 topo-tools command, match topo-tools' own output: name the geometry column
 `geometry` and write with `COPY ... TO '<out>.parquet' (FORMAT PARQUET,
-COMPRESSION ZSTD, COMPRESSION_LEVEL 15, GEOPARQUET_VERSION 'V2')`. Read GDB
-layers with pyogrio, never DuckDB's `ST_Read`, which returns 0 rows on
-Esri-authored GDBs.
+COMPRESSION ZSTD, COMPRESSION_LEVEL 15, GEOPARQUET_VERSION 'V2')`. Convert
+source files to GeoParquet and GeoParquet to GDB only with
+`uv run <skill-dir>/scripts/convert.py`. Never read a GDB with DuckDB's
+`ST_Read`, which returns 0 rows on Esri-authored GDBs.
 
 ## Setup
 
@@ -38,11 +39,9 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
    already prepared: run `uv lock --upgrade && uv sync` to refresh
    versions, then continue. If it doesn't (no `pyproject.toml`, or one
    without that table), help set up a dedicated working directory:
-   `uv init --bare --vcs none` there, `uv add topo-tools pyogrio`, add a
+   `uv init --bare --vcs none` there, `uv add topo-tools`, add a
    `[tool.topo-tools-cod-ab]` table to the new `pyproject.toml`, then the
    same refresh. Run every command below via `uv run topo-tools ...`.
-   `pyogrio` covers layer introspection on multi-layer source files (GDB,
-   GPKG) throughout this skill.
 3. Create `01_inputs/`, `02_working/`, and `03_outputs/` at the workspace
    root if missing, then check `01_inputs/` and `02_working/`.
    - Files exist in `01_inputs/`: for each, ask the user its country and
@@ -62,12 +61,13 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
      `uv run python -m zipfile -e {zip} 01_inputs/`, not `unzip` (it
      misreads non-UTF-8 member names), and treat each dataset inside it
      (`.shp`, `.gdb`, `.gpkg`, `.geojson`) as its own file. Convert each
-     file to GeoParquet (pyogrio for GDB/GPKG layers) into `00a_old/` or
-     `00b_new/`, named after its source with accents stripped. Delete it from `01_inputs/` (a zip together with
-     everything extracted from it) only after every converted layer's
-     feature count matches its source layer's
-     (`pyogrio.read_info(...)["features"]`); on a mismatch, stop and keep
-     the file.
+     file with
+     `uv run <skill-dir>/scripts/convert.py to-parquet {file} 02_working/{iso3}/{version}/{00a_old|00b_new}/`.
+     It writes one GeoParquet per layer, named after its source with
+     accents stripped, and exits non-zero when a layer's written feature
+     count doesn't match its source. Delete the file from `01_inputs/` (a
+     zip together with everything extracted from it) only after it
+     converts cleanly. On a failure, stop and keep the file.
    - `01_inputs/` is empty and `02_working/` has no country folders: ask
      the user which country to start, or point them to `01_inputs/`.
    - `01_inputs/` is empty and exactly one country folder exists: ask the
@@ -137,14 +137,14 @@ After stage 5, export each release candidate (`rc`) sent for review:
    `03_outputs/{iso3}/{version}/`, starting at `01`. Never overwrite an
    existing candidate.
 2. Write every `05_packaging/` parquet as one layer of
-   `03_outputs/{iso3}/{version}/{iso3}_{version}_rc{NN}.gdb` via
-   `pyogrio.write_dataframe(..., driver="OpenFileGDB",
-   layer_options={"TARGET_ARCGIS_VERSION": "ARCGIS_PRO_3_2_OR_LATER"})`
-   (without it, integer columns become Float64).
-3. Write `{iso3}_{version}_rc{NN}_review.gdb` alongside it: each
-   stage's issues file as a layer named after its stage, plus `change`
-   output comparing this candidate against the previous one (`rc01`:
-   against `00a_old/`, skipped when absent).
+   `03_outputs/{iso3}/{version}/{iso3}_{version}_rc{NN}.gdb` with
+   `uv run <skill-dir>/scripts/convert.py to-gdb {gdb} {parquet}...`.
+3. Write `{iso3}_{version}_rc{NN}_review.gdb` alongside it with
+   `convert.py to-gdb {gdb} {stage}={issues.parquet}... change={change.parquet}`:
+   each stage's issues file as a layer named after its stage without the
+   number prefix (`schema`, `geometry`, ...), plus `change` output
+   comparing this candidate against the previous one (`rc01`: against
+   `00a_old/`, skipped when absent).
 
 For a file returned by the reviewer (step 3 of Setup), ask which stage it
 re-enters at, place it there as GeoParquet or CSV, and rerun from that
