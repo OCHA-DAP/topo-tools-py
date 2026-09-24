@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `package-polygons`/`package`: `--output-name-field`/`--output-code-field`
+  rename the name/code template columns (numbered siblings included) in
+  every written level, e.g. `adm{n}_code` to `adm{n}_pcode`.
+
 ### Changed
 
 - Every tool writes `geometry` as the first output column.

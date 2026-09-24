@@ -9,7 +9,12 @@ check: `package-points`/`package-lines` each stamp their own depth column
 and would collide with an existing `adm_lvl` (see
 `docs/pages/reference/package.md`).
 
-    topo-tools package admin2_coded.parquet --output "release/{x}.parquet"
+    topo-tools package admin2_coded.parquet --output "release/{x}.parquet" \
+      --name-field "adm{n}_name" --code-field "adm{n}_code" \
+      --output-code-field "adm{n}_pcode"
+
+Earlier steps work with `adm{n}_code`; `--output-code-field` writes the
+release's code columns as `adm{n}_pcode`.
 
 Writes one `release/admin{n}.parquet` per detected level,
 `release/points.parquet` (one label point per admin unit), and

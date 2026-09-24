@@ -34,6 +34,10 @@ See `docs/reference/README.md` for the MUST/SHOULD/MAY convention.
 - `aggregations` (CLI: repeatable `--aggregation column=function`) MUST be
   passed through to `package-polygons` only; `package-points` and
   `package-lines` have no equivalent override.
+- `output_name_field`/`output_code_field` (CLI:
+  `--output-name-field`/`--output-code-field`) MUST be passed through to
+  `package-polygons` only; `package-points` and `package-lines` write
+  generic per-role columns, not template-named ones.
 - `package` MUST NOT expose `depth_column`: `package-points` and
   `package-lines` each run with their own default (`adm_lvl`). An input
   that already has its own `adm_lvl` column (raising `ValueError` in

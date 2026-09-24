@@ -334,6 +334,20 @@ def topo_detect(  # noqa: PLR0913, PLR0917
     "default: structural auto-detection).",
 )
 @click.option(
+    "--output-name-field",
+    envvar="OUTPUT_NAME_FIELD",
+    default=None,
+    help="Rename --name-field's columns to this template in every written level, "
+    "e.g. 'adm{n}_label' (requires --name-field/--code-field).",
+)
+@click.option(
+    "--output-code-field",
+    envvar="OUTPUT_CODE_FIELD",
+    default=None,
+    help="Rename --code-field's columns to this template in every written level, "
+    "e.g. 'adm{n}_pcode' (requires --name-field/--code-field).",
+)
+@click.option(
     "--aggregation",
     "aggregations",
     envvar="AGGREGATIONS",
@@ -378,6 +392,8 @@ def package_polygons(  # noqa: PLR0913, PLR0917
     issues_file: str | None,
     name_field: str | None,
     code_field: str | None,
+    output_name_field: str | None,
+    output_code_field: str | None,
     aggregations: tuple[str, ...],
     overwrite: bool,  # noqa: FBT001
     threads: int | None,
@@ -410,6 +426,8 @@ def package_polygons(  # noqa: PLR0913, PLR0917
             issues_file,
             name_field=name_field,
             code_field=code_field,
+            output_name_field=output_name_field,
+            output_code_field=output_code_field,
             aggregations=_parse_aggregations(aggregations),
             threads=threads,
             tmp_dir=tmp_dir,
@@ -630,6 +648,20 @@ def package_lines(  # noqa: PLR0913, PLR0917
     "default: structural auto-detection).",
 )
 @click.option(
+    "--output-name-field",
+    envvar="OUTPUT_NAME_FIELD",
+    default=None,
+    help="Rename --name-field's columns to this template in every written level, "
+    "e.g. 'adm{n}_label' (requires --name-field/--code-field).",
+)
+@click.option(
+    "--output-code-field",
+    envvar="OUTPUT_CODE_FIELD",
+    default=None,
+    help="Rename --code-field's columns to this template in every written level, "
+    "e.g. 'adm{n}_pcode' (requires --name-field/--code-field).",
+)
+@click.option(
     "--aggregation",
     "aggregations",
     envvar="AGGREGATIONS",
@@ -666,6 +698,8 @@ def package(  # noqa: PLR0913, PLR0917
     output: str | None,
     name_field: str | None,
     code_field: str | None,
+    output_name_field: str | None,
+    output_code_field: str | None,
     aggregations: tuple[str, ...],
     overwrite: bool,  # noqa: FBT001
     threads: int | None,
@@ -690,6 +724,8 @@ def package(  # noqa: PLR0913, PLR0917
             output,
             name_field,
             code_field,
+            output_name_field=output_name_field,
+            output_code_field=output_code_field,
             aggregations=_parse_aggregations(aggregations),
             threads=threads,
             tmp_dir=tmp_dir,
