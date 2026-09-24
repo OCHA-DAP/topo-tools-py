@@ -6,6 +6,7 @@ algorithm and why.
 
 import re
 from dataclasses import dataclass
+from logging import getLogger
 
 from duckdb import DuckDBPyConnection
 
@@ -20,6 +21,8 @@ from topo_tools.core.schema_map._constants import (
     CONFIDENCE_SUPPLEMENTAL,
 )
 from topo_tools.core.schema_map._target_schema import TargetSchema
+
+logger = getLogger(__name__)
 
 # fid/geom/source_file are topo-tools' own internal columns, never candidate
 # source data (source_file is added by core.assign, dropped only at final export).
@@ -755,10 +758,12 @@ def resolve_columns(
     table: str,
     schema: TargetSchema,
     level: int | None = None,
+    *,
+    implied_country: bool = False,
 ) -> dict[str, _Row]:
     """Resolve every candidate column to a level/role; `schema` only renders names.
 
-    `level` anchors the finest chain level's number; default numbers from 0.
+    `level` anchors the finest level; else `implied_country` numbers a varying root 1.
     """
     columns = _candidate_columns(conn, table)
     counts = _distinct_counts(conn, table, columns)
@@ -777,7 +782,19 @@ def resolve_columns(
     if len(chain) == 1 and len(chain[0][1]) < _MIN_ROOT_EVIDENCE_COLUMNS:
         chain = []
 
-    offset = 0 if level is None or not chain else level - (len(chain) - 1)
+    if not chain:
+        offset = 0
+    elif level is not None:
+        offset = level - (len(chain) - 1)
+    elif implied_country and chain[0][0] > 1:
+        offset = 1
+        logger.warning(
+            "no single-value country column; numbered the coarsest level 1 "
+            "assuming one country above the file, pass --level N if the file "
+            "spans multiple countries or lacks its coarser levels"
+        )
+    else:
+        offset = 0
     rows = _assign_chain_roles(conn, table, chain, schema, counts, offset)
     lowest = min((r.level for r in rows.values() if r.level is not None), default=0)
     if lowest < 0:
@@ -810,7 +827,7 @@ def main(
     """Discover a source file's admin hierarchy, writing crosswalk `{name}_02`."""
     table = f"{name}_01"
     columns = _candidate_columns(conn, table)
-    rows = resolve_columns(conn, table, schema, level)
+    rows = resolve_columns(conn, table, schema, level, implied_country=True)
 
     def sort_key(row: _Row, source_position: int) -> tuple[int, int, int, int]:
         if row.level is None:

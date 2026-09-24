@@ -219,9 +219,11 @@ deciding what belongs to which level.
    to `name` directly, with no collapse-ratio check. A bracketed column
    that fails the function check entirely (neither a subset nor superset
    of the level) stays `ambiguous`.
-5. **Number and emit rows**: a chain position's level number is its
-   relative rank (0 = coarsest), or, with `--level N`, counts up from `N`
-   at the finest level (see `docs/adr/0058`, `docs/adr/0108`).
+5. **Number and emit rows**: a chain position's level number counts by
+   nesting depth: with `--level N` the finest level is `N`; without it a
+   constant coarsest level (a country column) is 0 and a varying one is 1,
+   assuming one country above the file (see `docs/adr/0058`,
+   `docs/adr/0108`, `docs/adr/0110`).
    Every code-chain column and every winning bracketed name column
    becomes a `code`/`name` row, `target_column` always rendered from the
    schema template at that level; when two or more qualify at the same
@@ -313,8 +315,9 @@ the source file's own original column order.
   containment alone can't distinguish a real nesting relationship from
   coincidence once embedding evidence exists elsewhere in the same file
   (`docs/adr/0064`, `docs/adr/0066`).
-- Without `--level`, levels are numbered purely by nesting depth, so a
-  file whose coarsest level isn't admin0 (no country column) is numbered
-  as if it were. Pass the file's own level to anchor it. A skipped level
-  in the source still misnumbers everything coarser than the gap
-  (`docs/adr/0058`, `docs/adr/0066`, `docs/adr/0108`).
+- Without `--level`, a file whose coarsest level varies is assumed to sit
+  under one country and numbers from 1, with a logged warning. A
+  multi-country file, a single-level file, or one missing its coarser
+  levels needs `--level N`. A skipped level in the source still misnumbers
+  everything coarser than the gap (`docs/adr/0058`, `docs/adr/0066`,
+  `docs/adr/0108`, `docs/adr/0110`).

@@ -2026,7 +2026,7 @@ def schema_join(  # noqa: PLR0913, PLR0917
     type=click.IntRange(min=0),
     default=None,
     help="The file's own admin level, numbering its finest level (default: "
-    "coarsest level numbered 0).",
+    "coarsest level numbered 1, a single-value country column 0).",
 )
 @click.option(
     "--layer",
@@ -2099,6 +2099,10 @@ def schema_map(  # noqa: PLR0913, PLR0917
       \b
       # Number levels from the file's own admin level
       topo-tools schema-map admin3.geojson --level 3
+
+      \b
+      # Global multi-country file (country + region columns)
+      topo-tools schema-map global_admin1.geojson --level 1
     """
     logger.info("--debug=%s", debug)
     try:
@@ -2219,7 +2223,7 @@ def schema_refactor(  # noqa: PLR0913, PLR0917
     type=click.IntRange(min=0),
     default=None,
     help="The file's own admin level, numbering its finest level (default: "
-    "coarsest level numbered 0).",
+    "coarsest level numbered 1, a single-value country column 0).",
 )
 @click.option(
     "--layer",
