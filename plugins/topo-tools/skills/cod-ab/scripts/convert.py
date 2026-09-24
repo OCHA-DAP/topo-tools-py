@@ -44,16 +44,20 @@ def _sql_str(value: str | Path) -> str:
     return "'" + str(value).replace("'", "''") + "'"
 
 
+def _sql_id(name: str) -> str:
+    return '"' + name.replace('"', '""') + '"'
+
+
 def _ascii_name(name: str) -> str:
     return unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode()
 
 
-def _source_counts(con: duckdb.DuckDBPyConnection, src: Path) -> dict[str, int]:
-    """Layer name to feature count, from GDAL's own metadata."""
+def _source_layers(con: duckdb.DuckDBPyConnection, src: Path) -> dict[str, dict]:
+    """Layer name to GDAL's own layer metadata (count, fields, geometry fields)."""
     (layers,) = con.execute(
         f"SELECT layers FROM ST_Read_Meta({_sql_str(src)})"
     ).fetchone()
-    return {layer["name"]: layer["feature_count"] for layer in layers}
+    return {layer["name"]: layer for layer in layers}
 
 
 def to_parquet(src: Path, dst_dir: Path) -> None:
@@ -61,8 +65,8 @@ def to_parquet(src: Path, dst_dir: Path) -> None:
     dst_dir.mkdir(parents=True, exist_ok=True)
     con = _connect()
     is_gdb = src.suffix.lower() == ".gdb"
-    counts = {} if is_gdb else _source_counts(con, src)
-    layers = get_layers(src) if is_gdb else list(counts)
+    meta = {} if is_gdb else _source_layers(con, src)
+    layers = get_layers(src) if is_gdb else list(meta)
     mismatches = []
     for layer in layers:
         stem = layer if len(layers) > 1 or is_gdb else src.stem
@@ -74,26 +78,21 @@ def to_parquet(src: Path, dst_dir: Path) -> None:
             convert_layer(con, src, layer, dst)
             expected = pyogrio.read_info(str(src), layer=layer)["features"]
         else:
-            read = f"ST_Read({_sql_str(src)}, layer={_sql_str(layer)})"
-            # ST_Read keeps the source's own geometry column name, e.g. a GPKG's.
-            geom = next(
-                (
-                    name
-                    for name, type_, *_ in con.execute(
-                        f"DESCRIBE FROM {read}"
-                    ).fetchall()
-                    if type_.startswith("GEOMETRY")
-                ),
-                None,
-            )
-            if geom is None:
+            geometry_fields = meta[layer]["geometry_fields"]
+            if not geometry_fields:
                 log.info("%s: skipped, no geometry column", layer)
                 continue
+            # Declared fields only: ST_Read adds GDAL's own fid/OGC_FID on top.
+            columns = [
+                f"{_sql_id(geometry_fields[0]['name'])} AS geometry",
+                *(_sql_id(field["name"]) for field in meta[layer]["fields"]),
+            ]
             con.execute(
-                f'COPY (SELECT "{geom}" AS geometry, * EXCLUDE ("{geom}") '
-                f"FROM {read}) TO {_sql_str(dst)} ({_COPY_OPTIONS})"
+                f"COPY (SELECT {', '.join(columns)} "
+                f"FROM ST_Read({_sql_str(src)}, layer={_sql_str(layer)})) "
+                f"TO {_sql_str(dst)} ({_COPY_OPTIONS})"
             )
-            expected = counts[layer]
+            expected = meta[layer]["feature_count"]
         (written,) = con.execute(f"SELECT count(*) FROM {_sql_str(dst)}").fetchone()
         log.info("%s: source %s, written %s", dst.name, expected, written)
         if written != expected:
