@@ -38,6 +38,14 @@ tools.
 - `package-polygons` MUST also export an issues report per level, using the
   shared schema in `docs/reference/shared.md`. A level's issues report MUST
   be produced only when it has at least one row.
+- `package-polygons` MAY take `output_name_field`/`output_code_field`
+  (each containing a `{n}` placeholder, either or both). When given, every
+  written level MUST rename each column in the input
+  `name_field`/`code_field` family (numbered siblings included, see
+  `docs/reference/shared.md`) to the matching output template at the same
+  level, leaving every other column unchanged. Either one given without
+  `name_field`/`code_field` MUST raise `ValueError`, as MUST a renamed
+  column colliding with any other output column.
 - The finest level's own output MUST be skipped (no file written, no
   `check_overwrite` call) when its computed path resolves to the same file
   as the input; otherwise it MUST be written as a plain copy of the loaded

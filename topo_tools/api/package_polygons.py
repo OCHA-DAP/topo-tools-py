@@ -25,6 +25,7 @@ from topo_tools.core.schema_map._levels import detect_levels
 from topo_tools.core.schema_map._target_schema import (
     TargetSchema,
     resolve_explicit_target_schema,
+    target_schema_from_fields,
 )
 
 logger = getLogger(__name__)
@@ -60,6 +61,26 @@ def _resolve_level_issues(issues_path: str | Path | None, dest: Path, n: int) ->
         msg = f"issues_path given without a literal '{{n}}' placeholder: {issues_path}"
         raise ValueError(msg)
     return Path(text.format(n=n))
+
+
+def _output_templates(
+    schema: TargetSchema | None,
+    output_name_field: str | None,
+    output_code_field: str | None,
+) -> tuple[tuple[str, str], tuple[str | None, str | None]] | None:
+    """Validate the output templates against the explicit input templates."""
+    if output_name_field is None and output_code_field is None:
+        return None
+    if schema is None:
+        msg = "output_name_field/output_code_field require name_field/code_field"
+        raise ValueError(msg)
+    target_schema_from_fields(
+        output_name_field or schema.name_field, output_code_field or schema.code_field
+    )
+    return (
+        (schema.name_field, schema.code_field),
+        (output_name_field, output_code_field),
+    )
 
 
 def _load_plan(  # noqa: PLR0913, PLR0917
@@ -121,6 +142,8 @@ def package_polygons(  # noqa: PLR0913
     name_field: str | None = None,
     code_field: str | None = None,
     *,
+    output_name_field: str | None = None,
+    output_code_field: str | None = None,
     aggregations: dict[str, str] | None = None,
     threads: int | None = None,
     tmp_dir: str | Path | None = None,
@@ -131,7 +154,8 @@ def package_polygons(  # noqa: PLR0913
     """Dissolve a polygon layer into every detected coarser admin level.
 
     With no name_field/code_field, levels and their columns are
-    auto-detected structurally from the input's own data.
+    auto-detected structurally from the input's own data. output_name_field/
+    output_code_field rename those template columns in every written level.
     """
     if step is not None and step not in _STEP_ORDER:
         msg = f"step must be one of {_STEP_ORDER}, got {step!r}"
@@ -139,6 +163,7 @@ def package_polygons(  # noqa: PLR0913
 
     input_path = resolve_input_path(input_path)
     schema = resolve_explicit_target_schema(name_field, code_field)
+    renames = _output_templates(schema, output_name_field, output_code_field)
 
     name = input_basename(input_path).replace(".", "_") + "_package_polygons"
 
@@ -181,7 +206,7 @@ def package_polygons(  # noqa: PLR0913
                         schema,
                         overwrite=overwrite,
                     )
-                outputs.main(conn, name, plan, debug=debug)
+                outputs.main(conn, name, plan, renames=renames, debug=debug)
         maybe_export_debug_tables(
             conn, tmp_dir_path, name, step, _STEP_TABLES, debug=debug
         )
