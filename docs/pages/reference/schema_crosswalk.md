@@ -33,6 +33,7 @@ See `docs/reference/README.md` for the MUST/SHOULD/MAY convention, and
   `_crosswalk` stem suffix and a `.csv` extension.
 - `schema-crosswalk` MUST raise `FileExistsError` if either output path already
   exists and overwriting wasn't requested.
+- `level` MUST behave as in `schema-map`.
 - `step`, if given, MUST be one of `inputs`, `schema-map`, `apply`, `outputs`;
   any other value MUST raise `ValueError`.
 - To iterate on a `schema-crosswalk`-generated crosswalk (hand-edit it, then

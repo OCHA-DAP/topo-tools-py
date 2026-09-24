@@ -5,9 +5,12 @@ title: "1. Map the source schema"
 First step of [preparing an administrative boundary
 release](administrative-boundary-release/).
 
-    topo-tools schema-map your_admin1.parquet crosswalk.csv
+    topo-tools schema-map your_admin1.parquet crosswalk.csv --level 1
 
-This writes `crosswalk.csv` without changing the input. `schema-map`
+This writes `crosswalk.csv` without changing the input. `--level` is the
+file's own admin level. Without it, levels are numbered from 0 at the
+coarsest column, which is wrong for a file with no country column.
+`schema-map`
 matches columns by cardinality (unique-value count), not by name, so open
 the crosswalk and check every row before trusting it, for example:
 

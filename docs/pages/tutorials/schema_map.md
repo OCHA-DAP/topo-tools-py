@@ -17,3 +17,7 @@ crosswalk, then run `schema-refactor`.
 ### Example 3: explicit output
 
     topo-tools schema-map example.gpkg crosswalk.csv --name-field state_name --code-field state_code
+
+### Example 4: number levels from the file's own admin level
+
+    topo-tools schema-map admin3.geojson --level 3

@@ -39,6 +39,7 @@ def map(  # noqa: A001, PLR0913
     *,
     name_field: str | None = None,
     code_field: str | None = None,
+    level: int | None = None,
     layer: str | None = None,
     threads: int | None = None,
     tmp_dir: str | Path | None = None,
@@ -82,7 +83,7 @@ def map(  # noqa: A001, PLR0913
             if s == "inputs":
                 inputs.main(conn, name, input_path, layer)
             elif s == "map":
-                map_stage.main(conn, name, schema)
+                map_stage.main(conn, name, schema, level)
             elif s == "outputs":
                 outputs.main(conn, name, output_path, debug=debug)
         maybe_export_debug_tables(

@@ -1919,6 +1919,14 @@ def schema_fill(  # noqa: PLR0913, PLR0917
     "default: 'adm{n}_code').",
 )
 @click.option(
+    "--level",
+    envvar="LEVEL",
+    type=click.IntRange(min=0),
+    default=None,
+    help="The file's own admin level, numbering its finest level (default: "
+    "coarsest level numbered 0).",
+)
+@click.option(
     "--layer",
     envvar="LAYER",
     default=None,
@@ -1961,6 +1969,7 @@ def schema_map(  # noqa: PLR0913, PLR0917
     output_file: str | None,
     name_field: str | None,
     code_field: str | None,
+    level: int | None,
     layer: str | None,
     overwrite: bool,  # noqa: FBT001
     threads: int | None,
@@ -1984,6 +1993,10 @@ def schema_map(  # noqa: PLR0913, PLR0917
       # Custom target field naming
       topo-tools schema-map example.geojson --name-field adm{n}_name \
         --code-field adm{n}_pcode
+
+      \b
+      # Number levels from the file's own admin level
+      topo-tools schema-map admin3.geojson --level 3
     """
     logger.info("--debug=%s", debug)
     try:
@@ -1992,6 +2005,7 @@ def schema_map(  # noqa: PLR0913, PLR0917
             Path(output_file) if output_file is not None else None,
             name_field=name_field,
             code_field=code_field,
+            level=level,
             layer=layer,
             threads=threads,
             tmp_dir=tmp_dir,
@@ -2098,6 +2112,14 @@ def schema_refactor(  # noqa: PLR0913, PLR0917
     "default: 'adm{n}_code').",
 )
 @click.option(
+    "--level",
+    envvar="LEVEL",
+    type=click.IntRange(min=0),
+    default=None,
+    help="The file's own admin level, numbering its finest level (default: "
+    "coarsest level numbered 0).",
+)
+@click.option(
     "--layer",
     envvar="LAYER",
     default=None,
@@ -2141,6 +2163,7 @@ def schema_crosswalk(  # noqa: PLR0913, PLR0917
     crosswalk_file: str | None,
     name_field: str | None,
     code_field: str | None,
+    level: int | None,
     layer: str | None,
     overwrite: bool,  # noqa: FBT001
     threads: int | None,
@@ -2175,6 +2198,7 @@ def schema_crosswalk(  # noqa: PLR0913, PLR0917
             Path(crosswalk_file) if crosswalk_file is not None else None,
             name_field=name_field,
             code_field=code_field,
+            level=level,
             layer=layer,
             threads=threads,
             tmp_dir=tmp_dir,
