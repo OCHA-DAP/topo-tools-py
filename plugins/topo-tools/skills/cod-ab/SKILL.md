@@ -89,7 +89,7 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
 
    | Stage | Defining output |
    | --- | --- |
-   | `01_schema/` | `{iso3}_admin{n}.parquet` for every supplied level |
+   | `01_schema/` | `{iso3}_admin{n}.parquet` for every supplied level, plus `{iso3}_admin{n}_issues.parquet` only where `schema-join` wrote issues; no other parquet |
    | `02_geometry/` | the topo-cleaned file (edge-match and the dissolve check are conditional, skip if not applicable) |
    | `03_codes/` | the code-refactored file |
    | `04_names/` | the names issues file (present, any row count, even zero, since this stage has no other output) |
@@ -112,7 +112,8 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
    codes/names, or far fewer units than its parent level implies; judge
    from feature counts and total bounds, never file sizes). Stage 1
    normalizes every supplied level into
-   `01_schema/{iso3}_admin{n}.parquet`. Only the base continues past
+   `01_schema/{iso3}_admin{n}.parquet` (one file per level, updated in
+   place by each step, never a suffixed copy). Only the base continues past
    stage 1. The others feed stage 2's dissolve check. Skip
    this step when resuming past stage 1.
 
