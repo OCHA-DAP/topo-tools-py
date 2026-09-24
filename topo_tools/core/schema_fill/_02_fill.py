@@ -2,13 +2,12 @@
 
 from duckdb import DuckDBPyConnection
 
-from topo_tools.core.admin_columns import column_families, field_prefix
+from topo_tools.core.admin_columns import template_families
 from topo_tools.core.schema_map._level_columns import (
     detect_level_codes,
     detect_level_columns,
     group_families_by_level,
 )
-from topo_tools.core.schema_map._levels import level_prefix
 from topo_tools.core.schema_map._target_schema import TargetSchema
 
 
@@ -30,17 +29,10 @@ def _families(
 ) -> tuple[dict[int, str], list[dict[int, str]]]:
     """Each level's code column, and every column family to cascade down."""
     if schema is not None:
-        code_prefix = level_prefix(schema)
-        name_prefix = field_prefix(schema.name_field)
-        code_suffix = schema.code_field.split("{n}", 1)[1]
-        code_columns: dict[int, str] = {}
-        families: list[dict[int, str]] = []
-        for prefix in dict.fromkeys([code_prefix, name_prefix]):
-            family_group = column_families(columns, levels, prefix)
-            if prefix == code_prefix:
-                code_columns = family_group.get(code_suffix, {})
-            families.extend(family_group.values())
-        return code_columns, families
+        families = template_families(
+            columns, levels, schema.name_field, schema.code_field
+        )
+        return families.get(schema.code_field, {}), list(families.values())
 
     level_columns = detect_level_columns(conn, table_in)
     code_columns = {

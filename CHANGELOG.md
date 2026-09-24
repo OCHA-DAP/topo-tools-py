@@ -23,6 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (e.g. an admin2 with `adm1_name` but no `adm1_code`) keeps its own name
   columns. `schema-join` compares those columns against the child, and
   schema-fill/package/code tools see them as part of the level (#80).
+- A numbered sibling of a column ending in a digit is `_`-separated
+  (`GID_2_1`, not `GID_21`), so it can't read as level 21 under a template
+  ending in `{n}` (e.g. GADM's `GID_{n}`). `schema-join` with
+  `--name-field`/`--code-field` copies and compares the name template's
+  columns even when its prefix differs from the code template's (#79).
 
 ## [0.7.2] - 2026-09-24
 

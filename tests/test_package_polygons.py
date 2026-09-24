@@ -201,3 +201,21 @@ def test_cli_default_naming(admin2_input):
     assert result.exit_code == 0, result.output
     assert admin2_input.with_stem(admin2_input.stem + "_admin1").exists()
     assert admin2_input.with_stem(admin2_input.stem + "_admin2").exists()
+
+
+def test_mismatched_name_code_prefixes_drop_finer_names(tmp_path):
+    rename = {
+        "adm2_pcode": "GID_2",
+        "adm1_pcode": "GID_1",
+        "adm2_name": "NAME_2",
+        "adm1_name": "NAME_1",
+    }
+    path = tmp_path / "gadm.parquet"
+    _write_synthetic(
+        path, [{rename.get(k, k): v for k, v in r.items()} for r in _BASE_ROWS]
+    )
+    package_polygons(path, name_field="NAME_{n}", code_field="GID_{n}", overwrite=True)
+
+    admin1_columns = _describe_columns(path.with_stem(path.stem + "_admin1"))
+    assert {"GID_1", "NAME_1"} <= admin1_columns
+    assert not {"GID_2", "NAME_2"} & admin1_columns

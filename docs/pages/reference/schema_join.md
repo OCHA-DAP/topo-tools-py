@@ -14,7 +14,7 @@ See `docs/reference/README.md` for the MUST/SHOULD/MAY convention, and
   `schema-map` takes (each containing a `{n}` placeholder); both MUST be
   given together, or both omitted. When given, the parent's hierarchy
   columns MUST be every column in a `{n}`-numbered family under
-  `code_field`'s prefix, for every level `detect_levels()` finds on the
+  `name_field`'s or `code_field`'s prefix, for every level `detect_levels()` finds on the
   parent, raising `ValueError` under the same missing-level rules as
   `schema-fill`.
 - When `name_field`/`code_field` are omitted, `schema-join` MUST instead
@@ -45,7 +45,8 @@ For each parent hierarchy column:
 - present on the child and different on any assigned child:
   `schema-join` MUST leave the child's column untouched and add the
   parent's values under the next free numbered sibling name (`adm2_name1`,
-  then `adm2_name2` if `adm2_name1` is taken on either layer), logging a
+  then `adm2_name2` if `adm2_name1` is taken on either layer; see
+  `docs/reference/shared.md`), logging a
   warning with the differing row count.
 
 `schema-join` MUST NOT raise on a conflicting value, and MUST NOT

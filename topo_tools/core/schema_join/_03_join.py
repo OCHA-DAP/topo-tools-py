@@ -4,10 +4,14 @@ from logging import getLogger
 
 from duckdb import DuckDBPyConnection
 
-from topo_tools.core.admin_columns import canonical_order, column_families
+from topo_tools.core.admin_columns import (
+    canonical_order,
+    sibling_name,
+    template_families,
+)
 from topo_tools.core.duckdb_utils import quote_identifier
 from topo_tools.core.schema_map._level_columns import detect_level_columns
-from topo_tools.core.schema_map._levels import detect_levels, level_prefix
+from topo_tools.core.schema_map._levels import detect_levels
 from topo_tools.core.schema_map._target_schema import (
     DEFAULT_TARGET_SCHEMA,
     TargetSchema,
@@ -29,7 +33,9 @@ def parent_hierarchy_columns(
     columns = _columns(conn, table)
     if schema is not None:
         levels = detect_levels(conn, table, schema)
-        families = column_families(columns, levels, level_prefix(schema))
+        families = template_families(
+            columns, levels, schema.name_field, schema.code_field
+        )
         selected = {c for family in families.values() for c in family.values()}
     else:
         selected = {
@@ -42,9 +48,9 @@ def parent_hierarchy_columns(
 
 def _next_free_name(column: str, taken: set[str]) -> str:
     n = 1
-    while f"{column}{n}" in taken:
+    while sibling_name(column, n) in taken:
         n += 1
-    return f"{column}{n}"
+    return sibling_name(column, n)
 
 
 def main(conn: DuckDBPyConnection, name: str, schema: TargetSchema | None) -> None:

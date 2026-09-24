@@ -4,9 +4,9 @@ from logging import getLogger
 
 from duckdb import DuckDBPyConnection
 
-from topo_tools.core.admin_columns import column_families
+from topo_tools.core.admin_columns import template_families
 from topo_tools.core.constants import is_noise_column, is_numeric_duckdb_type
-from topo_tools.core.schema_map._levels import detect_levels, level_prefix
+from topo_tools.core.schema_map._levels import detect_levels
 from topo_tools.core.schema_map._target_schema import TargetSchema
 
 logger = getLogger(__name__)
@@ -78,8 +78,9 @@ def _schema_derived_exclusions(
         raise ValueError(msg)
 
     finer_levels = [level for level in levels if level > target_level]
-    prefix = level_prefix(schema)
-    families = column_families(columns, finer_levels, prefix)
+    families = template_families(
+        columns, finer_levels, schema.name_field, schema.code_field
+    )
     return {column for per_level in families.values() for column in per_level.values()}
 
 

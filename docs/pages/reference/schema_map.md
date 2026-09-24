@@ -93,8 +93,8 @@ empirical justification.
   sibling in the group embedded the parent (see `docs/adr/0067`). Same-
   role companions at one level MUST each get a numbered `target_column`
   from `code_field`/`name_field` (the first by source-column order gets
-  the bare rendered template, each next one the template plus an
-  appended integer starting at 1).
+  the bare rendered template, each next one a numbered sibling of it, see
+  `docs/reference/shared.md`).
 - Every non-code-eligible column MUST be bracketed into the chain by its
   own `COUNT(DISTINCT)`: it lands at level `k` if `code_count[k-1] <
   distinct_count <= code_count[k]` (`code_count[-1]` is 0); a column
