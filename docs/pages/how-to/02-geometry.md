@@ -49,4 +49,10 @@ This is a check, not the final output: it writes one dissolved file per
 ancestor level so you can confirm they look right, but the actual release
 packaging (step 5) re-derives everything from the coded data.
 
+If the source supplied its own higher-level files, compare each dissolved
+level against its supplied counterpart with `change`. A unit reported as
+anything other than `unchanged`/`renamed` means the base level's declared
+parent attributes disagree with the supplied higher-level shapes. Resolve
+that with the data provider before coding.
+
 Next: [assign hierarchical codes](03-codes/).
