@@ -193,7 +193,7 @@ def convert_layer(
     cols_sql = ", ".join(
         f'"{name}" {sql_type}' for name, sql_type in field_types.items()
     )
-    con.execute(f"CREATE TABLE {table} ({cols_sql}, geometry GEOMETRY)")
+    con.execute(f"CREATE TABLE {table} (geometry GEOMETRY, {cols_sql})")
 
     offset, total = 0, 0
     while True:
@@ -201,11 +201,10 @@ def convert_layer(
         if n == 0:
             break
         con.register("_chunk", cols)
-        select_list = [
+        select_list = ["ST_GeomFromWKB(_geom_wkb) AS geometry"] + [
             f'"{name}"' if name in cols else f'NULL::{sql_type} AS "{name}"'
             for name, sql_type in field_types.items()
         ]
-        select_list.append("ST_GeomFromWKB(_geom_wkb) AS geometry")
         con.execute(f"INSERT INTO {table} SELECT {', '.join(select_list)} FROM _chunk")
         con.unregister("_chunk")
         total += n

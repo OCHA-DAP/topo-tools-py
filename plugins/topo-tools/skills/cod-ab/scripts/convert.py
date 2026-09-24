@@ -74,10 +74,24 @@ def to_parquet(src: Path, dst_dir: Path) -> None:
             convert_layer(con, src, layer, dst)
             expected = pyogrio.read_info(str(src), layer=layer)["features"]
         else:
+            read = f"ST_Read({_sql_str(src)}, layer={_sql_str(layer)})"
+            # ST_Read keeps the source's own geometry column name, e.g. a GPKG's.
+            geom = next(
+                (
+                    name
+                    for name, type_, *_ in con.execute(
+                        f"DESCRIBE FROM {read}"
+                    ).fetchall()
+                    if type_.startswith("GEOMETRY")
+                ),
+                None,
+            )
+            if geom is None:
+                log.info("%s: skipped, no geometry column", layer)
+                continue
             con.execute(
-                f"COPY (SELECT * EXCLUDE geom, geom AS geometry "
-                f"FROM ST_Read({_sql_str(src)}, layer={_sql_str(layer)})) "
-                f"TO {_sql_str(dst)} ({_COPY_OPTIONS})"
+                f'COPY (SELECT "{geom}" AS geometry, * EXCLUDE ("{geom}") '
+                f"FROM {read}) TO {_sql_str(dst)} ({_COPY_OPTIONS})"
             )
             expected = counts[layer]
         (written,) = con.execute(f"SELECT count(*) FROM {_sql_str(dst)}").fetchone()

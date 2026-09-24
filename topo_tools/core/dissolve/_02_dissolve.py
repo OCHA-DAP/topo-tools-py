@@ -4,12 +4,9 @@ from logging import getLogger
 
 from duckdb import DuckDBPyConnection
 
+from topo_tools.core.admin_columns import column_families
 from topo_tools.core.constants import is_noise_column, is_numeric_duckdb_type
-from topo_tools.core.schema_map._levels import (
-    column_families,
-    detect_levels,
-    level_prefix,
-)
+from topo_tools.core.schema_map._levels import detect_levels, level_prefix
 from topo_tools.core.schema_map._target_schema import TargetSchema
 
 logger = getLogger(__name__)

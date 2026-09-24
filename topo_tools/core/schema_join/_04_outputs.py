@@ -20,31 +20,34 @@ def _build_issues(conn: DuckDBPyConnection, name: str, min_overlap: float) -> No
     source_file = short_source_file_sql("c.source_file")
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_04" AS
-        SELECT 'no-parent-' || c.fid AS key, 'no-parent' AS kind,
-               c.fid AS unit_a, NULL::BIGINT AS parent_fid,
+        SELECT 'no-parent-' || o.out_fid AS key, 'no-parent' AS kind,
+               o.out_fid AS unit_a, NULL::BIGINT AS parent_fid,
                'child overlaps no parent; parent columns left NULL' AS reason,
                NULL::DOUBLE AS area_m2, {_ISSUE_COLUMNS},
                {source_file} AS source_file, c.geom
         FROM "{name}_child_01" c
+        JOIN "{name}_03" o ON o.fid = c.fid
         WHERE c.fid NOT IN (SELECT child_fid FROM "{name}_02_assign")
         UNION ALL BY NAME
-        SELECT 'low-overlap-' || c.fid AS key, 'low-overlap' AS kind,
-               c.fid AS unit_a, s.parent_fid,
+        SELECT 'low-overlap-' || o.out_fid AS key, 'low-overlap' AS kind,
+               o.out_fid AS unit_a, s.parent_fid,
                printf('best parent covers %.2f of child', s.overlap_share) AS reason,
                s.child_area - s.shared_area AS area_m2, {_ISSUE_COLUMNS},
                {source_file} AS source_file, c.geom
         FROM "{name}_02_share" s
         JOIN "{name}_child_01" c ON c.fid = s.child_fid
+        JOIN "{name}_03" o ON o.fid = c.fid
         WHERE s.overlap_share < {min_overlap}
         UNION ALL BY NAME
-        SELECT 'value-mismatch-' || c.fid || '-' || m.column_name AS key,
-               'value-mismatch' AS kind, c.fid AS unit_a, m.parent_fid,
+        SELECT 'value-mismatch-' || o.out_fid || '-' || m.column_name AS key,
+               'value-mismatch' AS kind, o.out_fid AS unit_a, m.parent_fid,
                printf('%s: child ''%s'' vs parent ''%s''',
                       m.column_name, m.child_value, m.parent_value) AS reason,
                NULL::DOUBLE AS area_m2, {_ISSUE_COLUMNS},
                {source_file} AS source_file, c.geom
         FROM "{name}_03_mismatch" m
         JOIN "{name}_child_01" c ON c.fid = m.child_fid
+        JOIN "{name}_03" o ON o.fid = c.fid
         ORDER BY unit_a, kind
     """)
 
@@ -65,7 +68,7 @@ def main(  # noqa: PLR0913
     _build_issues(conn, name, min_overlap)
     conn.execute(f"""--sql
         CREATE OR REPLACE TEMP VIEW "{name}_03_export" AS
-        SELECT * EXCLUDE (source_file) FROM "{name}_03"
+        SELECT * EXCLUDE (out_fid, source_file) FROM "{name}_03"
     """)
     export_geometry_table(conn, f"{name}_03_export", dest)
     export_issues_table(conn, f"{name}_04", issues_dest)

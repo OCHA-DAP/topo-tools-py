@@ -3,6 +3,7 @@
 from logging import getLogger
 from pathlib import Path
 
+from topo_tools.core.admin_columns import DEFAULT_CODE_FIELD, DEFAULT_NAME_FIELD
 from topo_tools.core.duckdb_utils import (
     maybe_export_debug_tables,
     pipeline_connection,
@@ -34,6 +35,8 @@ def refactor(  # noqa: PLR0913
     crosswalk_path: str | Path,
     output_path: str | Path | None = None,
     *,
+    name_field: str | None = None,
+    code_field: str | None = None,
     threads: int | None = None,
     tmp_dir: str | Path | None = None,
     overwrite: bool = True,
@@ -45,6 +48,9 @@ def refactor(  # noqa: PLR0913
     Processes exactly one file per call. If output_path is omitted, it
     defaults to input_path with a "_mapped" suffix.
     """
+    if (name_field is None) != (code_field is None):
+        msg = "name_field and code_field must be given together"
+        raise ValueError(msg)
     if step is not None and step not in _STEP_ORDER:
         msg = f"step must be one of {_STEP_ORDER}, got {step!r}"
         raise ValueError(msg)
@@ -75,7 +81,12 @@ def refactor(  # noqa: PLR0913
             if s == "inputs":
                 inputs.main(conn, name, input_path, crosswalk_path)
             elif s == "rename":
-                rename_stage.main(conn, name)
+                rename_stage.main(
+                    conn,
+                    name,
+                    name_field or DEFAULT_NAME_FIELD,
+                    code_field or DEFAULT_CODE_FIELD,
+                )
             elif s == "outputs":
                 outputs.main(conn, name, output_path, debug=debug)
         maybe_export_debug_tables(

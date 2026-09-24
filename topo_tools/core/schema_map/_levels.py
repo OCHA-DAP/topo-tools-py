@@ -1,15 +1,12 @@
-"""Derives admin hierarchy levels and column families from a target schema + table."""
+"""Derives admin hierarchy levels from a target schema + table."""
 
 import re
 
 from duckdb import DuckDBPyConnection
 
+from topo_tools.core.admin_columns import field_prefix
+
 from ._target_schema import TargetSchema
-
-
-def field_prefix(template: str) -> str:
-    """Return a `{n}`-templated field's prefix, e.g. "adm" from "adm{n}_pcode"."""
-    return template.split("{n}", maxsplit=1)[0]
 
 
 def level_prefix(schema: TargetSchema) -> str:
@@ -48,20 +45,3 @@ def detect_levels(
     if schema.code_field.format(n=0) in columns:
         levels.insert(0, 0)
     return levels
-
-
-def column_families(
-    columns: list[str], levels: list[int], prefix: str
-) -> dict[str, dict[int, str]]:
-    """Group level columns by suffix, e.g. {"_pcode": {1: "adm1_pcode", ...}}."""
-    pattern = re.compile(rf"^{re.escape(prefix)}(\d+)(.*)$")
-    families: dict[str, dict[int, str]] = {}
-    for column in columns:
-        match = pattern.match(column)
-        if not match:
-            continue
-        level, suffix = int(match.group(1)), match.group(2)
-        if level not in levels:
-            continue
-        families.setdefault(suffix, {})[level] = column
-    return families

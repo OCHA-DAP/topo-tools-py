@@ -222,12 +222,12 @@ def read_reproject_and_clean(
 def export_geometry_table(
     conn: DuckDBPyConnection, table: str, dest: Path, *, exclude_fid: bool = True
 ) -> None:
-    """Export a geometry table to dest, renaming `geom` to `geometry` for output."""
+    """Export a geometry table to dest, `geom` as the first column, `geometry`."""
     dest.parent.mkdir(exist_ok=True, parents=True)
-    select = "* EXCLUDE (fid)" if exclude_fid else "*"
+    exclude = "geom, fid" if exclude_fid else "geom"
     conn.execute(f"""--sql
         COPY (
-            SELECT {select} RENAME (geom AS geometry) FROM "{table}"
+            SELECT geom AS geometry, * EXCLUDE ({exclude}) FROM "{table}"
         ) TO '{dest}' {COPY_OPTS[dest.suffix]}
     """)
 

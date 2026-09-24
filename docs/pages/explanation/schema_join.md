@@ -51,8 +51,9 @@ Tables are named `{input}_schema_join_*`.
    each column absent from the child, skipping each one identical on every
    assigned child, and adding the parent's values under a numbered sibling
    name for each one that differs (`{name}_03_mismatch` records the
-   differing values). Geometry passes through unchanged, and the child's
-   own columns stay first, geometry last.
+   differing values). Geometry passes through unchanged. Columns follow
+   `core.admin_columns.canonical_order()`, and rows are sorted by the
+   deepest level's code.
 4. **`_04_outputs`**: builds `{name}_04` (`no-parent`, `low-overlap`,
    `value-mismatch` rows, in the shared issues-table column schema) and
    exports the joined layer and its issues file. There is no topology

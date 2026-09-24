@@ -306,3 +306,51 @@ def test_refactor_steps(apply_input, full_crosswalk, tmp_path):
             overwrite=True,
         )
     assert out.exists()
+
+
+def test_writes_canonical_column_and_row_order(tmp_path):
+    src = tmp_path / "admin2.parquet"
+    _write_table(
+        src,
+        ["geom", "N2", "C2", "N2b", "N1", "C1"],
+        [
+            (_unit_square(0), "Alpha", "XY02001", "Alt Alpha", "Two", "XY02"),
+            (_unit_square(1), "Bravo", "XY01002", "Alt Bravo", "One", "XY01"),
+            (_unit_square(2), "Charlie", "XY01001", "Alt Charlie", "One", "XY01"),
+        ],
+    )
+    crosswalk = _write_crosswalk(
+        tmp_path / "crosswalk.csv",
+        [
+            {"source_column": "C1", "target_column": "adm1_code"},
+            {"source_column": "N2b", "target_column": "adm2_name"},
+            {"source_column": "C2", "target_column": "adm2_code"},
+            {"source_column": "N1", "target_column": "adm1_name"},
+            {"source_column": "N2", "target_column": "adm2_name1"},
+        ],
+    )
+    out = tmp_path / "out.parquet"
+    refactor(src, crosswalk, out)
+
+    with duckdb.connect() as conn:
+        result = conn.execute(f"SELECT * EXCLUDE (geometry) FROM '{out}'")
+        columns = [d[0] for d in result.description]
+        rows = result.fetchall()
+        first = conn.execute(f"DESCRIBE SELECT * FROM '{out}'").fetchone()[0]
+    assert first == "geometry"
+    assert columns == ["adm2_name", "adm2_name1", "adm2_code", "adm1_name", "adm1_code"]
+    assert [r[2] for r in rows] == ["XY01001", "XY01002", "XY02001"]
+
+
+def test_name_field_requires_code_field(apply_input, full_crosswalk, tmp_path):
+    with pytest.raises(ValueError, match="given together"):
+        refactor(
+            apply_input, full_crosswalk, tmp_path / "out.parquet", name_field="n{n}"
+        )
+
+
+def test_warns_when_no_code_template_column(
+    apply_input, full_crosswalk, tmp_path, caplog
+):
+    refactor(apply_input, full_crosswalk, tmp_path / "out.parquet")
+    assert "no 'adm{n}_code' target column" in caplog.text

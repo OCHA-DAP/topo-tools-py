@@ -14,7 +14,8 @@ See `docs/reference/README.md` for the MUST/SHOULD/MAY convention, and
   rather than owning separate logic.
 - `schema-crosswalk` MUST then apply that freshly-generated crosswalk exactly as
   standalone `schema-refactor` does (see `docs/reference/schema_refactor.md`): the same
-  coverage-validation, renaming, and dropping rules apply unchanged,
+  coverage-validation, renaming, dropping, and ordering rules apply
+  unchanged, using its own `name_field`/`code_field`,
   `schema-crosswalk` calls `schema-refactor`'s own validation and rename stages directly.
 
 ## Outputs
