@@ -12,7 +12,7 @@ then follow it to clean and reconcile a COD-AB administrative boundary layer.
 
 ## Claude Code plugin
 
-Install the [`topo-tools`](https://github.com/OCHA-DAP/topo-tools-py/blob/main/plugins/topo-tools) plugin using any one of the options below. Option 1 also turns on automatic updates.
+Install the [`topo-tools`](https://github.com/OCHA-DAP/topo-tools-py/blob/main/plugins/topo-tools) plugin using any one of the options below. Option 1 also turns on automatic updates. Once installed, invoke `/topo-tools:cod-ab` to clean, code, and package COD-AB administrative boundary polygons with topo-tools.
 
 ### Option 1: paste a prompt into Claude Code
 
@@ -35,6 +35,13 @@ and tell me to restart Claude Code.
 
 [Click here](vscode://anthropic.claude-code/install-plugin?plugin=topo-tools&marketplace=https%3A%2F%2Focha-dap.github.io%2Ftopo-tools-py%2Fmarketplace.json) to open the Manage plugins dialog at the install step. For more information, see [Install plugins in VS Code](https://code.claude.com/docs/en/vs-code#install-plugins).
 
-After option 2 or 3, turn on automatic updates in `/plugin`: **Marketplaces** → `topo-tools` → **Enable auto-update**.
+### Turn on automatic updates
 
-Once installed, invoke `/topo-tools:cod-ab` to clean, code, and package COD-AB administrative boundary polygons with topo-tools.
+After option 2 or 3, paste this prompt into Claude Code (CLI or VS Code), then restart:
+
+```text
+In ~/.claude/settings.json, set "autoUpdate": true on the "topo-tools" entry
+under "extraKnownMarketplaces". If the entry is missing, add it with
+"source": {"source": "url", "url": "https://ocha-dap.github.io/topo-tools-py/marketplace.json"}.
+Keep all other settings, then tell me to restart Claude Code.
+```
