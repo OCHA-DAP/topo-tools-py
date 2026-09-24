@@ -20,6 +20,13 @@ instead. See
 [CONTRIBUTING.md](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/CONTRIBUTING.md)
 for either.
 
+Whenever a step writes Parquet with DuckDB directly, not through a
+topo-tools command, match topo-tools' own output: name the geometry column
+`geometry` and write with `COPY ... TO '<out>.parquet' (FORMAT PARQUET,
+COMPRESSION ZSTD, COMPRESSION_LEVEL 15, GEOPARQUET_VERSION 'V2')`. Read GDB
+layers with pyogrio, never DuckDB's `ST_Read`, which returns 0 rows on
+Esri-authored GDBs.
+
 ## Setup
 
 1. Check whether `uv` resolves on `PATH`. If not, install it with its
@@ -82,7 +89,7 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
 
    | Stage | Defining output |
    | --- | --- |
-   | `01_schema/` | the schema-refactored file |
+   | `01_schema/` | `{iso3}_admin{n}.parquet` for every supplied level |
    | `02_geometry/` | the topo-cleaned file (edge-match and the dissolve check are conditional, skip if not applicable) |
    | `03_codes/` | the code-refactored file |
    | `04_names/` | the names issues file (present, any row count, even zero, since this stage has no other output) |
@@ -96,15 +103,17 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
    multi-layer archive (GDB, GPKG), list layers first. For each candidate
    file/layer, report feature count, column names, and a few sample
    p-code/name values via DuckDB. Use the deepest file/layer as the base,
-   the only one processed (every ancestor level is derived from it by
+   the only one carried past stage 1 (every ancestor level is derived from it by
    dissolve in stage 2), and the country's ISO2 code as stage 3's
    `--root-code` under the legacy p-code scheme. State both before
    continuing, with the base's name, feature count, and why it qualifies.
    Ask the user to pick a shallower base only if the deepest one looks
    partial or low quality (doesn't cover the whole country, has missing
    codes/names, or far fewer units than its parent level implies; judge
-   from feature counts and total bounds, never file sizes). Keep every supplied file/layer in `00b_new/` as a
-   reference; the higher-level ones feed stage 2's dissolve check. Skip
+   from feature counts and total bounds, never file sizes). Stage 1
+   normalizes every supplied level into
+   `01_schema/{iso3}_admin{n}.parquet`. Only the base continues past
+   stage 1. The others feed stage 2's dissolve check. Skip
    this step when resuming past stage 1.
 
 ## Stages
