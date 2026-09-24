@@ -3,7 +3,8 @@ title: "Schema"
 ---
 
 Learn how to crosswalk a source file's columns onto a target schema,
-then fill the admin hierarchy down.
+copy missing ancestor columns from a parent layer, then fill the admin
+hierarchy down.
 
 - [schema-map](schema_map/): propose a source-column to target-schema
   crosswalk.
@@ -13,3 +14,5 @@ then fill the admin hierarchy down.
   one call.
 - [schema-fill](schema_fill/): stamp each row's real depth and cascade
   hierarchy columns down.
+- [schema-join](schema_join/): copy each child's best-overlapping parent's
+  hierarchy columns onto it.

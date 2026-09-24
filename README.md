@@ -19,6 +19,7 @@ Full documentation: <https://ocha-dap.github.io/topo-tools-py/>
 | **schema-map** | infer a source to target schema crosswalk |
 | **schema-refactor** | apply a schema crosswalk |
 | **schema-fill** | fill down admin-hierarchy columns |
+| **schema-join** | copy parent admin-hierarchy columns onto each child |
 | **topo-clean** | detect and fix gap/overlap defects |
 | **topo-detect** | detect gap/overlap defects |
 | **edge-match** | fit a child layer into a parent layer |
