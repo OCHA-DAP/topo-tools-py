@@ -29,12 +29,11 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
    already prepared: run `uv lock --upgrade && uv sync` to refresh
    versions, then continue. If it doesn't (no `pyproject.toml`, or one
    without that table), help set up a dedicated working directory:
-   `uv init` there, `uv add topo-tools pyogrio`, add a
+   `uv init --vcs none` there, `uv add topo-tools pyogrio`, add a
    `[tool.topo-tools-cod-ab]` table to the new `pyproject.toml`, then the
    same refresh. Run every command below via `uv run topo-tools ...`.
    `pyogrio` covers layer introspection on multi-layer source files (GDB,
-   GPKG) throughout this skill. Add `01_inputs/`, `*.parquet`, and `*.gdb/`
-   to the workspace `.gitignore`.
+   GPKG) throughout this skill.
 3. Create `01_inputs/`, `02_working/`, and `03_outputs/` at the workspace
    root if missing, then check `01_inputs/` and `02_working/`.
    - Files exist in `01_inputs/`: for each, ask the user its country and
