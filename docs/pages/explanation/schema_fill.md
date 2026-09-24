@@ -67,7 +67,7 @@ into a single coherent hierarchy, has nothing to detect a level from yet.
    CASE expression (`_depth_column_sql()`) keyed off the *original*,
    pre-fill code columns inside a `WITH "depth" AS (...)` CTE, then groups
    every level column into families. Given an explicit schema, families
-   come from `column_families()` (`core/schema_map/_levels.py`), run once
+   come from `column_families()` (`core/admin_columns.py`), run once
    against `code_field`'s own prefix and once against `name_field`'s own
    prefix (skipping the second pass when they're the same prefix); the
    prefix scan picks up every same-prefix suffix it finds, not just

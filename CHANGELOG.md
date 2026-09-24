@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Every tool writes `geometry` as the first output column.
+- `schema-refactor`/`schema-crosswalk`/`schema-join`: columns are ordered
+  deepest level first, names before codes, and rows are sorted by the
+  deepest level's code (#75). `schema-refactor` takes
+  `--name-field`/`--code-field` to set the templates.
+
 ## [0.7.2] - 2026-09-24
 
 ### Fixed

@@ -55,8 +55,9 @@ overwrite any child value (see `docs/adr/0109`).
 
 - `schema-join` MUST NOT modify geometry, and so performs no topology
   hard gate at all.
-- The output MUST keep every child row, in input order: the child's own
-  columns first, then every added column, then geometry.
+- The output MUST keep every child row, in the shared column and row order
+  (see `docs/reference/shared.md`), using `name_field`/`code_field`, or
+  `adm{n}_name`/`adm{n}_code` when omitted.
 - `schema-join` MUST write an issues file in the shared issues-table
   column schema, with one row per:
   - `no-parent`: a child overlapping no parent;

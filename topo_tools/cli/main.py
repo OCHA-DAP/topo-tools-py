@@ -2128,6 +2128,20 @@ def schema_map(  # noqa: PLR0913, PLR0917
 @click.argument("crosswalk_file", envvar="CROSSWALK_FILE")
 @click.argument("output_file", envvar="OUTPUT_FILE", required=False, default=None)
 @click.option(
+    "--name-field",
+    envvar="NAME_FIELD",
+    default=None,
+    help="Name-field template, e.g. 'adm{n}_name', for column order (requires "
+    "--code-field; default: 'adm{n}_name').",
+)
+@click.option(
+    "--code-field",
+    envvar="CODE_FIELD",
+    default=None,
+    help="Code-field template, e.g. 'adm{n}_code', for column and row order "
+    "(requires --name-field; default: 'adm{n}_code').",
+)
+@click.option(
     "--overwrite",
     envvar="OVERWRITE",
     type=bool,
@@ -2161,6 +2175,8 @@ def schema_refactor(  # noqa: PLR0913, PLR0917
     input_file: str,
     crosswalk_file: str,
     output_file: str | None,
+    name_field: str | None,
+    code_field: str | None,
     overwrite: bool,  # noqa: FBT001
     threads: int | None,
     debug: bool,  # noqa: FBT001
@@ -2189,6 +2205,8 @@ def schema_refactor(  # noqa: PLR0913, PLR0917
             input_file,
             crosswalk_file,
             Path(output_file) if output_file is not None else None,
+            name_field=name_field,
+            code_field=code_field,
             threads=threads,
             tmp_dir=tmp_dir,
             overwrite=overwrite,

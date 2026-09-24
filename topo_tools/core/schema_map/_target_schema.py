@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass
 
+from topo_tools.core.admin_columns import DEFAULT_CODE_FIELD, DEFAULT_NAME_FIELD
+
 
 @dataclass(frozen=True)
 class TargetSchema:
@@ -11,7 +13,9 @@ class TargetSchema:
     code_field: str
 
 
-DEFAULT_TARGET_SCHEMA = TargetSchema(name_field="adm{n}_name", code_field="adm{n}_code")
+DEFAULT_TARGET_SCHEMA = TargetSchema(
+    name_field=DEFAULT_NAME_FIELD, code_field=DEFAULT_CODE_FIELD
+)
 
 
 def _require_placeholder(name_field: str, code_field: str, context: str) -> None:

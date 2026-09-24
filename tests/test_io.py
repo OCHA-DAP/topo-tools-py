@@ -8,6 +8,7 @@ import pytest
 from topo_tools.core.io import (
     _auto_resolve_layer,
     default_output_path,
+    export_geometry_table,
     input_basename,
     read_and_reproject,
     reproject_select_sql,
@@ -147,3 +148,16 @@ def test_explicit_layer_overrides_auto_detection(tmp_path):
         read_and_reproject(conn, "out", path, layer=path.stem)
         rows = conn.execute('SELECT * FROM "out_01"').fetchall()
     assert len(rows) == 1
+
+
+def test_export_geometry_table_writes_geometry_first(tmp_path):
+    dest = tmp_path / "out.parquet"
+    with duckdb.connect() as conn:
+        conn.execute("INSTALL spatial; LOAD spatial;")
+        conn.execute(
+            "CREATE TABLE t AS SELECT 1 AS fid, 'a' AS x, "
+            "ST_GeomFromText('POINT(0 0)') AS geom"
+        )
+        export_geometry_table(conn, "t", dest)
+        columns = [r[0] for r in conn.execute(f"DESCRIBE FROM '{dest}'").fetchall()]
+    assert columns == ["geometry", "x"]

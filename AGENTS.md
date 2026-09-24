@@ -71,8 +71,8 @@ split):
   `api.code_update`. `core.assign`/`core.edge_clip`/`core.edge_stitch`/
   `core.topo_detect`/`core.dissolve`/`core.code` are themselves neutral
   leaves, alongside `core.constants`/`core.coverage`/`core.io`/
-  `core.duckdb_utils`/`core.units`; every tool package may import any of
-  these eleven, none of them may import back, except `core.dissolve`'s one
+  `core.duckdb_utils`/`core.units`/`core.admin_columns`; every tool package
+  may import any of these twelve, none of them may import back, except `core.dissolve`'s one
   narrow, explicit carve-out below. `core.schema_map` is not a neutral leaf
   but MAY be imported by `core.schema_fill`, `core.schema_join`,
   `core.dissolve`, `core.package_polygons`, `core.package_points`,
@@ -129,7 +129,7 @@ per-tool table names are in `docs/pages/explanation/{tool}.md`.
 - **DuckDB tables as IPC**: stages read and write named tables on the shared connection; no Parquet between stages.
 - **Topology validation** (`check_valid_topology()` in every tool's outputs stage, chaining `check_invalid_edges`/`check_gaps`, backed by `has_invalid_edges`/`has_gaps` in `topo_tools/core/coverage.py`) always unnests MultiPolygons first. No byte-exactness check, see the next bullet.
 - **`has_gaps()`/`check_valid_topology()` default `gap_maximum_width` to `SNAP_TOLERANCE` (GEOS's own `CoverageCleaner` parameter name, see `docs/adr/0002`), tolerating a wider gap**: a wider leftover gap may be a real hole in the parent/clip layer's own shape (e.g. Lesotho inside South Africa), a real unfilled-by-design gap, or a real unbatched absence, not a defect, so `edge-match`/`edge-mosaic`/`topo-clean`/`edge-stitch` all rely on this default and report any such gap as a `kind='gap'` row in the issues report instead of raising (see `docs/adr/0035`, `docs/adr/0037`, `docs/adr/0038`, `docs/adr/0039`). `edge-extend` is the one outlier, passing `gap_maximum_width=0` explicitly for its zero-tolerance check: it has no parent/clip layer, so any gap in its own coverage is unambiguously a bug. `topo-clean`/`edge-match`/`edge-mosaic`/`edge-stitch` share one issues-table column schema and skip writing the file entirely when it would be empty (see `docs/adr/0035`, `docs/adr/0036`).
-- **Geometry column names**: `geom` in DuckDB tables, `geometry` in final output. `duckdb_memory()` profiling caveats are in `docs/pages/explanation/performance.md`.
+- **Geometry column names**: `geom` in DuckDB tables, `geometry` in final output, always its first column. `duckdb_memory()` profiling caveats are in `docs/pages/explanation/performance.md`.
 - **`core.io.read_and_reproject()` raises `ValueError` on invalid source geometry `ST_MakeValid` can't repair, and on a 0-row read.** Re-export via `gdal vector convert` or `pyogrio` to GeoParquet/GPKG first as the workaround (see `docs/adr/0053`).
 - **`_05_merge.py` joins against nearby originals via bbox-prefiltered, part-exploded join, never a global `ST_Union_Agg` operand** (`_02_lines.py`'s neighbor-union join and `_03_points.py`'s shared-boundary-zone difference both use whole-fid bboxes instead, not interchangeable with part-exploded). `_03_points.py` raises if its differencing drops a fid entirely, and `_06_outputs.py` raises if the extended geometry no longer covers its original footprint (`SNAP_TOLERANCE`-buffered `ST_Covers`). See `docs/adr/0001`, `docs/adr/0090`.
 - **Never call `ST_XMin`/`ST_XMax`/`ST_YMin`/`ST_YMax` inline inside a JOIN's `ON` clause**, can hang indefinitely on high-vertex-count tables. Precompute bbox columns on the joined table/CTE first, as `_05_merge.py` does (see `docs/adr/0014`).

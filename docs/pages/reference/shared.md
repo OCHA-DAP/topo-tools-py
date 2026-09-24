@@ -20,6 +20,8 @@ instead of repeating them.
   units, assign, edge-clip, topo-detect, and edge-stitch helpers MUST NOT depend on any
   of the five tool packages (`edge-extend`, `edge-match`, `topo-clean`, `change`,
   `edge-mosaic`); they are leaf building blocks usable by all of them.
+- The admin-column naming helpers (`core.admin_columns`) MUST NOT depend on
+  any tool package.
 - The `schema-crosswalk` tool MAY reuse `schema-map`'s and `schema-refactor`'s logic directly;
   neither `schema-map` nor `schema-refactor` MUST depend on `schema-crosswalk`, or on each
   other (see `docs/explanation/schema_crosswalk.md`).
@@ -61,6 +63,20 @@ instead of repeating them.
   by column count descending (ties by filename) before unioning/folding
   them. Output column order MUST NOT depend on caller-supplied file order
   (see `docs/adr/0094`).
+
+## Output column and row order
+
+- Every geometry output MUST write `geometry` as its first column (see
+  `docs/adr/0111`).
+- `schema-refactor`, `schema-crosswalk`, and `schema-join` MUST order
+  columns by the `name_field`/`code_field` templates: levels deepest first,
+  and within each level its name-template columns, then any other column
+  with that level's prefix and number, then its code-template columns,
+  numbered siblings in numeric order. Every other column follows in input
+  order.
+- Those three tools MUST sort rows by the deepest level's own code column,
+  as text, NULLs last, ties in input order. With no column matching the
+  templates, columns and rows MUST keep their input order.
 
 ## Coverage-topology checks
 

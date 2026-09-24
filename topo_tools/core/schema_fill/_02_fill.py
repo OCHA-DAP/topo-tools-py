@@ -2,16 +2,13 @@
 
 from duckdb import DuckDBPyConnection
 
+from topo_tools.core.admin_columns import column_families, field_prefix
 from topo_tools.core.schema_map._level_columns import (
     detect_level_codes,
     detect_level_columns,
     group_families_by_level,
 )
-from topo_tools.core.schema_map._levels import (
-    column_families,
-    field_prefix,
-    level_prefix,
-)
+from topo_tools.core.schema_map._levels import level_prefix
 from topo_tools.core.schema_map._target_schema import TargetSchema
 
 

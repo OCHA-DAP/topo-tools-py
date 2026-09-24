@@ -4,14 +4,14 @@ from logging import getLogger
 
 from duckdb import DuckDBPyConnection
 
+from topo_tools.core.admin_columns import canonical_order, column_families
 from topo_tools.core.duckdb_utils import quote_identifier
 from topo_tools.core.schema_map._level_columns import detect_level_columns
-from topo_tools.core.schema_map._levels import (
-    column_families,
-    detect_levels,
-    level_prefix,
+from topo_tools.core.schema_map._levels import detect_levels, level_prefix
+from topo_tools.core.schema_map._target_schema import (
+    DEFAULT_TARGET_SCHEMA,
+    TargetSchema,
 )
-from topo_tools.core.schema_map._target_schema import TargetSchema
 
 logger = getLogger(__name__)
 
@@ -53,12 +53,16 @@ def main(conn: DuckDBPyConnection, name: str, schema: TargetSchema | None) -> No
     child_columns = _columns(conn, f"{name}_child_01")
     taken = set(child_columns) | set(_columns(conn, parent_table))
 
-    select_parts = []
+    select_parts = {
+        c: f"c.{quote_identifier(c)}"
+        for c in child_columns
+        if c not in {"fid", "geom", "source_file"}
+    }
     mismatch_parts = []
     for column in parent_hierarchy_columns(conn, parent_table, schema):
         col = quote_identifier(column)
         if column not in child_columns:
-            select_parts.append(f"p.{col} AS {col}")
+            select_parts[column] = f"p.{col} AS {col}"
             continue
         differs = conn.execute(f"""--sql
             SELECT COUNT(*) FROM "{name}_child_01" c
@@ -77,7 +81,7 @@ def main(conn: DuckDBPyConnection, name: str, schema: TargetSchema | None) -> No
             column,
             sibling,
         )
-        select_parts.append(f"p.{col} AS {quote_identifier(sibling)}")
+        select_parts[sibling] = f"p.{col} AS {quote_identifier(sibling)}"
         mismatch_parts.append(f"""
             SELECT c.fid AS child_fid, a.parent_fid, '{column.replace("'", "''")}'
                        AS column_name,
@@ -89,14 +93,20 @@ def main(conn: DuckDBPyConnection, name: str, schema: TargetSchema | None) -> No
               AND c.{col} IS DISTINCT FROM p.{col}
         """)
 
-    extra = "".join(f", {part}" for part in select_parts)
+    template = schema or DEFAULT_TARGET_SCHEMA
+    columns, sort_column = canonical_order(
+        list(select_parts), template.name_field, template.code_field
+    )
+    select = "".join(f", {select_parts[c]}" for c in columns)
+    # By position: an unqualified name could match both c.* and p.*.
+    order = f"{columns.index(sort_column) + 3} NULLS LAST, " if sort_column else ""
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_03" AS
-        SELECT c.* EXCLUDE (geom){extra}, c.geom
+        SELECT c.fid, c.geom{select}, c.source_file
         FROM "{name}_child_01" c
         LEFT JOIN "{name}_02_assign" a ON a.child_fid = c.fid
         LEFT JOIN "{parent_table}" p ON p.fid = a.parent_fid
-        ORDER BY c.fid
+        ORDER BY {order}c.fid
     """)
     empty = (
         "SELECT NULL::BIGINT AS child_fid, NULL::BIGINT AS parent_fid, "

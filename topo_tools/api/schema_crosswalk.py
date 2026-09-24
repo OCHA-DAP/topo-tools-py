@@ -95,7 +95,7 @@ def crosswalk(  # noqa: PLR0913
             elif s == "map":
                 map_stage.main(conn, name, schema, level)
             elif s == "apply":
-                apply_stage.main(conn, name, input_path)
+                apply_stage.main(conn, name, input_path, schema)
             elif s == "outputs":
                 outputs.main(conn, name, crosswalk_path, output_path, debug=debug)
         maybe_export_debug_tables(

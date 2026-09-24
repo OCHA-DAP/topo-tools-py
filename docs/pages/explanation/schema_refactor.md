@@ -38,8 +38,11 @@ list.
    crosswalk never decided about, rather than silently ignoring either.
 2. **`_02_rename`**: builds one `SELECT` that renames every source column
    to its `target_column` and drops any column whose `target_column` is
-   null/empty, writing `{name}_02`. The geometry column always passes
-   through unchanged.
+   null/empty, writing `{name}_02`. Columns follow
+   `core.admin_columns.canonical_order()` (deepest level first, names
+   before codes) and rows are sorted by the deepest level's code, so a
+   reordered or hand-edited crosswalk gives the same layout. The geometry
+   column always passes through unchanged.
 3. **`_03_outputs`**: exports `{name}_02` to the output file. No hard
    gate: `schema-refactor` only renames/drops columns, it never touches
    geometry.
