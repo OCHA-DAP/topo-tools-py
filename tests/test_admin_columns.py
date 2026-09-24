@@ -2,7 +2,11 @@
 
 import pytest
 
-from topo_tools.core.admin_columns import canonical_order, sibling_name
+from topo_tools.core.admin_columns import (
+    canonical_order,
+    output_renames,
+    sibling_name,
+)
 
 
 def test_orders_deepest_level_first_names_before_codes():
@@ -83,3 +87,29 @@ def test_prefix_match_needs_a_known_level():
     columns = ["adm10x", "adm1_name", "adm1_code", "adm1_area"]
     ordered, _ = canonical_order(columns, "adm{n}_name", "adm{n}_code")
     assert ordered == ["adm1_name", "adm1_area", "adm1_code", "adm10x"]
+
+
+def test_output_renames_maps_templates_and_siblings():
+    columns = ["adm2_name", "adm2_name1", "adm2_code", "adm1_code", "adm_lvl"]
+    renames = output_renames(
+        columns, ("adm{n}_name", "adm{n}_code"), (None, "adm{n}_pcode")
+    )
+    assert renames == {"adm2_code": "adm2_pcode", "adm1_code": "adm1_pcode"}
+    renames = output_renames(
+        columns, ("adm{n}_name", "adm{n}_code"), ("NAME_{n}", "GID_{n}")
+    )
+    assert renames == {
+        "adm2_name": "NAME_2",
+        "adm2_name1": "NAME_2_1",
+        "adm2_code": "GID_2",
+        "adm1_code": "GID_1",
+    }
+
+
+def test_output_renames_rejects_collision():
+    with pytest.raises(ValueError, match="collide"):
+        output_renames(
+            ["adm1_code", "adm1_pcode"],
+            ("adm{n}_name", "adm{n}_code"),
+            (None, "adm{n}_pcode"),
+        )

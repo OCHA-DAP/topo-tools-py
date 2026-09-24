@@ -6,6 +6,7 @@ from pathlib import Path
 
 from duckdb import DuckDBPyConnection
 
+from topo_tools.core.admin_columns import output_renames
 from topo_tools.core.coverage import check_valid_topology, gap_issues_sql
 from topo_tools.core.io import export_geometry_table, export_issues_table
 
@@ -26,7 +27,12 @@ class LevelOutput:
     issues_dest: Path | None
 
 
-def _export_one(conn: DuckDBPyConnection, name: str, item: LevelOutput) -> None:
+def _export_one(
+    conn: DuckDBPyConnection,
+    name: str,
+    item: LevelOutput,
+    renames: tuple[tuple[str, str], tuple[str | None, str | None]] | None,
+) -> None:
     check_valid_topology(conn, item.table)
 
     issues_table = f"{name}_03_{item.level}"
@@ -46,7 +52,13 @@ def _export_one(conn: DuckDBPyConnection, name: str, item: LevelOutput) -> None:
             item.level,
         )
 
-    export_geometry_table(conn, item.table, item.dest)
+    columns = [r[0] for r in conn.execute(f'DESCRIBE "{item.table}"').fetchall()]
+    export_geometry_table(
+        conn,
+        item.table,
+        item.dest,
+        renames=output_renames(columns, *renames) if renames else None,
+    )
     export_issues_table(conn, issues_table, item.issues_dest)
     conn.execute(f'DROP TABLE IF EXISTS "{issues_table}"')
 
@@ -56,12 +68,16 @@ def main(
     name: str,
     items: list[LevelOutput],
     *,
+    renames: tuple[tuple[str, str], tuple[str | None, str | None]] | None = None,
     debug: bool = False,
 ) -> None:
-    """Export every level with a non-None dest; drop intermediates unless debug."""
+    """Export every level with a non-None dest; drop intermediates unless debug.
+
+    renames is ((name_field, code_field), (output_name_field, output_code_field)).
+    """
     for item in items:
         if item.dest is not None:
-            _export_one(conn, name, item)
+            _export_one(conn, name, item, renames)
 
     if not debug:
         for item in items:

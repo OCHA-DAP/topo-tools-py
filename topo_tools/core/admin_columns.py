@@ -53,6 +53,38 @@ def _family_pattern(template: str) -> re.Pattern:
     return re.compile(rf"^{re.escape(before)}(\d+){re.escape(after)}(?:{sep}(\d+))?$")
 
 
+def output_renames(
+    columns: list[str],
+    templates: tuple[str, str],
+    output_templates: tuple[str | None, str | None],
+) -> dict[str, str]:
+    """Map each (name, code) template column and sibling to its output template.
+
+    Raises ValueError if a renamed column collides with a kept or other renamed one.
+    """
+    renames: dict[str, str] = {}
+    for template, output in reversed(
+        list(zip(templates, output_templates, strict=True))
+    ):
+        if output is None:
+            continue
+        pattern = _family_pattern(template)
+        for column in columns:
+            if column in renames or not (match := pattern.match(column)):
+                continue
+            target = output.format(n=int(match[1]))
+            renames[column] = (
+                sibling_name(target, int(match[2])) if match[2] else target
+            )
+    targets = list(renames.values())
+    kept = set(columns) - set(renames)
+    collisions = sorted({t for t in targets if t in kept or targets.count(t) > 1})
+    if collisions:
+        msg = f"output column(s) {collisions} collide with existing column(s)"
+        raise ValueError(msg)
+    return renames
+
+
 def canonical_order(
     columns: list[str], name_field: str, code_field: str
 ) -> tuple[list[str], str | None]:

@@ -219,3 +219,45 @@ def test_mismatched_name_code_prefixes_drop_finer_names(tmp_path):
     admin1_columns = _describe_columns(path.with_stem(path.stem + "_admin1"))
     assert {"GID_1", "NAME_1"} <= admin1_columns
     assert not {"GID_2", "NAME_2"} & admin1_columns
+
+
+def test_output_templates_rename_written_columns(admin2_input, tmp_path):
+    package_polygons(
+        admin2_input,
+        str(tmp_path / "level_{n}.parquet"),
+        name_field="adm{n}_name",
+        code_field="adm{n}_pcode",
+        output_name_field="adm{n}_label",
+        output_code_field="adm{n}_code",
+    )
+    assert {"adm1_label", "adm1_code"} <= _describe_columns(
+        tmp_path / "level_1.parquet"
+    )
+    admin2_columns = _describe_columns(tmp_path / "level_2.parquet")
+    assert {"adm2_label", "adm2_code", "adm1_label", "adm1_code"} <= admin2_columns
+    assert not {"adm2_name", "adm2_pcode"} & admin2_columns
+
+
+def test_output_templates_require_input_templates(admin2_input):
+    with pytest.raises(ValueError, match="require name_field/code_field"):
+        package_polygons(admin2_input, output_code_field="adm{n}_code")
+
+
+def test_cli_package_output_code_field(admin2_input, tmp_path):
+    result = CliRunner().invoke(
+        cli,
+        [
+            "package",
+            str(admin2_input),
+            "--output",
+            str(tmp_path / "{x}.parquet"),
+            "--name-field",
+            "adm{n}_name",
+            "--code-field",
+            "adm{n}_pcode",
+            "--output-code-field",
+            "adm{n}_code",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert "adm1_code" in _describe_columns(tmp_path / "admin1.parquet")

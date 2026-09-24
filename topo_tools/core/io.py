@@ -9,6 +9,7 @@ from duckdb import DuckDBPyConnection
 
 from .constants import COPY_OPTS, RESERVED_COLUMN_NAMES
 from .coverage import coverage_clean, has_valid_topology
+from .duckdb_utils import quote_identifier
 
 logger = getLogger(__name__)
 
@@ -220,14 +221,24 @@ def read_reproject_and_clean(
 
 
 def export_geometry_table(
-    conn: DuckDBPyConnection, table: str, dest: Path, *, exclude_fid: bool = True
+    conn: DuckDBPyConnection,
+    table: str,
+    dest: Path,
+    *,
+    exclude_fid: bool = True,
+    renames: dict[str, str] | None = None,
 ) -> None:
     """Export a geometry table to dest, `geom` as the first column, `geometry`."""
     dest.parent.mkdir(exist_ok=True, parents=True)
     exclude = "geom, fid" if exclude_fid else "geom"
+    rename = ", ".join(
+        f"{quote_identifier(a)} AS {quote_identifier(b)}"
+        for a, b in (renames or {}).items()
+    )
+    rename_sql = f" RENAME ({rename})" if rename else ""
     conn.execute(f"""--sql
         COPY (
-            SELECT geom AS geometry, * EXCLUDE ({exclude}) FROM "{table}"
+            SELECT geom AS geometry, * EXCLUDE ({exclude}){rename_sql} FROM "{table}"
         ) TO '{dest}' {COPY_OPTS[dest.suffix]}
     """)
 
