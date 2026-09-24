@@ -21,15 +21,27 @@ the crosswalk and check every row before trusting it, for example:
 A source column that happens to share a level's cardinality can match as
 a decoy second code candidate (`adm2_code1` above), even when it's really
 just a source reference number, not a p-code. The same trap applies to
-names: `_name1`/`_name2` hold the same unit's name in another language
-(`lang1`/`lang2`). A second name column whose values differ from the first
-in some rows is a different name, not a translation. Keep it for
-[review names](04-names/). Blank out a decoy code's `target_column` before
-applying the crosswalk:
+names. Map every name column for a level to that level's name family: the
+primary name to `adm2_name`, and any other (a translation, an alternate
+spelling, or a second name that differs from the first) to the next free
+`adm2_name1`, `adm2_name2`. Never give a column a target outside the
+`adm{n}_code`/`adm{n}_name` families. Blank out a decoy code's
+`target_column` before applying the crosswalk:
 
     topo-tools schema-refactor your_admin2.parquet crosswalk.csv admin2_mapped.parquet
 
 The mapped output now has only the columns you kept a `target_column` for,
 plus `geometry`.
+
+With more than one level, copy each parent's codes and names onto its
+children, coarsest first, overwriting each child in place:
+
+    topo-tools schema-join admin2_mapped.parquet admin1_mapped.parquet admin2_mapped.parquet
+    topo-tools schema-join admin3_mapped.parquet admin2_mapped.parquet admin3_mapped.parquet
+
+Where a child's own value differs from its parent's, `schema-join` keeps
+both, adding the parent's as the next free numbered sibling
+(`adm2_name1`), and writes one issues row per child for
+[review names](04-names/).
 
 Next: [clean geometry](02-geometry/).
