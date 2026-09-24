@@ -63,6 +63,55 @@ def _max_cardinality_column(rows: dict, columns: list[str]) -> str:
     return max(columns, key=lambda c: rows[c].unique_count or 0)
 
 
+def _shared_length(names: list[str]) -> int:
+    prefix, suffix = _common_prefix_suffix(names)
+    return len(prefix) + len(suffix)
+
+
+def _anchor_columns(
+    group_by_by_level: dict[int, list[str]], codes: dict[int, str]
+) -> dict[int, str]:
+    """Each level's column to diff naming anchors on, sharing the most text."""
+    if len(codes) < _MIN_LEVELS_TO_DIFF:
+        return codes
+    best, best_length = codes, _shared_length(list(codes.values()))
+    reference_level = min(group_by_by_level, key=lambda k: len(group_by_by_level[k]))
+    for reference in group_by_by_level[reference_level]:
+        picked = {
+            level: max(cols, key=lambda c, r=reference: _shared_length([r, c]))
+            for level, cols in group_by_by_level.items()
+        }
+        picked[reference_level] = reference
+        if (length := _shared_length(list(picked.values()))) > best_length:
+            best, best_length = picked, length
+    return best
+
+
+def _resolve_levels(
+    conn: DuckDBPyConnection, table: str
+) -> tuple[dict, dict[int, str], dict[int, tuple[str, str, str]], dict[int, int]]:
+    """Return rows, each level's code, naming anchor, and display number."""
+    rows = resolve_columns(conn, table, DEFAULT_TARGET_SCHEMA)
+    group_by_by_level: dict[int, list[str]] = {}
+    for source, row in rows.items():
+        if row.level is not None and row.role is not None:
+            group_by_by_level.setdefault(row.level, []).append(source)
+    codes = {
+        level: _max_cardinality_column(rows, cols)
+        for level, cols in group_by_by_level.items()
+    }
+    anchors = _level_anchors(_anchor_columns(group_by_by_level, codes))
+    return rows, codes, anchors, _display_levels(codes, anchors)
+
+
+def _detect_anchors(
+    conn: DuckDBPyConnection, table: str
+) -> dict[int, tuple[str, str, str]]:
+    """Each displayed level's (prefix, anchor, suffix) naming split."""
+    _, _, anchors, display = _resolve_levels(conn, table)
+    return {display.get(level, level): a for level, a in anchors.items()}
+
+
 def _is_functionally_dependent(
     conn: DuckDBPyConnection, table: str, canonical_column: str, column: str
 ) -> bool:
@@ -115,7 +164,7 @@ def detect_level_columns(
     conn: DuckDBPyConnection, table: str
 ) -> dict[int, LevelColumns]:
     """Every column structurally tied to each admin level, in no particular naming."""
-    rows = resolve_columns(conn, table, DEFAULT_TARGET_SCHEMA)
+    rows, codes, anchors, display = _resolve_levels(conn, table)
 
     all_columns_by_level: dict[int, list[str]] = {}
     group_by_by_level: dict[int, list[str]] = {}
@@ -129,12 +178,6 @@ def detect_level_columns(
         msg = f"no admin hierarchy level detected in {table!r}"
         raise ValueError(msg)
 
-    codes = {
-        level: _max_cardinality_column(rows, cols)
-        for level, cols in group_by_by_level.items()
-    }
-    anchors = _level_anchors(codes)
-    display = _display_levels(codes, anchors)
     assigned = {c for cols in all_columns_by_level.values() for c in cols}
     table_columns = [
         r[0] for r in conn.execute(f"DESCRIBE {quote_identifier(table)}").fetchall()
@@ -189,19 +232,10 @@ def detect_level_columns(
 
 def detect_level_codes(conn: DuckDBPyConnection, table: str) -> dict[int, str]:
     """Each level's least-collapsed column, never a bracketed/supplemental one."""
-    rows = resolve_columns(conn, table, DEFAULT_TARGET_SCHEMA)
-    group_by_by_level: dict[int, list[str]] = {}
-    for source, row in rows.items():
-        if row.level is not None and row.role is not None:
-            group_by_by_level.setdefault(row.level, []).append(source)
-    if not group_by_by_level:
+    _, codes, _, display = _resolve_levels(conn, table)
+    if not codes:
         msg = f"no admin hierarchy code column detected in {table!r}"
         raise ValueError(msg)
-    codes = {
-        level: _max_cardinality_column(rows, cols)
-        for level, cols in group_by_by_level.items()
-    }
-    display = _display_levels(codes, _level_anchors(codes))
     return {display.get(level, level): column for level, column in codes.items()}
 
 
@@ -209,7 +243,7 @@ def _root_anchor(
     conn: DuckDBPyConnection, table: str, level_columns: dict[int, LevelColumns]
 ) -> tuple[str, str, str] | None:
     """Find an unassigned family's (prefix, anchor, suffix), or None if ambiguous."""
-    anchors = _level_anchors(detect_level_codes(conn, table))
+    anchors = _detect_anchors(conn, table)
     if not anchors:
         return None
     prefix, _, suffix = next(iter(anchors.values()))
@@ -340,7 +374,7 @@ def group_families_by_level(
     conn: DuckDBPyConnection, table: str, level_columns: dict[int, LevelColumns]
 ) -> dict[str, dict[int, str]]:
     """Group every level's identity columns by shared naming kind, across levels."""
-    anchors = _level_anchors(detect_level_codes(conn, table))
+    anchors = _detect_anchors(conn, table)
     if 0 in level_columns and 0 not in anchors:
         real_levels = {k: v for k, v in level_columns.items() if k != 0}
         root = _root_anchor(conn, table, real_levels)

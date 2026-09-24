@@ -312,3 +312,27 @@ def test_cli_runs(child_path, parent_path, tmp_path):
     )
     assert result.exit_code == 0, result.output
     assert out.exists()
+
+
+def test_parent_without_coarser_code_compares_names(tmp_path):
+    parent = tmp_path / "admin2_no_adm1_code.parquet"
+    _write(
+        parent, [{k: v for k, v in r.items() if k != "adm1_code"} for r in _parents()]
+    )
+    rows = [
+        {**r, "adm2_name": "Alpha Uno" if r["adm3_code"] == "A0101" else None}
+        for r in _children()
+    ]
+    for r in rows:
+        if r["adm2_name"] is None:
+            code = r["adm3_code"][:3]
+            r["adm2_name"] = next(n for _, _, c, n, _, _ in _PARENT_ROWS if c == code)
+    child = tmp_path / "names.parquet"
+    _write(child, rows)
+    out = tmp_path / "out.parquet"
+    join(child, parent, out)
+
+    cols, _ = _read(out)
+    assert "adm2_name1" in cols
+    issues = _issues(tmp_path / "out_issues.parquet")
+    assert [k for k, _, _ in issues] == ["value-mismatch"]
