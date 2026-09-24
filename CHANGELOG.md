@@ -16,8 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `topo-tools` plugin install switched from a git-clone-based marketplace to a
   generated URL-based one (`https://ocha-dap.github.io/topo-tools-py/marketplace.json`,
-  zip archive source), so it works without git installed. See
-  `docs/pages/agents/index.md`.
+  zip archive source), so it works without git installed. Its plugin entry's
+  `version` is the zip's sha256 prefix, so updates are detected whenever plugin
+  content changes. See `docs/pages/agents/index.md`.
 
 ## [0.7.0] - 2026-09-17
 
