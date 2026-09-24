@@ -10,6 +10,7 @@ from logging import getLogger
 
 from duckdb import DuckDBPyConnection
 
+from topo_tools.core.admin_columns import sibling_name
 from topo_tools.core.constants import (
     is_floating_duckdb_type,
     is_noise_column,
@@ -554,7 +555,7 @@ def _build_chain(
 def _numbered_target(template: str, level: int, index: int) -> str:
     """Render a level's template, suffixing the 2nd+ same-level column 1, 2, ..."""
     rendered = template.format(n=level)
-    return rendered if index == 0 else f"{rendered}{index}"
+    return rendered if index == 0 else sibling_name(rendered, index)
 
 
 def _bracket_index(code_counts: list[int], count: int) -> int | None:

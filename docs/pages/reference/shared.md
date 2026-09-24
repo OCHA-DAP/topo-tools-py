@@ -74,6 +74,11 @@ instead of repeating them.
   with that level's prefix and number, then its code-template columns,
   numbered siblings in numeric order. Every other column follows in input
   order.
+- A numbered sibling of a column (a second same-level name, or a parent's
+  differing value in `schema-join`) MUST be named by appending an integer
+  starting at 1, separated by `_` when the column ends in a digit
+  (`adm2_name` → `adm2_name1`, `GID_2` → `GID_2_1`), so a sibling never
+  reads as a deeper level.
 - Those three tools MUST sort rows by the deepest level's own code column,
   by value (text codes as text), NULLs last, ties in input order.
 - With no code-template column, rows MUST keep their input order, and the

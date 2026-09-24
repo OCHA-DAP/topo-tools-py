@@ -8,6 +8,11 @@ DEFAULT_CODE_FIELD = "adm{n}_code"
 _NAME, _OTHER, _CODE = 0, 1, 2
 
 
+def sibling_name(column: str, index: int) -> str:
+    """Name column's index-th numbered sibling, `_`-separated after a trailing digit."""
+    return f"{column}_{index}" if column[-1:].isdigit() else f"{column}{index}"
+
+
 def field_prefix(template: str) -> str:
     """Return a `{n}`-templated field's prefix, e.g. "adm" from "adm{n}_pcode"."""
     return template.split("{n}", maxsplit=1)[0]
@@ -30,10 +35,22 @@ def column_families(
     return families
 
 
+def template_families(
+    columns: list[str], levels: list[int], name_field: str, code_field: str
+) -> dict[str, dict[int, str]]:
+    """Group level columns under both templates' prefixes, keyed like "adm{n}_name"."""
+    families: dict[str, dict[int, str]] = {}
+    for prefix in dict.fromkeys([field_prefix(code_field), field_prefix(name_field)]):
+        for suffix, per_level in column_families(columns, levels, prefix).items():
+            families[f"{prefix}{{n}}{suffix}"] = per_level
+    return families
+
+
 def _family_pattern(template: str) -> re.Pattern:
-    """Match a template's own column and its numbered siblings (`adm2_name1`)."""
+    """Match a template's own column and its siblings (`adm2_name1`, `GID_2_1`)."""
     before, _, after = template.partition("{n}")
-    return re.compile(rf"^{re.escape(before)}(\d+){re.escape(after)}(\d*)$")
+    sep = "_" if not after or after[-1].isdigit() else ""
+    return re.compile(rf"^{re.escape(before)}(\d+){re.escape(after)}(?:{sep}(\d+))?$")
 
 
 def canonical_order(

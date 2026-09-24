@@ -336,3 +336,49 @@ def test_parent_without_coarser_code_compares_names(tmp_path):
     assert "adm2_name1" in cols
     issues = _issues(tmp_path / "out_issues.parquet")
     assert [k for k, _, _ in issues] == ["value-mismatch"]
+
+
+def test_sibling_of_digit_ending_column_is_separated(tmp_path):
+    parent = tmp_path / "gadm2.parquet"
+    _write(
+        parent,
+        [
+            {
+                "GID_1": a1c,
+                "NAME_1": a1n,
+                "GID_2": a2c,
+                "NAME_2": a2n,
+                "wkt": _square(x, y, 2),
+            }
+            for a1c, a1n, a2c, a2n, x, y in _PARENT_ROWS
+        ],
+    )
+    rows = []
+    for r in _children():
+        code = r["adm3_code"][:3]
+        name = next(n for _, _, c, n, _, _ in _PARENT_ROWS if c == code)
+        rows.append(
+            {
+                "GID_3": r["adm3_code"],
+                "NAME_3": r["adm3_name"],
+                "NAME_2": "Alpha Uno" if r["adm3_code"] == "A0101" else name,
+                "wkt": r["wkt"],
+            }
+        )
+    child = tmp_path / "gadm3.parquet"
+    _write(child, rows)
+    out = tmp_path / "out.parquet"
+    join(child, parent, out, name_field="NAME_{n}", code_field="GID_{n}")
+
+    with duckdb.connect() as conn:
+        cols = [d[0] for d in conn.execute(f"SELECT * FROM '{out}'").description]
+    assert cols == [
+        "geometry",
+        "NAME_3",
+        "GID_3",
+        "NAME_2",
+        "NAME_2_1",
+        "GID_2",
+        "NAME_1",
+        "GID_1",
+    ]
