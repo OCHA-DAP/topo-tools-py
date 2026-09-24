@@ -351,6 +351,58 @@ def test_exact_bijective_match_wins_over_looser_function_match(tmp_path):
     assert rows_out["region_group"]["note"] == "supplemental, superset of level 1"
 
 
+def test_embedded_parent_wins_chain_tie_over_unembedded_grouping(tmp_path):
+    """A coarser grouping (district) nesting adm2 without embedding its codes."""
+    path = tmp_path / "grouping.parquet"
+    district = {"01": "S1", "02": "S1", "03": "S2", "04": "S2"}
+    word = {
+        "01": "North",
+        "02": "South",
+        "03": "East",
+        "04": "West",
+        "1": "Upper",
+        "2": "Lower",
+    }
+    rows = [
+        (
+            _unit_square(i),
+            "R0",
+            f"R0{a}",
+            f"Region {a}",
+            f"R0{a}{district[b]}",
+            f"R0{a}{b}",
+            f"{a} {word[b]}",
+            f"R0{a}{b}{c}",
+            f"{a} {word[b]} {word[c]}",
+        )
+        for i, (a, b, c) in enumerate(
+            (a, b, c) for a in "AB" for b in ("01", "02", "03", "04") for c in "12"
+        )
+    ]
+    _write_table(
+        path,
+        [
+            "geom",
+            "adm0_pcode",
+            "adm1_pcode",
+            "adm1_name",
+            "district",
+            "adm2_pcode",
+            "adm2_name",
+            "adm3_pcode",
+            "adm3_name",
+        ],
+        rows,
+    )
+    out = tmp_path / "crosswalk.csv"
+    map(path, out, overwrite=True)
+
+    rows_out = _crosswalk(out)
+    assert rows_out["adm2_pcode"]["target_column"] == "adm2_code"
+    assert rows_out["adm3_pcode"]["target_column"] == "adm3_code"
+    assert rows_out["district"]["note"] == "supplemental, superset of level 2"
+
+
 def _twenty_unit_rows(cand_values):
     """20 admin1 units (bijective pcode/name), plus one candidate column.
 

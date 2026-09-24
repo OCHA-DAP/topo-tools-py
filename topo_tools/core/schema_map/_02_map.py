@@ -500,6 +500,7 @@ def _build_chain(
 
     best_len = [1] * n
     best_prev: list[int | None] = [None] * n
+    best_edge_embeds = [False] * n
     chain_has_embed = [False] * n
     for finer_idx in range(n):
         for coarser_idx in range(finer_idx):
@@ -529,16 +530,18 @@ def _build_chain(
                 continue
             candidate_len = best_len[coarser_idx] + 1
             prev = best_prev[finer_idx]
-            # On a tie, a code-shaped sibling outranks a name-shaped one.
+            # On a tie, an embedded edge outranks an unembedded one, then a
+            # code-shaped sibling outranks a name-shaped one.
             better = candidate_len > best_len[finer_idx] or (
                 candidate_len == best_len[finer_idx]
                 and prev is not None
-                and group_code_shaped[coarser_idx]
-                and not group_code_shaped[prev]
+                and (embeds, group_code_shaped[coarser_idx])
+                > (best_edge_embeds[finer_idx], group_code_shaped[prev])
             )
             if better:
                 best_len[finer_idx] = candidate_len
                 best_prev[finer_idx] = coarser_idx
+                best_edge_embeds[finer_idx] = embeds
                 chain_has_embed[finer_idx] = embeds or chain_has_embed[coarser_idx]
     if n == 0:
         return []
