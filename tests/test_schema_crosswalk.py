@@ -125,12 +125,12 @@ def test_end_to_end_writes_crosswalk_and_mapped_output(
     )
 
     rows = _crosswalk_rows(crosswalk_out)
-    assert rows["province"]["target_column"] == "adm0_name"
+    assert rows["province"]["target_column"] == "adm1_name"
     assert rows["province"]["note"] == ""
-    assert rows["prov_uid"]["target_column"] == "adm0_pcode"
+    assert rows["prov_uid"]["target_column"] == "adm1_pcode"
     assert rows["prov_uid"]["note"] == ""
-    assert rows["zonesante"]["target_column"] == "adm1_name"
-    assert rows["zs_uid"]["target_column"] == "adm1_pcode"
+    assert rows["zonesante"]["target_column"] == "adm2_name"
+    assert rows["zs_uid"]["target_column"] == "adm2_pcode"
     assert "OBJECTID" not in rows
     assert "Shape_Length" not in rows
 
@@ -141,13 +141,13 @@ def test_end_to_end_writes_crosswalk_and_mapped_output(
             for r in conn.execute(f"DESCRIBE SELECT * FROM '{mapped_out}'").fetchall()
         }
         values = conn.execute(
-            f"SELECT adm1_name FROM '{mapped_out}' ORDER BY adm1_pcode"
+            f"SELECT adm2_name FROM '{mapped_out}' ORDER BY adm2_pcode"
         ).fetchall()
     assert columns == {
-        "adm0_name",
-        "adm0_pcode",
         "adm1_name",
         "adm1_pcode",
+        "adm2_name",
+        "adm2_pcode",
         "geometry",
     }
     assert values == [

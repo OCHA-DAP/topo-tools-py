@@ -36,7 +36,7 @@ def pipeline(tmp_path):
         rows = list(csv.DictReader(f))
     for row in rows:
         if row["source_column"] == "LOCAL_REF":
-            assert row["target_column"] == "adm1_code1", (
+            assert row["target_column"] == "adm2_code1", (
                 "fixture no longer reproduces the cardinality-decoy mismatch"
             )
             row["target_column"] = ""
@@ -63,11 +63,11 @@ def test_schema_map_reproduces_cardinality_decoy(tmp_path):
     schema_map(_DISTRICT_RAW, crosswalk_path)
     with crosswalk_path.open(newline="") as f:
         rows = {row["source_column"]: row["target_column"] for row in csv.DictReader(f)}
-    assert rows["PCODE_2"] == "adm1_code"
-    assert rows["LOCAL_REF"] == "adm1_code1"
-    assert rows["NAME_2"] == "adm1_name"
-    assert rows["NAME_1"] == "adm0_name"
-    assert rows["PCODE_1"] == "adm0_code"
+    assert rows["PCODE_2"] == "adm2_code"
+    assert rows["LOCAL_REF"] == "adm2_code1"
+    assert rows["NAME_2"] == "adm2_name"
+    assert rows["NAME_1"] == "adm1_name"
+    assert rows["PCODE_1"] == "adm1_code"
 
 
 def test_schema_refactor_drops_decoy_column(pipeline):
@@ -79,7 +79,7 @@ def test_schema_refactor_drops_decoy_column(pipeline):
         .execute(f"DESCRIBE SELECT * FROM '{mapped_path}'")
         .fetchall()
     }
-    assert columns == {"geometry", "adm0_name", "adm0_code", "adm1_name", "adm1_code"}
+    assert columns == {"geometry", "adm1_name", "adm1_code", "adm2_name", "adm2_code"}
 
 
 def test_topo_clean_fixes_one_gap_and_one_overlap(pipeline):
@@ -92,10 +92,10 @@ def test_topo_clean_fixes_one_gap_and_one_overlap(pipeline):
 
 def test_code_refactor_assigns_nested_codes(pipeline):
     _, coded_path = pipeline
-    rows = dict(_rows(coded_path, "adm1_name, adm1_code"))
+    rows = dict(_rows(coded_path, "adm2_name, adm2_code"))
     assert rows["Riverside"] == "TT.02.04"
     assert rows["North Ridge"] == "TT.01.01"
-    province_codes = {r[0] for r in _rows(coded_path, "adm0_code")}
+    province_codes = {r[0] for r in _rows(coded_path, "adm1_code")}
     assert province_codes == {"TT.01", "TT.02"}
 
 
@@ -105,7 +105,7 @@ def test_edge_match_fills_neighborhood_wedge(pipeline, tmp_path):
     with duckdb.connect() as conn:
         conn.execute("INSTALL spatial; LOAD spatial;")
         conn.execute(
-            f"COPY (SELECT * FROM '{coded_path}' WHERE adm1_code = 'TT.02.04') "
+            f"COPY (SELECT * FROM '{coded_path}' WHERE adm2_code = 'TT.02.04') "
             f"TO '{parent_path}'"
         )
 
@@ -131,8 +131,8 @@ def test_schema_fill_and_package_polygons_derive_provinces(pipeline, tmp_path):
     fill(coded_path, filled_path)
     package_polygons(filled_path)
 
-    admin0_path = tmp_path / "district_filled_admin0.parquet"
-    provinces = dict(_rows(admin0_path, "adm0_code, adm0_name"))
+    admin1_path = tmp_path / "district_filled_admin1.parquet"
+    provinces = dict(_rows(admin1_path, "adm1_code, adm1_name"))
     assert provinces == {"TT.01": "Alpha Province", "TT.02": "Beta Province"}
 
 
@@ -141,7 +141,7 @@ def test_package_produces_full_bundle(pipeline, tmp_path):
     output_dir = tmp_path / "release"
     package(coded_path, output_path=str(output_dir / "{x}.parquet"))
 
-    assert (output_dir / "admin0.parquet").exists()
     assert (output_dir / "admin1.parquet").exists()
+    assert (output_dir / "admin2.parquet").exists()
     points = _rows(output_dir / "points.parquet", "adm_lvl")
-    assert sorted(points) == [(0,)] * 2 + [(1,)] * 8
+    assert sorted(points) == [(1,)] * 2 + [(2,)] * 8

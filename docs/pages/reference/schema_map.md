@@ -78,11 +78,11 @@ empirical justification.
   explains every violation". More than one distinct violator MUST fail
   strictly, a genuine multi-value anomaly, not a placeholder (see
   `docs/adr/0071`).
-- Every level MUST be numbered by the column's relative rank in the
-  discovered chain (0 = coarsest) unless `level` is given, in which case the
-  finest resolved level MUST be numbered `level` and each coarser one by
-  nesting depth from it. `schema-map` MUST raise `ValueError` if `level`
-  would number any resolved level below 0.
+- With `level` given, the finest resolved level MUST be numbered `level`
+  and each coarser one by nesting depth from it, and `schema-map` MUST raise
+  `ValueError` if that would number any resolved level below 0. Without
+  `level`, a constant coarsest level MUST be numbered 0 and any other
+  coarsest level 1, with a logged warning.
 - Within a resolved chain level, each column's role MUST be `code` if
   either it textually contains (`contains(child, parent)`) some column at
   the level's resolved parent, or it independently passes

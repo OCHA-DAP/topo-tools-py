@@ -120,7 +120,7 @@ def test_unique_count_reveals_name_reused_across_parents(tmp_path):
     ]
     _write_table(path, ["geom", "adm0_pcode", "adm1_pcode", "adm1_name"], rows)
     out = tmp_path / "crosswalk.csv"
-    map(path, output_path=out, overwrite=True)
+    map(path, output_path=out, level=1, overwrite=True)
 
     rows_out = _crosswalk(out)
     assert rows_out["adm1_name"]["target_column"] == "adm1_name"
@@ -546,13 +546,43 @@ def test_level_anchors_finest_level(no_country_input, tmp_path):
     assert rows["reg_name"]["target_column"] == "adm1_name"
 
 
-def test_level_omitted_numbers_coarsest_zero(no_country_input, tmp_path):
+def test_level_omitted_numbers_coarsest_one(no_country_input, tmp_path, caplog):
     out = tmp_path / "crosswalk.csv"
     map(no_country_input, out, overwrite=True)
 
     rows = _crosswalk(out)
-    assert rows["reg_code"]["target_column"] == "adm0_code"
-    assert rows["dist_code"]["target_column"] == "adm1_code"
+    assert rows["reg_code"]["target_column"] == "adm1_code"
+    assert rows["dist_code"]["target_column"] == "adm2_code"
+    assert "no single-value country column" in caplog.text
+
+
+def test_level_omitted_constant_root_no_warning(
+    chain_input, chain_schema, tmp_path, caplog
+):
+    out = tmp_path / "crosswalk.csv"
+    map(chain_input, out, **chain_schema, overwrite=True)
+
+    assert _crosswalk(out)["adm1_pcode"]["target_column"] == "level1_pcode"
+    assert "no single-value country column" not in caplog.text
+
+
+def test_single_level_file_defaults_one_or_takes_level(tmp_path, caplog):
+    path = tmp_path / "flat.parquet"
+    rows = [
+        (_unit_square(0), "C001", "Alpha"),
+        (_unit_square(1), "C002", "Beta"),
+        (_unit_square(2), "C003", "Gamma"),
+        (_unit_square(3), "C004", "Delta"),
+    ]
+    _write_table(path, ["geom", "com_code", "com_name"], rows)
+    out = tmp_path / "crosswalk.csv"
+
+    map(path, out, overwrite=True)
+    assert _crosswalk(out)["com_code"]["target_column"] == "adm1_code"
+    assert "no single-value country column" in caplog.text
+
+    map(path, out, level=3, overwrite=True)
+    assert _crosswalk(out)["com_code"]["target_column"] == "adm3_code"
 
 
 def test_level_skips_folded_constant_root(chain_input, chain_schema, tmp_path):

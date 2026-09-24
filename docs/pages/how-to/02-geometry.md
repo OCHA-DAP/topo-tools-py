@@ -9,8 +9,8 @@ Use `topo-detect` first, without `--maximum-gap-width`, to inspect your
 dataset's own gap/overlap distribution before deciding on a setting, then
 fix what's found:
 
-    topo-tools topo-clean admin1_mapped.parquet admin1_topo.parquet \
-      --issues-file admin1_topo_issues.parquet --maximum-gap-width all
+    topo-tools topo-clean admin2_mapped.parquet admin2_topo.parquet \
+      --issues-file admin2_topo_issues.parquet --maximum-gap-width all
 
 Load the issues file as a map layer, not just a table, to see exactly
 which features got fixed (`kind='gap'`/`kind='overlap'`, `fixed=true`).
@@ -24,7 +24,7 @@ extend to fill any gap, clip to the parent). No codes exist yet at this
 stage, so filter by name rather than p-code:
 
     duckdb -c "INSTALL spatial; LOAD spatial;
-      COPY (SELECT * FROM 'admin1_topo.parquet' WHERE adm1_name = 'your_district')
+      COPY (SELECT * FROM 'admin2_topo.parquet' WHERE adm2_name = 'your_district')
       TO 'parent.parquet';"
 
     topo-tools edge-match finer_level_raw.parquet parent.parquet \
@@ -40,9 +40,9 @@ before moving on to coding. `package-polygons`'s structural auto-detection
 relies on a nested p-code format to tell levels apart, which doesn't exist
 yet at this stage, so pass `--name-field`/`--code-field` explicitly:
 
-    topo-tools schema-fill admin1_topo.parquet admin1_filled.parquet
-    topo-tools package-polygons admin1_filled.parquet \
-      admin1_filled_admin{n}.parquet \
+    topo-tools schema-fill admin2_topo.parquet admin2_filled.parquet
+    topo-tools package-polygons admin2_filled.parquet \
+      admin2_filled_admin{n}.parquet \
       --name-field "adm{n}_name" --code-field "adm{n}_code"
 
 This is a check, not the final output: it writes one dissolved file per

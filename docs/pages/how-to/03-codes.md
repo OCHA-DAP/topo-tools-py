@@ -5,7 +5,7 @@ title: "3. Assign hierarchical codes"
 Third step of [preparing an administrative boundary
 release](administrative-boundary-release/).
 
-    topo-tools code-refactor admin1_topo.parquet admin1_coded.parquet \
+    topo-tools code-refactor admin2_topo.parquet admin2_coded.parquet \
       --root-code XYZ --delimiter . --min-width 2
 
 Every unit's code gets overwritten with a fresh, correctly nested code

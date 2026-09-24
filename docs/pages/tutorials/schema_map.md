@@ -21,3 +21,7 @@ crosswalk, then run `schema-refactor`.
 ### Example 4: number levels from the file's own admin level
 
     topo-tools schema-map admin3.geojson --level 3
+
+### Example 5: number a multi-country file
+
+    topo-tools schema-map global_admin1.geojson --level 1

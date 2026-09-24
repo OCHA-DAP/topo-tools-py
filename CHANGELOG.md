@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `schema-map`/`schema-crosswalk`: with `--level` omitted, a file with no
+  single-value country column numbers its coarsest level adm1, not adm0, and
+  logs a warning. Pass `--level` for a multi-country file (#65).
+
 ## [0.7.1] - 2026-09-24
 
 ### Added

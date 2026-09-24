@@ -11,9 +11,9 @@ this step is manual investigation, generally covering:
 - **Duplicates under the same parent**: two units sharing a name (or a
   near-identical one) under the same immediate parent.
 
-      SELECT adm0_code, adm1_name, COUNT(*)
-      FROM admin1_coded.parquet
-      GROUP BY adm0_code, adm1_name
+      SELECT adm1_code, adm2_name, COUNT(*)
+      FROM admin2_coded.parquet
+      GROUP BY adm1_code, adm2_name
       HAVING COUNT(*) > 1;
 
 - **Near-duplicates from a typo, not a real distinct name**: DuckDB's
