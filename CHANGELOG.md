@@ -16,6 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--name-field`/`--code-field` to set the templates. `schema-join` issues'
   `unit_a` is the output row number, matching the code-sorted output.
 
+### Fixed
+
+- Structural level detection anchors each level on the columns that share
+  the most naming text, so a level whose parent has only a name column
+  (e.g. an admin2 with `adm1_name` but no `adm1_code`) keeps its own name
+  columns. `schema-join` compares those columns against the child, and
+  schema-fill/package/code tools see them as part of the level (#80).
+
 ## [0.7.2] - 2026-09-24
 
 ### Fixed
