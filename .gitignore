@@ -17,3 +17,4 @@ scripts/
 !.github/scripts/
 !plugins/**/scripts/
 tmp/
+.playwright-cli/

@@ -51,7 +51,6 @@ jobs:
                 {
                   name: $name,
                   description: $description,
-                  version: $sha256[0:12],
                   source: {
                     source: "archive",
                     url: "https://ocha-dap.github.io/topo-tools-py/topo-tools-plugin.zip",
