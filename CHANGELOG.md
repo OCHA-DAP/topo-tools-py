@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
+## [0.7.2] - 2026-09-24
+
+### Fixed
 
 - `schema-map`/`schema-crosswalk`: with `--level` omitted, a file with no
   single-value country column numbers its coarsest level adm1, not adm0, and
@@ -499,7 +501,8 @@ Initial release: four tools, CLI + Python API for each.
   unit as unchanged/renamed/modified/relocated/split/merge/complex/created/
   removed, via spatial overlap and optional code/name identity linking.
 
-[Unreleased]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.7.1...HEAD
+[Unreleased]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.7.2...HEAD
+[0.7.2]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.5.6...v0.6.0
