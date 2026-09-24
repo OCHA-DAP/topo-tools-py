@@ -4,7 +4,9 @@ description: Clean, code, and package COD-AB administrative boundary polygons wi
 ---
 
 Guide the user through cleaning and reconciling a COD-AB administrative
-boundary layer with topo-tools.
+boundary layer with topo-tools. Ask every question with the
+AskUserQuestion tool, offering your inferred answer as the first,
+recommended option.
 
 File a GitHub issue against this repo, rather than patching around it,
 whenever a command crashes or raises unexpectedly, output looks wrong (bad
@@ -93,15 +95,15 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
    the source file(s) in `00b_new/` before proposing stage 1. For a
    multi-layer archive (GDB, GPKG), list layers first. For each candidate
    file/layer, report feature count, column names, and a few sample
-   p-code/name values via DuckDB. Confirm with the user which file/layer
-   is the base, the only one processed (every ancestor level is derived
-   from it by dissolve in stage 2), and the country's ISO2 code (used as
-   stage 3's `--root-code` under the legacy p-code scheme). Propose the
-   deepest level, but flag it if it looks partial or low quality (doesn't
-   cover the whole country, has missing codes/names, or far fewer units
-   than its parent level implies; judge from feature counts and total
-   bounds, never file sizes), since the user may then pick a
-   shallower one. Keep every supplied file/layer in `00b_new/` as a
+   p-code/name values via DuckDB. Use the deepest file/layer as the base,
+   the only one processed (every ancestor level is derived from it by
+   dissolve in stage 2), and the country's ISO2 code as stage 3's
+   `--root-code` under the legacy p-code scheme. State both before
+   continuing, with the base's name, feature count, and why it qualifies.
+   Ask the user to pick a shallower base only if the deepest one looks
+   partial or low quality (doesn't cover the whole country, has missing
+   codes/names, or far fewer units than its parent level implies; judge
+   from feature counts and total bounds, never file sizes). Keep every supplied file/layer in `00b_new/` as a
    reference; the higher-level ones feed stage 2's dissolve check. Skip
    this step when resuming past stage 1.
 
