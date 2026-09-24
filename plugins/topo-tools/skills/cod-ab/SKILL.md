@@ -29,7 +29,7 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
    already prepared: run `uv lock --upgrade && uv sync` to refresh
    versions, then continue. If it doesn't (no `pyproject.toml`, or one
    without that table), help set up a dedicated working directory:
-   `uv init --vcs none` there, `uv add topo-tools pyogrio`, add a
+   `uv init --bare --vcs none` there, `uv add topo-tools pyogrio`, add a
    `[tool.topo-tools-cod-ab]` table to the new `pyproject.toml`, then the
    same refresh. Run every command below via `uv run topo-tools ...`.
    `pyogrio` covers layer introspection on multi-layer source files (GDB,
@@ -46,10 +46,13 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
      none). If the user also dropped an old version, ask which one to
      compare against. For a user-supplied old version, ask its version;
      `{version}` is the next one after it. Propose `{version}` and have the
-     user confirm it, renaming the folder if they change it. Convert each
+     user confirm it, renaming the folder if they change it. Extract a
+     `.zip` into `01_inputs/` first and treat each dataset inside it
+     (`.shp`, `.gdb`, `.gpkg`, `.geojson`) as its own file. Convert each
      file to GeoParquet (pyogrio for GDB/GPKG layers) into `00a_old/` or
-     `00b_new/`. Delete it from `01_inputs/` only after every converted
-     layer's feature count matches its source layer's
+     `00b_new/`. Delete it from `01_inputs/` (a zip together with
+     everything extracted from it) only after every converted layer's
+     feature count matches its source layer's
      (`pyogrio.read_info(...)["features"]`); on a mismatch, stop and keep
      the file.
    - `01_inputs/` is empty and `02_working/` has no country folders: ask
@@ -86,11 +89,16 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
    the source file(s) in `00b_new/` before proposing stage 1. For a
    multi-layer archive (GDB, GPKG), list layers first. For each candidate
    file/layer, report feature count, column names, and a few sample
-   p-code/name values via DuckDB. Confirm with the user: which level is
-   the base (the authoritative geometry level, ancestors are derived by
-   dissolve in stage 2) and the country's ISO2 code (used as stage 3's
-   `--root-code` under the legacy p-code scheme). Skip this step when
-   resuming past stage 1.
+   p-code/name values via DuckDB. Confirm with the user which file/layer
+   is the base, the only one processed (every ancestor level is derived
+   from it by dissolve in stage 2), and the country's ISO2 code (used as
+   stage 3's `--root-code` under the legacy p-code scheme). Propose the
+   deepest level, but flag it if it looks partial or low quality (doesn't
+   cover the whole country, has missing codes/names, or far fewer units
+   than its parent level implies), since the user may then pick a
+   shallower one. Keep every supplied file/layer in `00b_new/` as a
+   reference; the higher-level ones feed stage 2's dissolve check. Skip
+   this step when resuming past stage 1.
 
 ## Stages
 
@@ -120,8 +128,6 @@ After stage 5, export each release candidate (`rc`) sent for review:
    stage's issues file as a layer named after its stage, plus `change`
    output comparing this candidate against the previous one (`rc01`:
    against `00a_old/`, skipped when absent).
-4. Commit the CSVs under `02_working/{iso3}/{version}/` to the workspace
-   git repo.
 
 For a file returned by the reviewer (step 3 of Setup), ask which stage it
 re-enters at, place it there as GeoParquet or CSV, and rerun from that
