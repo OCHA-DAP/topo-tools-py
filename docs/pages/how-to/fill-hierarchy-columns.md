@@ -4,7 +4,10 @@ title: "Fill hierarchy columns down to each row's real depth"
 
 Stamp each row with its real admin depth, then cascade every
 admin-hierarchy column down to that depth, run against an
-already-clipped/stitched layer (an `edge-match`/`edge-mosaic` output).
+already-clipped/stitched layer (an `edge-match`/`edge-mosaic` output). A
+layer missing an ancestor level's columns entirely needs `schema-join`
+against that parent layer first, since `schema-fill` only cascades values
+already on the row.
 
     topo-tools schema-fill admin4.parquet --name-field state_name --code-field state_code
 

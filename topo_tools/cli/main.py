@@ -15,6 +15,7 @@ from topo_tools.api import edge_stitch as _edge_stitch
 from topo_tools.api import package as _package
 from topo_tools.api import schema_crosswalk as _schema_crosswalk
 from topo_tools.api import schema_fill as _schema_fill
+from topo_tools.api import schema_join as _schema_join
 from topo_tools.api import schema_map as _schema_map
 from topo_tools.api import schema_refactor as _schema_refactor
 from topo_tools.api import topo_clean as _topo_clean
@@ -25,6 +26,7 @@ from topo_tools.api.package_lines import package_lines as _package_lines
 from topo_tools.api.package_points import package_points as _package_points
 from topo_tools.api.package_polygons import package_polygons as _package_polygons
 from topo_tools.core.change._constants import TAU_MATCH_DEFAULT, TAU_SAME_DEFAULT
+from topo_tools.core.schema_join._constants import MIN_OVERLAP_DEFAULT
 
 basicConfig(level=INFO, format="%(asctime)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 logger = getLogger(__name__)
@@ -1896,6 +1898,106 @@ def schema_fill(  # noqa: PLR0913, PLR0917
             debug=debug,
             step=step,
             depth_column=depth_column,
+        )
+    except (FileExistsError, RuntimeError, ValueError) as e:
+        raise click.ClickException(str(e)) from e
+
+
+@cli.command(name="schema-join")
+@click.argument("child_file", envvar="CHILD_FILE")
+@click.argument("parent_file", envvar="PARENT_FILE")
+@click.argument("output_file", envvar="OUTPUT_FILE", required=False, default=None)
+@click.option(
+    "--issues-output",
+    envvar="ISSUES_OUTPUT",
+    default=None,
+    help="Issues report path (default: OUTPUT_FILE with an '_issues' suffix).",
+)
+@click.option(
+    "--name-field",
+    envvar="NAME_FIELD",
+    default=None,
+    help="Name-field template, e.g. 'adm{n}_name' (requires --code-field; "
+    "default: structural auto-detection).",
+)
+@click.option(
+    "--code-field",
+    envvar="CODE_FIELD",
+    default=None,
+    help="Code-field template, e.g. 'adm{n}_code' (requires --name-field; "
+    "default: structural auto-detection).",
+)
+@click.option(
+    "--min-overlap",
+    envvar="MIN_OVERLAP",
+    type=float,
+    default=MIN_OVERLAP_DEFAULT,
+    show_default=True,
+    help="Flag a child whose best parent covers less than this share of its area.",
+)
+@click.option(
+    "--overwrite",
+    envvar="OVERWRITE",
+    type=bool,
+    default=True,
+    show_default=True,
+    help="Overwrite an existing output; pass --overwrite=false to error instead.",
+)
+@click.option(
+    "--threads", envvar="THREADS", type=int, default=None, help="DuckDB thread count."
+)
+@click.option(
+    "--debug",
+    envvar="DEBUG",
+    is_flag=True,
+    help="Keep intermediate tables, export to Parquet, log timing/memory per query.",
+)
+@click.option(
+    "--tmp-dir",
+    envvar="TMP_DIR",
+    default=None,
+    help="Intermediate DuckDB + Parquet location.",
+)
+@click.option(
+    "--step",
+    envvar="STEP",
+    type=click.Choice(["inputs", "assign", "join", "outputs"]),
+    default=None,
+    help="Run only one named stage.",
+)
+def schema_join(  # noqa: PLR0913, PLR0917
+    child_file: str,
+    parent_file: str,
+    output_file: str | None,
+    issues_output: str | None,
+    name_field: str | None,
+    code_field: str | None,
+    min_overlap: float,
+    overwrite: bool,  # noqa: FBT001
+    threads: int | None,
+    debug: bool,  # noqa: FBT001
+    tmp_dir: str | None,
+    step: str | None,
+) -> None:
+    """Copy each child's best-overlapping parent's hierarchy columns onto it.
+
+    Geometry is never modified; conflicting values are kept side by side.
+    """
+    logger.info("--debug=%s", debug)
+    try:
+        _schema_join(
+            child_file,
+            parent_file,
+            Path(output_file) if output_file is not None else None,
+            issues_path=Path(issues_output) if issues_output is not None else None,
+            name_field=name_field,
+            code_field=code_field,
+            min_overlap=min_overlap,
+            threads=threads,
+            tmp_dir=tmp_dir,
+            overwrite=overwrite,
+            debug=debug,
+            step=step,
         )
     except (FileExistsError, RuntimeError, ValueError) as e:
         raise click.ClickException(str(e)) from e

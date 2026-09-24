@@ -23,11 +23,15 @@ instead of repeating them.
 - The `schema-crosswalk` tool MAY reuse `schema-map`'s and `schema-refactor`'s logic directly;
   neither `schema-map` nor `schema-refactor` MUST depend on `schema-crosswalk`, or on each
   other (see `docs/explanation/schema_crosswalk.md`).
-- `schema-fill`, `package-polygons`, `package-points`, and `package-lines`
-  MAY all depend on `schema-map`'s `name_field`/`code_field`/level-detection
-  helpers (`core/schema_map/_levels.py`, `core/schema_map/_level_columns.py`);
+- `schema-fill`, `schema-join`, `package-polygons`, `package-points`, and
+  `package-lines` MAY all depend on `schema-map`'s
+  `name_field`/`code_field`/level-detection helpers
+  (`core/schema_map/_levels.py`, `core/schema_map/_level_columns.py`);
   `schema-map` MUST NOT depend on any of them (see `docs/adr/0075`,
   `docs/adr/0092`).
+- `schema-join` MAY depend on `core.assign`'s stage functions directly, and
+  MUST NOT depend on `edge-extend`, `edge-match`, `edge-mosaic`,
+  `topo-clean`, or `change`; `core.assign` MUST NOT depend on `schema-join`.
 - `package-polygons`, `package-points`, and `package-lines` MAY all depend
   on `core.dissolve`'s stage functions directly; `core.dissolve` MUST NOT
   depend on any of them.
