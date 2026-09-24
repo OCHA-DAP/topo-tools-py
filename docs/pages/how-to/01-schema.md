@@ -30,6 +30,10 @@ spelling, or a second name that differs from the first) to the next free
 
     topo-tools schema-refactor your_admin2.parquet crosswalk.csv admin2_mapped.parquet
 
+For a target schema other than `adm{n}_name`/`adm{n}_code`, pass the same
+`--name-field`/`--code-field` to `schema-refactor` and `schema-join`, or
+rows keep their input order.
+
 The mapped output now has only the columns you kept a `target_column` for,
 plus `geometry`.
 

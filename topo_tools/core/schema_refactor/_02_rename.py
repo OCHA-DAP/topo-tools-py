@@ -1,9 +1,13 @@
 """Renames/drops columns per the validated crosswalk."""
 
+from logging import getLogger
+
 from duckdb import DuckDBPyConnection
 
 from topo_tools.core.admin_columns import canonical_order
 from topo_tools.core.duckdb_utils import quote_identifier
+
+logger = getLogger(__name__)
 
 
 def main(conn: DuckDBPyConnection, name: str, name_field: str, code_field: str) -> None:
@@ -17,6 +21,12 @@ def main(conn: DuckDBPyConnection, name: str, name_field: str, code_field: str) 
     ).fetchall()
     targets = {target: source for source, target in rows if target}
     columns, sort_column = canonical_order(list(targets), name_field, code_field)
+    if sort_column is None:
+        logger.warning(
+            "schema-refactor: no %r target column; rows keep input order "
+            "(pass --name-field/--code-field for another schema)",
+            code_field,
+        )
     select = "".join(
         f", {quote_identifier(targets[t])} AS {quote_identifier(t)}" for t in columns
     )

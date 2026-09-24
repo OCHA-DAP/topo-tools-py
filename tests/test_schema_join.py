@@ -258,6 +258,26 @@ def test_differing_shared_column_kept_side_by_side(parent_path, tmp_path):
     assert issues[0][2] == "adm2_name: child 'Alpha Uno' vs parent 'Alpha One'"
 
 
+def test_issue_unit_a_is_output_row(parent_path, tmp_path):
+    rows = sorted(_children(), key=lambda r: r["adm3_code"], reverse=True)
+    for r in rows:
+        code = r["adm3_code"][:3]
+        r["adm2_name"] = next(n for _, _, c, n, _, _ in _PARENT_ROWS if c == code)
+        if r["adm3_code"] == "A0203":
+            r["adm2_name"] = "Alpha Dos"
+    child = tmp_path / "reversed.parquet"
+    _write(child, rows)
+    out = tmp_path / "out.parquet"
+    join(child, parent_path, out)
+
+    (unit_a,) = [u for _, u, _ in _issues(tmp_path / "out_issues.parquet")]
+    with duckdb.connect() as conn:
+        codes = [
+            r[0] for r in conn.execute(f"SELECT adm3_code FROM '{out}'").fetchall()
+        ]
+    assert codes[unit_a - 1] == "A0203"
+
+
 def test_identical_shared_column_skipped(parent_path, tmp_path):
     rows = [{**r, "adm2_code": r["adm3_code"][:3]} for r in _children()]
     child = tmp_path / "codes.parquet"

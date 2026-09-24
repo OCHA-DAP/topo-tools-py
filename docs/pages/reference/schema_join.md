@@ -67,6 +67,8 @@ overwrite any child value (see `docs/adr/0109`).
   - `value-mismatch`: a child and column where the child's value and its
     parent's value are both non-NULL and differ, with `reason` naming the
     column and both values.
+- `unit_a` MUST hold the child's 1-based row number in the output file, not
+  its input fid, since rows are re-sorted by code.
 - `schema-join` MUST NOT write an empty issues file, and MUST remove a
   stale one at the issues path instead.
 

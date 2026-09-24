@@ -75,8 +75,11 @@ instead of repeating them.
   numbered siblings in numeric order. Every other column follows in input
   order.
 - Those three tools MUST sort rows by the deepest level's own code column,
-  as text, NULLs last, ties in input order. With no column matching the
-  templates, columns and rows MUST keep their input order.
+  by value (text codes as text), NULLs last, ties in input order.
+- With no code-template column, rows MUST keep their input order, and the
+  tool MUST log a warning. `schema-refactor` and `schema-crosswalk` then keep
+  crosswalk-row column order, and `schema-join` keeps the child's input
+  column order.
 
 ## Coverage-topology checks
 

@@ -47,12 +47,16 @@ def canonical_order(
     prefix = field_prefix(code_field)
     level_re = re.compile(rf"^{re.escape(prefix)}(\d+)(?!\d)") if prefix else None
     keys: dict[str, tuple[int, int, int]] = {}
-    for position, column in enumerate(columns):
+    for column in columns:
         if match := code_re.match(column):
             keys[column] = (int(match[1]), _CODE, int(match[2] or 0))
         elif match := name_re.match(column):
             keys[column] = (int(match[1]), _NAME, int(match[2] or 0))
-        elif level_re and (match := level_re.match(column)):
+    levels = {level for level, _, _ in keys.values()}
+    for position, column in enumerate(columns):
+        if column in keys or not level_re or not (match := level_re.match(column)):
+            continue
+        if int(match[1]) in levels:
             keys[column] = (int(match[1]), _OTHER, position)
     ordered = sorted(keys, key=lambda c: (-keys[c][0], keys[c][1], keys[c][2]))
     codes = {

@@ -347,3 +347,10 @@ def test_name_field_requires_code_field(apply_input, full_crosswalk, tmp_path):
         refactor(
             apply_input, full_crosswalk, tmp_path / "out.parquet", name_field="n{n}"
         )
+
+
+def test_warns_when_no_code_template_column(
+    apply_input, full_crosswalk, tmp_path, caplog
+):
+    refactor(apply_input, full_crosswalk, tmp_path / "out.parquet")
+    assert "no 'adm{n}_code' target column" in caplog.text

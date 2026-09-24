@@ -53,7 +53,7 @@ def main(conn: DuckDBPyConnection, name: str, schema: TargetSchema | None) -> No
     child_columns = _columns(conn, f"{name}_child_01")
     taken = set(child_columns) | set(_columns(conn, parent_table))
 
-    select_parts = {
+    exprs = {
         c: f"c.{quote_identifier(c)}"
         for c in child_columns
         if c not in {"fid", "geom", "source_file"}
@@ -62,7 +62,7 @@ def main(conn: DuckDBPyConnection, name: str, schema: TargetSchema | None) -> No
     for column in parent_hierarchy_columns(conn, parent_table, schema):
         col = quote_identifier(column)
         if column not in child_columns:
-            select_parts[column] = f"p.{col} AS {col}"
+            exprs[column] = f"p.{col}"
             continue
         differs = conn.execute(f"""--sql
             SELECT COUNT(*) FROM "{name}_child_01" c
@@ -81,7 +81,7 @@ def main(conn: DuckDBPyConnection, name: str, schema: TargetSchema | None) -> No
             column,
             sibling,
         )
-        select_parts[sibling] = f"p.{col} AS {quote_identifier(sibling)}"
+        exprs[sibling] = f"p.{col}"
         mismatch_parts.append(f"""
             SELECT c.fid AS child_fid, a.parent_fid, '{column.replace("'", "''")}'
                        AS column_name,
@@ -95,18 +95,25 @@ def main(conn: DuckDBPyConnection, name: str, schema: TargetSchema | None) -> No
 
     template = schema or DEFAULT_TARGET_SCHEMA
     columns, sort_column = canonical_order(
-        list(select_parts), template.name_field, template.code_field
+        list(exprs), template.name_field, template.code_field
     )
-    select = "".join(f", {select_parts[c]}" for c in columns)
-    # By position: an unqualified name could match both c.* and p.*.
-    order = f"{columns.index(sort_column) + 3} NULLS LAST, " if sort_column else ""
+    if sort_column is None:
+        logger.warning(
+            "schema-join: no %r column found; rows keep input order "
+            "(pass --name-field/--code-field for another schema)",
+            template.code_field,
+        )
+    select = "".join(f", {exprs[c]} AS {quote_identifier(c)}" for c in columns)
+    order = f"{exprs[sort_column]} NULLS LAST, " if sort_column else ""
+    # out_fid is the output row number, so issue rows point at output rows.
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_03" AS
-        SELECT c.fid, c.geom{select}, c.source_file
+        SELECT c.fid, row_number() OVER (ORDER BY {order}c.fid) AS out_fid,
+               c.geom{select}, c.source_file
         FROM "{name}_child_01" c
         LEFT JOIN "{name}_02_assign" a ON a.child_fid = c.fid
         LEFT JOIN "{parent_table}" p ON p.fid = a.parent_fid
-        ORDER BY {order}c.fid
+        ORDER BY out_fid
     """)
     empty = (
         "SELECT NULL::BIGINT AS child_fid, NULL::BIGINT AS parent_fid, "

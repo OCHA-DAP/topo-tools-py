@@ -77,10 +77,18 @@ def to_parquet(src: Path, dst_dir: Path) -> None:
             read = f"ST_Read({_sql_str(src)}, layer={_sql_str(layer)})"
             # ST_Read keeps the source's own geometry column name, e.g. a GPKG's.
             geom = next(
-                name
-                for name, type_, *_ in con.execute(f"DESCRIBE FROM {read}").fetchall()
-                if type_.startswith("GEOMETRY")
+                (
+                    name
+                    for name, type_, *_ in con.execute(
+                        f"DESCRIBE FROM {read}"
+                    ).fetchall()
+                    if type_.startswith("GEOMETRY")
+                ),
+                None,
             )
+            if geom is None:
+                log.info("%s: skipped, no geometry column", layer)
+                continue
             con.execute(
                 f'COPY (SELECT "{geom}" AS geometry, * EXCLUDE ("{geom}") '
                 f"FROM {read}) TO {_sql_str(dst)} ({_COPY_OPTIONS})"

@@ -27,6 +27,6 @@ text, not in Hilbert order, since admin units have a natural order.
 
 A reader of any tool's output by column position sees a new layout.
 Ordering needs template-named columns: raw source names keep input order,
-and a non-default schema needs `--name-field`/`--code-field`. Unpadded codes
-sort as text (`X1, X10, X2`). Rows aren't spatially ordered, which costs
+and a non-default schema needs `--name-field`/`--code-field`. Unpadded text codes
+sort as text (`X1, X10, X2`); integer code columns sort numerically. Rows aren't spatially ordered, which costs
 nothing within a single row group.
