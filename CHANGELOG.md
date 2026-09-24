@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `schema-map`/`schema-crosswalk` `--level`: numbers the finest detected
+  level as the file's own admin level, for files with no country column
+  (#65).
+
 ### Changed
 
 - `topo-tools` plugin install switched from a git-clone-based marketplace to a

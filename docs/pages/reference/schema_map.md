@@ -79,8 +79,10 @@ empirical justification.
   strictly, a genuine multi-value anomaly, not a placeholder (see
   `docs/adr/0071`).
 - Every level MUST be numbered by the column's relative rank in the
-  discovered chain (0 = coarsest); `schema-map` never takes a real admin number
-  as input, it only infers nesting depth.
+  discovered chain (0 = coarsest) unless `level` is given, in which case the
+  finest resolved level MUST be numbered `level` and each coarser one by
+  nesting depth from it. `schema-map` MUST raise `ValueError` if `level`
+  would number any resolved level below 0.
 - Within a resolved chain level, each column's role MUST be `code` if
   either it textually contains (`contains(child, parent)`) some column at
   the level's resolved parent, or it independently passes
@@ -128,8 +130,8 @@ empirical justification.
   1, a true constant; a non-constant level MUST be resolved regardless of
   its rank in the discovered chain, even at position 0. `schema-map` has no way
   to tell a genuine admin0 constant from a coarsest-in-file level that
-  merely isn't actually admin0 (a file with no country column at all); it
-  only excludes columns with no real variation to report.
+  merely isn't actually admin0 (a file with no country column at all)
+  without `level`; it only excludes columns with no real variation to report.
 - `target_column` MUST be non-empty only for a `code`/`name` row; every
   `ambiguous`/`unmatched` row's `target_column` MUST be empty, since
   `schema-refactor` drops any source column whose crosswalk `target_column` is
@@ -171,5 +173,6 @@ empirical justification.
   stem suffix and a `.csv` extension.
 - `schema-map` MUST raise `FileExistsError` if the output path already exists
   and overwriting wasn't requested.
+- `level`, if given, MUST be a non-negative integer (`--level`).
 - `step`, if given, MUST be one of `inputs`, `schema-map`, `outputs`; any
   other value MUST raise `ValueError`.

@@ -219,9 +219,9 @@ deciding what belongs to which level.
    to `name` directly, with no collapse-ratio check. A bracketed column
    that fails the function check entirely (neither a subset nor superset
    of the level) stays `ambiguous`.
-5. **Number and emit rows**: a chain position's level number is always
-   its relative rank (0 = coarsest). `schema-map` never takes a real admin
-   number as input, it only infers nesting depth (see `docs/adr/0058`).
+5. **Number and emit rows**: a chain position's level number is its
+   relative rank (0 = coarsest), or, with `--level N`, counts up from `N`
+   at the finest level (see `docs/adr/0058`, `docs/adr/0108`).
    Every code-chain column and every winning bracketed name column
    becomes a `code`/`name` row, `target_column` always rendered from the
    schema template at that level; when two or more qualify at the same
@@ -313,10 +313,8 @@ the source file's own original column order.
   containment alone can't distinguish a real nesting relationship from
   coincidence once embedding evidence exists elsewhere in the same file
   (`docs/adr/0064`, `docs/adr/0066`).
-- Levels are numbered purely by nesting depth, never a real admin number.
-  A source file whose coarsest discovered level isn't actually admin0
-  (e.g. a state-level file with no country column at all) still gets that
-  coarsest position resolved and numbered as if it were admin0, since
-  `schema-map` has no signal left to tell the two cases apart without a
-  vocabulary or human input; a human renames it by hand in the crosswalk
-  (`docs/adr/0058`, `docs/adr/0066`).
+- Without `--level`, levels are numbered purely by nesting depth, so a
+  file whose coarsest level isn't admin0 (no country column) is numbered
+  as if it were. Pass the file's own level to anchor it. A skipped level
+  in the source still misnumbers everything coarser than the gap
+  (`docs/adr/0058`, `docs/adr/0066`, `docs/adr/0108`).

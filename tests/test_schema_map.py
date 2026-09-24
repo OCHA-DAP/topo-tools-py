@@ -519,3 +519,62 @@ def test_unedited_crosswalk_with_ambiguous_and_unmatched_survives_refactor(
         "level1_name",
         "geometry",
     }
+
+
+@pytest.fixture
+def no_country_input(tmp_path):
+    """2-level pcode chain with no constant country column."""
+    path = tmp_path / "no_country.parquet"
+    rows = [
+        (_unit_square(0), "R1", "North", "R1D1", "A"),
+        (_unit_square(1), "R1", "North", "R1D2", "B"),
+        (_unit_square(2), "R2", "South", "R2D1", "C"),
+        (_unit_square(3), "R2", "South", "R2D2", "D"),
+    ]
+    _write_table(path, ["geom", "reg_code", "reg_name", "dist_code", "dist_name"], rows)
+    return path
+
+
+def test_level_anchors_finest_level(no_country_input, tmp_path):
+    out = tmp_path / "crosswalk.csv"
+    map(no_country_input, out, level=2, overwrite=True)
+
+    rows = _crosswalk(out)
+    assert rows["dist_code"]["target_column"] == "adm2_code"
+    assert rows["dist_name"]["target_column"] == "adm2_name"
+    assert rows["reg_code"]["target_column"] == "adm1_code"
+    assert rows["reg_name"]["target_column"] == "adm1_name"
+
+
+def test_level_omitted_numbers_coarsest_zero(no_country_input, tmp_path):
+    out = tmp_path / "crosswalk.csv"
+    map(no_country_input, out, overwrite=True)
+
+    rows = _crosswalk(out)
+    assert rows["reg_code"]["target_column"] == "adm0_code"
+    assert rows["dist_code"]["target_column"] == "adm1_code"
+
+
+def test_level_skips_folded_constant_root(chain_input, chain_schema, tmp_path):
+    out = tmp_path / "crosswalk.csv"
+    map(chain_input, out, **chain_schema, level=3, overwrite=True)
+
+    rows = _crosswalk(out)
+    assert rows["adm0_pcode"]["target_column"] == ""
+    assert rows["adm1_pcode"]["target_column"] == "level3_pcode"
+    assert rows["adm1_name"]["target_column"] == "level3_name"
+    assert rows["decoy_code"]["note"] == "ambiguous, level 3"
+
+
+def test_level_too_shallow_raises(no_country_input, tmp_path):
+    with pytest.raises(ValueError, match="too shallow"):
+        map(no_country_input, tmp_path / "crosswalk.csv", level=0, overwrite=True)
+
+
+def test_cli_level(no_country_input, tmp_path):
+    out = tmp_path / "crosswalk.csv"
+    result = CliRunner().invoke(
+        cli, ["schema-map", str(no_country_input), str(out), "--level", "2"]
+    )
+    assert result.exit_code == 0, result.output
+    assert _crosswalk(out)["reg_code"]["target_column"] == "adm1_code"

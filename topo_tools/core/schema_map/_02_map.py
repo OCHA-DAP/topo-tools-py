@@ -573,12 +573,13 @@ def _fully_populated(conn: DuckDBPyConnection, table: str, column: str) -> bool:
     return total == populated
 
 
-def _assign_chain_roles(
+def _assign_chain_roles(  # noqa: PLR0913, PLR0917
     conn: DuckDBPyConnection,
     table: str,
     chain: list[tuple[int, list[str]]],
     schema: TargetSchema,
     counts: dict[str, int],
+    offset: int = 0,
 ) -> dict[str, "_Row"]:
     """Assign every chain-level column a code/name role and numbered target.
 
@@ -596,7 +597,7 @@ def _assign_chain_roles(
         )
         if is_foldable_root and _fully_populated(conn, table, cols[0]):
             continue
-        level = index
+        level = index + offset
         parent_cols = chain[index - 1][1] if index > 0 else []
         embeds_parent = {
             c: any(_embeds(conn, table, c, p) for p in parent_cols) for c in cols
@@ -647,6 +648,7 @@ def _bracket_level(  # noqa: PLR0913, PLR0917
     counts: dict[str, int],
     schema: TargetSchema,
     chain_rows: dict[str, "_Row"],
+    offset: int = 0,
 ) -> dict[str, "_Row"]:
     """Resolve one bracketed level's candidates into name/supplemental/ambiguous rows.
 
@@ -673,14 +675,15 @@ def _bracket_level(  # noqa: PLR0913, PLR0917
 
     rows: dict[str, _Row] = {}
     winner_index = len(existing_name_members)
+    level_n = level + offset
     for column in candidates:
         unique_count = unique_count_for(column)
         if column not in winners:
             rows[column] = _Row(
                 column,
                 None,
-                f"{CONFIDENCE_AMBIGUOUS}, level {level}",
-                level=level,
+                f"{CONFIDENCE_AMBIGUOUS}, level {level_n}",
+                level=level_n,
                 unique_count=unique_count,
             )
         elif (
@@ -691,19 +694,19 @@ def _bracket_level(  # noqa: PLR0913, PLR0917
             rows[column] = _Row(
                 column,
                 None,
-                f"{CONFIDENCE_SUPPLEMENTAL}, superset of level {level}",
-                level=level,
+                f"{CONFIDENCE_SUPPLEMENTAL}, superset of level {level_n}",
+                level=level_n,
                 unique_count=unique_count,
             )
         else:
-            target = _numbered_target(schema.name_field, level, winner_index)
+            target = _numbered_target(schema.name_field, level_n, winner_index)
             winner_index += 1
             rows[column] = _Row(
                 column,
                 target,
                 "",
                 role="name",
-                level=level,
+                level=level_n,
                 unique_count=unique_count,
             )
     return rows
@@ -717,6 +720,7 @@ def _bracket_other_columns(  # noqa: PLR0913, PLR0917
     counts: dict[str, int],
     schema: TargetSchema,
     chain_rows: dict[str, "_Row"],
+    offset: int = 0,
 ) -> dict[str, "_Row"]:
     """Bracket non-chain columns into the chain by cardinality range."""
     code_counts = [count for count, _cols in chain]
@@ -732,16 +736,30 @@ def _bracket_other_columns(  # noqa: PLR0913, PLR0917
             continue
         rows.update(
             _bracket_level(
-                conn, table, chain, level, candidates, counts, schema, chain_rows
+                conn,
+                table,
+                chain,
+                level,
+                candidates,
+                counts,
+                schema,
+                chain_rows,
+                offset,
             )
         )
     return rows
 
 
 def resolve_columns(
-    conn: DuckDBPyConnection, table: str, schema: TargetSchema
+    conn: DuckDBPyConnection,
+    table: str,
+    schema: TargetSchema,
+    level: int | None = None,
 ) -> dict[str, _Row]:
-    """Resolve every candidate column to a level/role; `schema` only renders names."""
+    """Resolve every candidate column to a level/role; `schema` only renders names.
+
+    `level` anchors the finest chain level's number; default numbers from 0.
+    """
     columns = _candidate_columns(conn, table)
     counts = _distinct_counts(conn, table, columns)
 
@@ -759,13 +777,21 @@ def resolve_columns(
     if len(chain) == 1 and len(chain[0][1]) < _MIN_ROOT_EVIDENCE_COLUMNS:
         chain = []
 
-    rows = _assign_chain_roles(conn, table, chain, schema, counts)
+    offset = 0 if level is None or not chain else level - (len(chain) - 1)
+    rows = _assign_chain_roles(conn, table, chain, schema, counts, offset)
+    lowest = min((r.level for r in rows.values() if r.level is not None), default=0)
+    if lowest < 0:
+        msg = (
+            f"level={level} is too shallow: found {len(chain)} nested levels, "
+            f"so the coarsest would be {lowest}"
+        )
+        raise ValueError(msg)
 
     chained_columns = {c for _count, cols in chain for c in cols}
     other_columns = [c for c in columns if c not in chained_columns]
 
     other_rows = _bracket_other_columns(
-        conn, table, chain, other_columns, counts, schema, rows
+        conn, table, chain, other_columns, counts, schema, rows, offset
     )
     rows.update(other_rows)
 
@@ -775,11 +801,16 @@ def resolve_columns(
     return rows
 
 
-def main(conn: DuckDBPyConnection, name: str, schema: TargetSchema) -> None:
+def main(
+    conn: DuckDBPyConnection,
+    name: str,
+    schema: TargetSchema,
+    level: int | None = None,
+) -> None:
     """Discover a source file's admin hierarchy, writing crosswalk `{name}_02`."""
     table = f"{name}_01"
     columns = _candidate_columns(conn, table)
-    rows = resolve_columns(conn, table, schema)
+    rows = resolve_columns(conn, table, schema, level)
 
     def sort_key(row: _Row, source_position: int) -> tuple[int, int, int, int]:
         if row.level is None:
