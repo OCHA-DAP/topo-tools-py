@@ -77,6 +77,28 @@ def _temporal_columns(
     return {c for c in columns if is_temporal_duckdb_type(types[c])}
 
 
+def _fractional_columns(
+    conn: DuckDBPyConnection, table: str, columns: list[str]
+) -> set[str]:
+    """Every float/decimal `columns` member holding a non-whole value."""
+    rows = conn.execute(f"DESCRIBE {quote_identifier(table)}").fetchall()
+    types = {c: t for c, t, *_ in rows}
+    numeric = [
+        c
+        for c in columns
+        if types[c] in {"DOUBLE", "FLOAT"} or types[c].startswith("DECIMAL")
+    ]
+    if not numeric:
+        return set()
+    select = ", ".join(
+        f"COALESCE(bool_or({quote_identifier(c)} != trunc({quote_identifier(c)})), "
+        "false)"
+        for c in numeric
+    )
+    result = conn.execute(f"SELECT {select} FROM {quote_identifier(table)}").fetchone()
+    return {c for c, fractional in zip(numeric, result, strict=True) if fractional}
+
+
 _MIN_ROWS_FOR_SPATIAL_COHERENCE = 10
 _MIN_SPATIAL_R2 = 0.7
 
@@ -866,8 +888,12 @@ def resolve_columns(
     # An all-null column has no evidence either way, same principle as _embeds();
     # a date/time column is categorically never an admin identity column.
     temporal_columns = _temporal_columns(conn, table, columns)
+    # A fractional value is a measurement (area, coordinate), never an identity.
+    fractional_columns = _fractional_columns(conn, table, columns)
     chainable_columns = [
-        c for c in columns if counts[c] > 0 and c not in temporal_columns
+        c
+        for c in columns
+        if counts[c] > 0 and c not in temporal_columns and c not in fractional_columns
     ]
     level_groups = _build_level_groups(conn, table, chainable_columns, counts)
     level_groups = _order_groups_by_containment(conn, table, level_groups)
@@ -902,7 +928,11 @@ def resolve_columns(
     chained_columns = {c for _count, cols in chain for c in cols}
     vetoed_rows = _vetoed_rows(chain, vetoed, counts, offset)
     other_columns = [
-        c for c in columns if c not in chained_columns and c not in vetoed_rows
+        c
+        for c in columns
+        if c not in chained_columns
+        and c not in vetoed_rows
+        and c not in fractional_columns
     ]
 
     other_rows = _bracket_other_columns(
