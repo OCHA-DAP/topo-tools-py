@@ -694,3 +694,17 @@ def test_single_row_constants_are_one_level(tmp_path):
     out = tmp_path / "crosswalk.csv"
     map(path, out, overwrite=True)
     assert all(not r["target_column"] for r in _crosswalk(out).values())
+
+
+def test_blank_constant_is_not_embedded_in_names(tmp_path):
+    path = tmp_path / "blank.parquet"
+    names = ["Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot"]
+    rows = [
+        (_unit_square(i), "AA", "Country", "", name, f"AA{i:02d}")
+        for i, name in enumerate(names)
+    ]
+    columns = ["geom", "adm0_pcode", "adm0_name", "blank", "adm1_name", "adm1_pcode"]
+    _write_table(path, columns, rows)
+    out = tmp_path / "crosswalk.csv"
+    map(path, out, overwrite=True)
+    assert _crosswalk(out)["adm1_name"]["target_column"] == "adm1_name"

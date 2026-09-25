@@ -134,8 +134,10 @@ def _embeds(
 
     The tolerance itself is trusted only if `child` is also spatially coherent.
     """
+    # A blank parent value is contained in every string, so it's no evidence.
     evaluated_where = f"""
-        {quote_identifier(child)} IS NOT NULL AND {quote_identifier(parent)} IS NOT NULL
+        {quote_identifier(child)} IS NOT NULL
+        AND trim(CAST({quote_identifier(parent)} AS VARCHAR)) != ''
     """
     not_contains = f"""
         NOT contains(
