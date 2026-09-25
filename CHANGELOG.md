@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   level's codes embedding it (e.g. senatorial districts over LGAs), and
   alone breaks the column naming the rest of the chain shares, is reported
   as `supplemental` rather than taking a level of its own.
+- `schema-join`: a shared column whose type differs between child and
+  parent (e.g. INTEGER vs VARCHAR) is compared as text, rather than
+  failing the whole join on a cast error.
 
 ## [0.8.0] - 2026-09-24
 

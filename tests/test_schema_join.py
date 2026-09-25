@@ -382,3 +382,17 @@ def test_sibling_of_digit_ending_column_is_separated(tmp_path):
         "NAME_1",
         "GID_1",
     ]
+
+
+def test_shared_column_of_another_type_kept_side_by_side(parent_path, tmp_path):
+    code = 7
+    rows = [{**r, "adm2_code": code} for r in _children()]
+    child = tmp_path / "typed.parquet"
+    _write(child, rows)
+    out = tmp_path / "out.parquet"
+    join(child, parent_path, out)
+
+    cols, result = _read(out)
+    row = next(r for r in result if r[cols.index("adm3_code")] == "A0101")
+    assert row[cols.index("adm2_code")] == code
+    assert row[cols.index("adm2_code1")] == "A01"

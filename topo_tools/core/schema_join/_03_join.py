@@ -20,10 +20,13 @@ from topo_tools.core.schema_map._target_schema import (
 logger = getLogger(__name__)
 
 
+def _column_types(conn: DuckDBPyConnection, table: str) -> dict[str, str]:
+    rows = conn.execute(f"DESCRIBE {quote_identifier(table)}").fetchall()
+    return {r[0]: r[1] for r in rows}
+
+
 def _columns(conn: DuckDBPyConnection, table: str) -> list[str]:
-    return [
-        r[0] for r in conn.execute(f"DESCRIBE {quote_identifier(table)}").fetchall()
-    ]
+    return list(_column_types(conn, table))
 
 
 def parent_hierarchy_columns(
@@ -56,8 +59,10 @@ def _next_free_name(column: str, taken: set[str]) -> str:
 def main(conn: DuckDBPyConnection, name: str, schema: TargetSchema | None) -> None:
     """Build `{name}_03` (joined output) and `{name}_03_mismatch` (differing values)."""
     parent_table = f"{name}_parent_01"
-    child_columns = _columns(conn, f"{name}_child_01")
-    taken = set(child_columns) | set(_columns(conn, parent_table))
+    child_types = _column_types(conn, f"{name}_child_01")
+    parent_types = _column_types(conn, parent_table)
+    child_columns = list(child_types)
+    taken = set(child_columns) | set(parent_types)
 
     exprs = {
         c: f"c.{quote_identifier(c)}"
@@ -70,11 +75,14 @@ def main(conn: DuckDBPyConnection, name: str, schema: TargetSchema | None) -> No
         if column not in child_columns:
             exprs[column] = f"p.{col}"
             continue
+        # Mismatched types compare as text so an unrelated cast can't fail.
+        cast = "" if child_types[column] == parent_types[column] else "::VARCHAR"
+        distinct = f"c.{col}{cast} IS DISTINCT FROM p.{col}{cast}"
         differs = conn.execute(f"""--sql
             SELECT COUNT(*) FROM "{name}_child_01" c
             JOIN "{name}_02_assign" a ON a.child_fid = c.fid
             JOIN "{parent_table}" p ON p.fid = a.parent_fid
-            WHERE c.{col} IS DISTINCT FROM p.{col}
+            WHERE {distinct}
         """).fetchone()[0]
         if not differs:
             continue
@@ -96,7 +104,7 @@ def main(conn: DuckDBPyConnection, name: str, schema: TargetSchema | None) -> No
             JOIN "{name}_02_assign" a ON a.child_fid = c.fid
             JOIN "{parent_table}" p ON p.fid = a.parent_fid
             WHERE c.{col} IS NOT NULL AND p.{col} IS NOT NULL
-              AND c.{col} IS DISTINCT FROM p.{col}
+              AND {distinct}
         """)
 
     template = schema or DEFAULT_TARGET_SCHEMA
