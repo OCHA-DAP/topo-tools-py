@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `schema-join`: a shared column whose type differs between child and
   parent (e.g. INTEGER vs VARCHAR) is compared as text, rather than
   failing the whole join on a cast error.
+- `schema-map`: a single-feature file's constant columns form one root
+  level, rather than chaining one level per column (e.g. `area_sqkm` as
+  `adm1_code` in an admin0 file).
 
 ## [0.8.0] - 2026-09-24
 

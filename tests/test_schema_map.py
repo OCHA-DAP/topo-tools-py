@@ -685,3 +685,12 @@ def test_cli_level(no_country_input, tmp_path):
     )
     assert result.exit_code == 0, result.output
     assert _crosswalk(out)["reg_code"]["target_column"] == "adm1_code"
+
+
+def test_single_row_constants_are_one_level(tmp_path):
+    path = tmp_path / "admin0.parquet"
+    columns = ["geom", "adm0_name", "adm0_pcode", "iso2", "version", "area_sqkm"]
+    _write_table(path, columns, [(_unit_square(0), "Alpha", "AA", "A", "v1", 12.5)])
+    out = tmp_path / "crosswalk.csv"
+    map(path, out, overwrite=True)
+    assert all(not r["target_column"] for r in _crosswalk(out).values())
