@@ -589,7 +589,7 @@ def _veto_unanchored_groupings(
     best_edge_embeds: list[bool],
     in_root_prefix: list[bool],
 ) -> tuple[list[int], list[tuple[list[str], list[str]]]]:
-    """Drop a level linked to its child only unembedded whose naming breaks the chain's.
+    """Drop a level linked to its child only unembedded, the odd one out by naming.
 
     Returns the kept chain, and each dropped group with the child it nests.
     """
@@ -599,12 +599,15 @@ def _veto_unanchored_groupings(
     while pos < len(chain_indices) - 1:
         parent, group, child = chain_indices[pos - 1 : pos + 2]
         with_group = [groups[i][1] for i in chain_indices]
-        without = with_group[:pos] + with_group[pos + 1 :]
+        without = _shared_naming_length(with_group[:pos] + with_group[pos + 1 :])
+        without_child = _shared_naming_length(
+            with_group[: pos + 1] + with_group[pos + 2 :]
+        )
         if (
             not embedded[child]
             and not in_root_prefix[group]
             and edges[parent, child][0]
-            and _shared_naming_length(without) > _shared_naming_length(with_group)
+            and without > max(_shared_naming_length(with_group), without_child)
         ):
             vetoed.append((groups[group][1], groups[child][1]))
             embedded[child] = edges[parent, child][1]
