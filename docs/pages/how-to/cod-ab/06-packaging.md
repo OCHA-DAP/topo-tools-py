@@ -1,13 +1,11 @@
 ---
-title: "5. Package for output"
+status: draft
+title: "6. Packaging"
 ---
 
-Last step of [preparing an administrative boundary
-release](administrative-boundary-release/). Run `package` directly
-against the coded output of step 3, not step 2's dissolve-completeness
-check: `package-points`/`package-lines` each stamp their own depth column
-and would collide with an existing `adm_lvl` (see
-`docs/pages/reference/package.md`).
+Last step of COD-AB
+cleaning. Run `package` against
+the coded output of step 4, with step 5's name fixes applied.
 
     topo-tools package admin2_coded.parquet --output "release/{x}.parquet" \
       --name-field "adm{n}_name" --code-field "adm{n}_code" \

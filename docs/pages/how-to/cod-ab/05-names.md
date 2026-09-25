@@ -1,12 +1,11 @@
 ---
-title: "4. Review names"
+status: draft
+title: "5. Names"
 ---
 
-Fourth step of [preparing an administrative boundary
-release](administrative-boundary-release/). Continues from the coded
-output of [step 3](03-codes/). No dedicated tool yet, `schema-fill` is
-built for bulk/global dataset production, not per-country name review, so
-this step is manual investigation, generally covering:
+Fifth step of COD-AB cleaning. Continues from the coded output of
+[step 4](04-codes/). No dedicated tool yet, so this step is manual
+investigation, generally covering:
 
 - **Duplicates under the same parent**: two units sharing a name (or a
   near-identical one) under the same immediate parent.

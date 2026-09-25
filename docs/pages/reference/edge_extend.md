@@ -1,4 +1,5 @@
 ---
+status: draft
 title: "edge-extend"
 ---
 
@@ -65,3 +66,17 @@ See `docs/reference/README.md` for the MUST/SHOULD/MAY convention, and
   overwriting wasn't requested.
 - `step`, if given, MUST be one of `inputs`, `lines`, `attempt`, `merge`,
   `outputs`; any other value MUST raise `ValueError`.
+
+## Examples
+
+### Example 1: basic run, output name chosen automatically
+
+    topo-tools edge-extend example.geojson
+
+### Example 2: explicit output
+
+    topo-tools edge-extend example.gpkg example_extended.gpkg
+
+### Example 3: rerun and overwrite a previous output
+
+    topo-tools edge-extend example.parquet example_extended.parquet --overwrite

@@ -1,4 +1,5 @@
 ---
+status: draft
 title: "schema-fill"
 ---
 
@@ -63,3 +64,21 @@ See `docs/reference/README.md` for the MUST/SHOULD/MAY convention, and
   value MUST raise `ValueError`.
 - `schema-fill` MAY accept `depth_column`/`--depth-column`, overriding the
   `adm_lvl` default name for the stamped depth column.
+
+## Examples
+
+### Example 1: basic run, structural auto-detection, output name chosen automatically
+
+    topo-tools schema-fill admin4.parquet
+
+### Example 2: custom target naming
+
+    topo-tools schema-fill admin4.parquet --name-field state_name --code-field state_code
+
+### Example 3: explicit output
+
+    topo-tools schema-fill admin4.gpkg admin4_fill.gpkg --name-field state_name --code-field state_code
+
+### Example 4: custom depth column name
+
+    topo-tools schema-fill admin4.parquet admin4_fill.parquet --depth-column adm_depth

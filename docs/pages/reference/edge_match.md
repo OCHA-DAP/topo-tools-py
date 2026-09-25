@@ -1,4 +1,5 @@
 ---
+status: draft
 title: "edge-match"
 ---
 
@@ -196,3 +197,22 @@ tools.
   itself, while `merge`'s own gap-fill (`fill_unmatched_parents()`, see
   `docs/adr/0083`) fills a per-parent geometry-coverage gap left by the
   match; the two compose freely (see `docs/adr/0095`).
+
+## Examples
+
+### Example 1: fit an admin4 layer into a single country boundary, output name chosen automatically
+
+    topo-tools edge-match adm4.geojson adm0.geojson
+
+### Example 2: fit admin3 into admin2 groups, explicit output
+
+    topo-tools edge-match adm3.gpkg adm2.gpkg adm3_matched.gpkg
+
+### Example 3: custom issues report path
+
+    topo-tools edge-match adm3.gpkg adm2.gpkg adm3_matched.gpkg \
+      --issues-file match_report.gpkg
+
+### Example 4: cascade admin-hierarchy columns and stamp each row's depth before export
+
+    topo-tools edge-match adm3.gpkg adm2.gpkg adm3_matched.gpkg --fill-schema

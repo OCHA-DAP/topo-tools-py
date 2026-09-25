@@ -1,4 +1,5 @@
 ---
+status: draft
 title: "package-lines"
 ---
 
@@ -73,3 +74,19 @@ tools.
 - `name_field`/`code_field` MUST be given together, or both omitted; when
   both are omitted, `package-lines` MUST fall back to full structural
   auto-detection of every level.
+
+## Examples
+
+### Example 1: default naming
+
+Produces `adm3_lines.geojson`, combining shared and exterior boundaries
+from every detected level, deduplicated so no segment repeats:
+
+    topo-tools package-lines adm3.geojson
+
+### Example 2: style by boundary depth
+
+`adm_lvl` (or a custom `--depth-column`) lets a web map style an
+international boundary (level 0) differently from a sub-national one:
+
+    topo-tools package-lines adm3.geojson --depth-column boundary_level

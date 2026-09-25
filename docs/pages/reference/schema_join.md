@@ -1,4 +1,5 @@
 ---
+status: draft
 title: "schema-join"
 ---
 
@@ -86,3 +87,22 @@ overwrite any child value (see `docs/adr/0109`).
   `ValueError` outside `(0, 1]`.
 - `step`, if given, MUST be one of `inputs`, `assign`, `join`, `outputs`;
   any other value MUST raise `ValueError`.
+
+## Examples
+
+### Example 1: basic run, structural auto-detection, output name chosen automatically
+
+    topo-tools schema-join admin3.parquet admin2.parquet
+
+### Example 2: chain levels coarsest-first
+
+    topo-tools schema-join admin2.parquet admin1.parquet admin2_join.parquet
+    topo-tools schema-join admin3.parquet admin2_join.parquet admin3_join.parquet
+
+### Example 3: custom target naming
+
+    topo-tools schema-join admin3.parquet admin2.parquet --name-field adm{n}_name --code-field adm{n}_pcode
+
+### Example 4: explicit issues path and a stricter overlap threshold
+
+    topo-tools schema-join admin3.gpkg admin2.gpkg admin3_join.gpkg --issues-output review.gpkg --min-overlap 0.9

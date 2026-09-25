@@ -7,75 +7,37 @@ edit_uri = "edit/main/docs/pages/"
 
 docs_dir = "pages"
 site_dir = "site"
+extra_css = ["stylesheets/extra.css"]
 
 nav = [
   { "Tutorials" = [
     "tutorials/index.md",
     "tutorials/change.md",
-    { "Code" = [
-      "tutorials/code_overview.md",
-      "tutorials/code_refactor.md",
-      "tutorials/code_update.md",
-    ] },
-    { "Edge" = [
-      "tutorials/edge_overview.md",
-      "tutorials/edge_clip.md",
-      "tutorials/edge_extend.md",
-      "tutorials/edge_match.md",
-      "tutorials/edge_mosaic.md",
-      "tutorials/edge_stitch.md",
-    ] },
-    { "Package" = [
-      "tutorials/package_overview.md",
-      "tutorials/package.md",
-      "tutorials/package_lines.md",
-      "tutorials/package_points.md",
-      "tutorials/package_polygons.md",
-    ] },
-    { "Schema" = [
-      "tutorials/schema_overview.md",
-      "tutorials/schema_crosswalk.md",
-      "tutorials/schema_fill.md",
-      "tutorials/schema_join.md",
-      "tutorials/schema_map.md",
-      "tutorials/schema_refactor.md",
-    ] },
-    { "Topo" = [
-      "tutorials/topo_overview.md",
-      "tutorials/topo_clean.md",
-      "tutorials/topo_detect.md",
-    ] },
+    "tutorials/code.md",
+    "tutorials/edge.md",
+    "tutorials/package.md",
+    "tutorials/schema.md",
+    "tutorials/topo.md",
   ] },
   { "How-to" = [
     "how-to/index.md",
-    { "Prepare an administrative boundary release" = [
-      "how-to/administrative-boundary-release.md",
-      "how-to/01-schema.md",
-      "how-to/02-geometry.md",
-      "how-to/03-codes.md",
-      "how-to/04-names.md",
-      "how-to/05-packaging.md",
+    { "COD-AB cleaning" = [
+      "how-to/cod-ab/01-schema.md",
+      "how-to/cod-ab/02-topology.md",
+      "how-to/cod-ab/03-edge-matching.md",
+      "how-to/cod-ab/04-codes.md",
+      "how-to/cod-ab/05-names.md",
+      "how-to/cod-ab/06-packaging.md",
     ] },
-    "how-to/fix-gaps-and-overlaps.md",
-    "how-to/fit-a-finer-layer-to-a-parent.md",
-    "how-to/map-and-rename-columns.md",
-    "how-to/fill-hierarchy-columns.md",
-    "how-to/package-for-a-web-map.md",
-    "how-to/compare-boundary-versions.md",
-    "how-to/assign-hierarchical-codes.md",
-    "how-to/clip-and-stitch-tiles.md",
-    "how-to/extend-a-layer-outward.md",
   ] },
   { "Reference" = [
     "reference/index.md",
     "reference/change.md",
     { "Code" = [
-      "reference/code_overview.md",
       "reference/code_refactor.md",
       "reference/code_update.md",
     ] },
     { "Edge" = [
-      "reference/edge_overview.md",
       "reference/edge_clip.md",
       "reference/edge_extend.md",
       "reference/edge_match.md",
@@ -83,14 +45,12 @@ nav = [
       "reference/edge_stitch.md",
     ] },
     { "Package" = [
-      "reference/package_overview.md",
       "reference/package.md",
       "reference/package_lines.md",
       "reference/package_points.md",
       "reference/package_polygons.md",
     ] },
     { "Schema" = [
-      "reference/schema_overview.md",
       "reference/schema_crosswalk.md",
       "reference/schema_fill.md",
       "reference/schema_join.md",
@@ -99,7 +59,6 @@ nav = [
     ] },
     "reference/shared.md",
     { "Topo" = [
-      "reference/topo_overview.md",
       "reference/topo_clean.md",
       "reference/topo_detect.md",
     ] },
@@ -146,8 +105,15 @@ nav = [
     "explanation/topology.md",
     "explanation/voronoi-memory.md",
   ] },
-  { "For agents" = ["agents/index.md"] },
+  { "Agents" = [
+    "agents/index.md",
+    "agents/claude-code.md",
+    "agents/other-agents.md",
+  ] },
 ]
+
+[project.extra.status]
+draft = "Draft, not yet reviewed"
 
 [project.theme]
 language = "en"
@@ -194,6 +160,7 @@ attr_list = {}
 def_list = {}
 footnotes = {}
 md_in_html = {}
+sane_lists = {}
 toc.permalink = true
 pymdownx.arithmatex.generic = true
 pymdownx.betterem = {}

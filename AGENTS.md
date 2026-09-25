@@ -254,8 +254,9 @@ file (or an old/new comparison pair, for `change`) from the catalog.
 
 ## Reference Docs
 
-- `docs/pages/tutorials/{tool}.md`: GDAL-style getting-started examples per tool
-- `docs/pages/reference/{tool}.md`: behavior contract per tool (`shared.md` for common settings/gates)
+- `docs/pages/tutorials/{group}.md`: one simple walkthrough per tool group (change, code, edge, package, schema, topo)
+- `docs/pages/how-to/`: multi-group tasks (the administrative boundary release series)
+- `docs/pages/reference/{tool}.md`: behavior contract per tool, GDAL-style `## Examples` at the end (`shared.md` for common settings/gates)
 - `docs/pages/explanation/{tool}.md`: stage-by-stage detail for `edge_extend`, `topology`, `assign`, `edge_clip`, `edge_stitch`, `topo_detect`, `edge_match`, `edge_mosaic`, `topo_clean`, `change`, `schema_map`, `schema_refactor`, `schema_crosswalk`, `schema_fill`, `schema_join`, `package_polygons`, `package_points`, `package_lines`, `package`, `code`, `code_refactor`, `code_update`; notable: `topology.md` has the SPATIAL_JOIN memory bug, `performance.md` has thread-scaling benchmarks + the RTREE experiment, `voronoi-memory.md` has per-file resampling distance and memory ceilings for `phl_admin3`/`idn_admin3`, `edge_match.md` has the `check_gaps` caveat
 - `docs/`: a Zensical site (published to GitHub Pages by `.github/workflows/docs.yml`), rooted at `docs/` with content under `docs/pages/`; `docs/adr/` sits outside the site's content tree, unpublished
 - `.claude/skills/`: `publishing` (PyPI release via OIDC), `verify-duckdb-function` (DuckDB/spatial function lookup), `at-scale-testing` (portolan catalog layout, picking a test file/pair), `manual-dev-testing` (running any tool against your own data)

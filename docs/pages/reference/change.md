@@ -1,4 +1,5 @@
 ---
+status: draft
 title: "change"
 ---
 
@@ -104,3 +105,22 @@ See `docs/reference/README.md` for the MUST/SHOULD/MAY convention, and
   `auto`/`all` string mode.
 - `step`, if given, MUST be one of `inputs`, `overlap`, `classify`,
   `outputs`; any other value MUST raise `ValueError`.
+
+## Examples
+
+### Example 1: compare two versions by spatial overlap alone, output name chosen automatically
+
+    topo-tools change admin2_2020.geojson admin2_2024.geojson
+
+### Example 2: explicit output and overlay file paths
+
+    topo-tools change old.gpkg new.gpkg changelog.csv --overlay-file overlay.gpkg
+
+### Example 3: also link units sharing a unique code across versions
+
+    topo-tools change old.gpkg new.gpkg --link-by-code \
+      --code-column-a adm2_pcode --code-column-b adm2_pcode
+
+### Example 4: loosen the "related" threshold for heavily redrawn boundaries
+
+    topo-tools change old.parquet new.parquet --tau-match 0.6

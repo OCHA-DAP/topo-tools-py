@@ -1,6 +1,6 @@
 ---
 name: cod-ab
-description: Clean, code, and package COD-AB administrative boundary polygons with topo-tools (schema mapping, topology repair, hierarchical coding, edge-fitting, hierarchy fill, cartographic packaging).
+description: Clean, code, and package COD-AB administrative boundary polygons with topo-tools (schema mapping, topology repair, edge matching, hierarchical coding, name review, cartographic packaging).
 ---
 
 Guide the user through cleaning and reconciling a COD-AB administrative
@@ -84,7 +84,7 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
    confirmed `vNN` for the rest of this skill. `00a_old/` is absent when
    there's no previous version.
 4. Check `02_working/{iso3}/{version}/` for stage folders (`01_schema/`
-   through `05_packaging/`). Each stage's own tool output,
+   through `06_packaging/`). Each stage's own tool output,
    and, where produced, its issues file, is the audit trail, no separate
    report file. A stage counts as complete only when its defining output
    exists, not just an issues file (a stage that ran
@@ -95,10 +95,11 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
    | Stage | Defining output |
    | --- | --- |
    | `01_schema/` | `{iso3}_admin{n}.parquet` for every supplied level, plus `{iso3}_admin{n}_issues.parquet` only where `schema-join` wrote issues; no other parquet |
-   | `02_geometry/` | the topo-cleaned file (edge-match is conditional, skip if not applicable) |
-   | `03_codes/` | the code-refactored file |
-   | `04_names/` | the names issues file (present, any row count, even zero, since this stage has no other output) |
-   | `05_packaging/` | one parquet per output layer |
+   | `02_topology/` | the topo-cleaned file (the finer-level edge-match is conditional, skip if not applicable) |
+   | `03_edge_matching/` | the edge-matched file |
+   | `04_codes/` | the coded file |
+   | `05_names/` | the names issues file (present, any row count, even zero, since this stage has no other output) |
+   | `06_packaging/` | one parquet per output layer |
 
    The highest-numbered stage with its defining output present marks the
    last completed stage; resume at the next one. No stage folders yet
@@ -109,8 +110,9 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
    file/layer, report feature count, column names, and a few sample
    p-code/name values via DuckDB. Use the deepest file/layer as the base,
    the only one carried past stage 1 (every ancestor level is derived from it by
-   dissolve in stage 2), and the country's ISO2 code as stage 3's
-   `--root-code` under the legacy p-code scheme. State both before
+   dissolve in stage 6), and the country's ISO2 code as stage 4's
+   `--root-code` under the legacy p-code scheme (`code-refactor` only, when
+   `00a_old/` is absent). State both before
    continuing, with the base's name, feature count, and why it qualifies.
    Ask the user to pick a shallower base only if the deepest one looks
    partial or low quality (doesn't cover the whole country, has missing
@@ -128,31 +130,35 @@ Work through these in order, writing each stage's own output into its
 matching `02_working/{iso3}/{version}/0N_stage/` folder (the linked guides below
 use generic placeholder filenames, substitute your own paths there).
 
-1. [Map the source schema](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/01-schema.md)
-2. [Clean geometry](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/02-geometry.md)
+1. [Schema](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/cod-ab/01-schema.md)
+2. [Topology](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/cod-ab/02-topology.md)
 
    Always ask whether any large `topo-detect` gap is a lake or other
    water body left outside every unit, showing the largest gaps (area,
    width, PNG render) and whether `00a_old/` has the same holes. "No"
    means `--maximum-gap-width all`; "yes" means no flag.
-3. [Assign hierarchical codes](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/03-codes.md)
-4. [Review names](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/04-names.md)
-5. [Package for output](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/05-packaging.md)
+3. [Edge matching](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/cod-ab/03-edge-matching.md)
+4. [Codes](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/cod-ab/04-codes.md)
+
+   Use the base-level file in `00a_old/` as `code-update`'s OLD file.
+   When `00a_old/` is absent, use `code-refactor` instead.
+5. [Names](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/cod-ab/05-names.md)
+6. [Packaging](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/cod-ab/06-packaging.md)
 
 ## Candidates
 
-After stage 5, export each release candidate (`rc`) sent for review:
+After stage 6, export each release candidate (`rc`) sent for review:
 
 1. Set `{NN}` to the next candidate number after the highest in
    `03_outputs/{iso3}/{version}/`, starting at `01`. Never overwrite an
    existing candidate.
-2. Write every `05_packaging/` parquet as one layer of
+2. Write every `06_packaging/` parquet as one layer of
    `03_outputs/{iso3}/{version}/{iso3}_{version}_rc{NN}.gdb` with
    `uv run <skill-dir>/scripts/convert.py to-gdb {gdb} {parquet}...`.
 3. Write `{iso3}_{version}_rc{NN}_review.gdb` alongside it with
    `convert.py to-gdb {gdb} {stage}={issues.parquet}... change={change.parquet}`:
    each stage's issues file as a layer named after its stage without the
-   number prefix (`schema`, `geometry`, ...), plus `change` output
+   number prefix (`schema`, `topology`, ...), plus `change` output
    comparing this candidate against the previous one (`rc01`: against
    `00a_old/`, skipped when absent).
 

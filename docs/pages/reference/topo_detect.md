@@ -1,4 +1,5 @@
 ---
+status: draft
 title: "topo-detect"
 ---
 
@@ -47,3 +48,13 @@ See `docs/reference/README.md` for the MUST/SHOULD/MAY convention, and
   exists and overwriting wasn't requested.
 - `step`, if given, MUST be one of `inputs`, `issues`, `outputs`; any
   other value MUST raise `ValueError`.
+
+## Examples
+
+### Example 1: basic run, output name chosen automatically
+
+    topo-tools topo-detect example.geojson
+
+### Example 2: explicit output
+
+    topo-tools topo-detect example.gpkg example_issues.gpkg

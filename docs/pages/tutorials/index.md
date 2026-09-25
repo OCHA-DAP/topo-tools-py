@@ -1,11 +1,14 @@
 ---
+status: draft
 title: "Tutorials"
 ---
 
-Learning-oriented, hand-holding lessons for newcomers to this repo. A
-tutorial takes a beginner from zero to a working result step by step.
+Simple walkthroughs, one per tool group. Each runs that group's tools in
+order on one layer.
 
-<div class="grid cards" markdown>
+## Draft
+
+<div class="grid cards draft" markdown>
 
 -   :material-compare:{ .lg .middle } **change**
 
@@ -13,7 +16,7 @@ tutorial takes a beginner from zero to a working result step by step.
 
     Compare an old/new polygon layer pair and classify every unit.
 
-    [:octicons-arrow-right-24: change](change)
+    [:octicons-arrow-right-24: change](change.md)
 
 -   :material-tag-multiple-outline:{ .lg .middle } **Code**
 
@@ -21,7 +24,7 @@ tutorial takes a beginner from zero to a working result step by step.
 
     code-refactor, code-update: assign or reconcile hierarchical codes.
 
-    [:octicons-arrow-right-24: Code](code_refactor)
+    [:octicons-arrow-right-24: Code](code.md)
 
 -   :material-swap-horizontal:{ .lg .middle } **Edge**
 
@@ -30,7 +33,7 @@ tutorial takes a beginner from zero to a working result step by step.
     edge-clip, edge-extend, edge-match, edge-mosaic, edge-stitch: fit and
     stitch boundary layers together.
 
-    [:octicons-arrow-right-24: Edge](edge_clip)
+    [:octicons-arrow-right-24: Edge](edge.md)
 
 -   :material-package-variant-closed:{ .lg .middle } **Package**
 
@@ -39,16 +42,16 @@ tutorial takes a beginner from zero to a working result step by step.
     package, package-lines, package-points, package-polygons: cartographic
     outputs for a web map.
 
-    [:octicons-arrow-right-24: Package](package)
+    [:octicons-arrow-right-24: Package](package.md)
 
 -   :material-table-edit:{ .lg .middle } **Schema**
 
     ---
 
-    schema-crosswalk, schema-fill, schema-map, schema-refactor: crosswalk
-    and fill a column schema.
+    schema-crosswalk, schema-fill, schema-join, schema-map, schema-refactor:
+    crosswalk, join, and fill a column schema.
 
-    [:octicons-arrow-right-24: Schema](schema_crosswalk)
+    [:octicons-arrow-right-24: Schema](schema.md)
 
 -   :material-vector-polygon:{ .lg .middle } **Topo**
 
@@ -56,6 +59,6 @@ tutorial takes a beginner from zero to a working result step by step.
 
     topo-clean, topo-detect: detect and fix single-layer coverage defects.
 
-    [:octicons-arrow-right-24: Topo](topo_clean)
+    [:octicons-arrow-right-24: Topo](topo.md)
 
 </div>

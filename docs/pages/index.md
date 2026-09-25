@@ -1,4 +1,5 @@
 ---
+status: draft
 title: Topo Tools
 ---
 
@@ -42,13 +43,13 @@ administrative boundary polygons, as a Python/CLI package and library.
 
     [:octicons-arrow-right-24: Explanation](explanation/)
 
--   :material-robot:{ .lg .middle } **For agents**
+-   :material-robot:{ .lg .middle } **Agents**
 
     ---
 
     A prompt to paste into an agent, and how to install the `topo-tools`
     skill.
 
-    [:octicons-arrow-right-24: For agents](agents/index.md)
+    [:octicons-arrow-right-24: Agents](agents/index.md)
 
 </div>

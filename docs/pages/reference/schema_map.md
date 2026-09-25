@@ -1,4 +1,5 @@
 ---
+status: draft
 title: "schema-map"
 ---
 
@@ -183,3 +184,25 @@ empirical justification.
 - `level`, if given, MUST be a non-negative integer (`--level`).
 - `step`, if given, MUST be one of `inputs`, `schema-map`, `outputs`; any
   other value MUST raise `ValueError`.
+
+## Examples
+
+### Example 1: basic run, default (`adm{n}_name`/`adm{n}_code`) naming, output name chosen automatically
+
+    topo-tools schema-map example.geojson
+
+### Example 2: custom target naming
+
+    topo-tools schema-map example.geojson --name-field state_name --code-field state_code
+
+### Example 3: explicit output
+
+    topo-tools schema-map example.gpkg crosswalk.csv --name-field state_name --code-field state_code
+
+### Example 4: number levels from the file's own admin level
+
+    topo-tools schema-map admin3.geojson --level 3
+
+### Example 5: number a multi-country file
+
+    topo-tools schema-map global_admin1.geojson --level 1

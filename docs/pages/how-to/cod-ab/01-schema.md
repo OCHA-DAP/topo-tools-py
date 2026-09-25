@@ -1,9 +1,8 @@
 ---
-title: "1. Map the source schema"
+title: "1. Schema"
 ---
 
-First step of [preparing an administrative boundary
-release](administrative-boundary-release/).
+First step of COD-AB cleaning.
 
 Run `schema-map` on each supplied level:
 
@@ -39,6 +38,6 @@ child's column and adds the parent's as the next free sibling
 (`adm2_name1`), filled on every row. Its issues file lists:
 
 - `value-mismatch`: a differing name or code, settled in
-  [review names](04-names/);
+  [review names](05-names/);
 - `no-parent`, `low-overlap`: a child outside or mostly outside its
   parent, settled with the data provider before coding.

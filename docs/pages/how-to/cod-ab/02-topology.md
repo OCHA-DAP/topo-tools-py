@@ -1,9 +1,8 @@
 ---
-title: "2. Clean geometry"
+title: "2. Topology"
 ---
 
-Second step of [preparing an administrative boundary
-release](administrative-boundary-release/).
+Second step of COD-AB cleaning.
 
 Run `topo-detect` first to list your dataset's gaps and overlaps:
 

@@ -1,4 +1,5 @@
 ---
+status: draft
 title: "edge-mosaic"
 ---
 
@@ -170,3 +171,25 @@ tools.
   itself, while `merge`'s own gap-fill (`fill_unmatched_parents()`, see
   `docs/adr/0083`) fills a per-parent geometry-coverage gap left by the
   mosaic; the two compose freely (see `docs/adr/0095`).
+
+## Examples
+
+### Example 1: re-clip a pre-extended layer against a new parent boundary, explicit output
+
+    topo-tools edge-mosaic adm3_extended.parquet adm0_new.geojson adm3_mosaicked.parquet
+
+### Example 2: custom issues report path
+
+    topo-tools edge-mosaic adm3_extended.parquet adm0_new.geojson adm3_mosaicked.parquet \
+      --issues-file mosaic_report.parquet
+
+### Example 3: combine multiple pre-extended children files, then re-clip
+
+`--input` MAY be repeated and/or comma-separated.
+
+    topo-tools edge-mosaic afg.parquet world_adm0.geojson out.parquet \
+      --input ago.parquet,are.parquet
+
+### Example 4: cascade admin-hierarchy columns and stamp each row's depth before export
+
+    topo-tools edge-mosaic adm3_extended.parquet adm0_new.geojson adm3_mosaicked.parquet --fill-schema

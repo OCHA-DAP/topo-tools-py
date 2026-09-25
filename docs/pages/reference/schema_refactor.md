@@ -1,4 +1,5 @@
 ---
+status: draft
 title: "schema-refactor"
 ---
 
@@ -54,3 +55,13 @@ See `docs/reference/README.md` for the MUST/SHOULD/MAY convention, and
   They set column and row order only.
 - `step`, if given, MUST be one of `inputs`, `rename`, `outputs`; any
   other value MUST raise `ValueError`.
+
+## Examples
+
+### Example 1: basic run, output name chosen automatically
+
+    topo-tools schema-refactor example.geojson crosswalk.csv
+
+### Example 2: explicit output
+
+    topo-tools schema-refactor example.gpkg crosswalk.csv example_mapped.gpkg
