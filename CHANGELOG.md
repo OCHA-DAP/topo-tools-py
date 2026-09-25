@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `schema-map`: a single-feature file's constant columns form one root
   level, rather than chaining one level per column (e.g. `area_sqkm` as
   `adm1_code` in an admin0 file).
+- Input loading: geometry is repaired again after reprojecting to
+  EPSG:4326, since reprojection can itself make a valid polygon invalid
+  (e.g. a sliver with near-duplicate vertices), which crashed later GEOS
+  operations with a `TopologyException`.
 
 ## [0.8.0] - 2026-09-24
 

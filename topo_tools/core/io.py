@@ -157,13 +157,14 @@ def reproject_select_sql(
     # ST_Read tags geometry with source CRS; single-arg ST_Transform infers it.
     # Parquet geometries are untagged (assumed EPSG:4326), so skip transform.
     geom_expr = (
-        f"ST_Force2D(ST_Transform(ST_MakeValid(\"{geom_col}\"), 'EPSG:4326'))"
+        "ST_Force2D(ST_MakeValid(ST_Transform("
+        f"ST_MakeValid(\"{geom_col}\"), 'EPSG:4326')))"
         if geom_type != "GEOMETRY"
         else f'ST_Force2D(ST_MakeValid("{geom_col}"))'
     )
 
-    # ST_MakeValid repairs broken ring orientations/self-intersections before
-    # transform; ST_Force2D drops Z/M coords downstream GEOS ops can't handle.
+    # ST_MakeValid runs again after transform, since reprojection can break
+    # validity; ST_Force2D drops Z/M coords downstream GEOS ops can't handle.
     return f"""
         SELECT * EXCLUDE ({exclude_sql}){rename_sql},
                row_number() OVER () AS fid,

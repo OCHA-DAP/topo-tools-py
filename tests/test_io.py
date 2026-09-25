@@ -122,6 +122,24 @@ def test_read_and_reproject_raises_clear_error_on_invalid_geometry(tmp_path):
             read_and_reproject(conn, "out", path)
 
 
+def test_read_and_reproject_repairs_geometry_broken_by_reprojection(tmp_path):
+    path = tmp_path / "sliver.gpkg"
+    sliver = (
+        "POLYGON ((454786.21 7408884.019999642, 454785.90625 7408884.499999642, "
+        "454785.90625000006 7408884.499999642, 454786.21 7408884.019999642))"
+    )
+    with duckdb.connect() as conn:
+        conn.execute("INSTALL spatial; LOAD spatial;")
+        conn.execute(
+            f"COPY (SELECT ST_GeomFromText('{sliver}') AS geom, 1 AS x) TO '{path}' "
+            "(FORMAT GDAL, DRIVER 'GPKG', SRS 'EPSG:32721')"
+        )
+        read_and_reproject(conn, "out", path)
+        assert conn.execute(
+            'SELECT bool_and(ST_IsValid(geom)) FROM "out_01"'
+        ).fetchone()[0]
+
+
 def test_read_and_reproject_raises_on_zero_rows(tmp_path):
     path = tmp_path / "empty.gpkg"
     with duckdb.connect() as conn:
