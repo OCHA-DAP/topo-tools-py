@@ -119,18 +119,34 @@ deciding what belongs to which level.
    nesting at all. Columns sharing a `COUNT(DISTINCT)` cluster together
    only if pairwise bijective with each other (a third column sharing
    their count but not their bijection stays its own singleton, it
-   doesn't break the other two apart). Two fully-populated constants
-   always cluster together, even in a single-row file with too few rows
-   to test a bijection, so a one-feature layer's constants form one root
-   level rather than one level per column. An all-null column (`COUNT
+   doesn't break the other two apart). That bijection test covers
+   fully-populated columns. A column with any NULL is compared only on the
+   rows where both columns are populated, since comparing it to the whole
+   dense column would miss its correspondence entirely. Sparse columns
+   populated on identical rows group first, as one level's own code and
+   name. A group populated on every row but a few attaches to a dense
+   level if it nests into exactly that level both ways (a code missing on
+   one row). Otherwise the group or a lone column joins the one cluster it
+   corresponds 1:1 with on its joint rows. That takes at least 10 joint
+   values, or every value of both columns (a small level). One duplicated
+   pair is tolerated, but a placeholder spanning many values isn't.
+   Anything matching more than one cluster joins none. Two
+   fully-populated constants always cluster together, even in a
+   single-row file with too few rows to test a bijection, so a
+   one-feature layer's constants form one root level rather than one
+   level per column. An all-null column (`COUNT
    (DISTINCT) = 0`) is excluded from this step entirely: two all-null
    columns are vacuously bijective with each other and with nothing else,
    no real evidence either way, the same principle `_embeds()` already
    applies (see `docs/adr/0069`). A date/time column is excluded the same
    way, categorically: a fully-populated pair like `created_date`/
    `update_date` can coincidentally embed into a near-unique code/name
-   column and build a chain longer than the real hierarchy. Both still
-   appear in the crosswalk, correctly falling through to `unmatched`.
+   column and build a chain longer than the real hierarchy. A float or
+   decimal column holding any non-whole value (an area, a latitude) is
+   excluded the same way: its values are measurements, never identities,
+   and they can pass as a unique-per-row companion by chance. All three
+   still appear in the crosswalk, correctly falling through to
+   `unmatched`.
 2. **Build the hierarchy as a longest path over the full containment
    DAG, embedding-justified except at a true constant**
    (`_build_chain()`, `core/schema_map/_02_map.py`): dynamic programming over

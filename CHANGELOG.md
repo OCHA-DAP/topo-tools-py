@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `schema-map`: a float or decimal column holding any fractional value
+  (an area, a coordinate) is never mapped as a level or a sibling column,
+  and falls through to `unmatched`.
+- Structural level detection: a column that is NULL on some rows clusters
+  with a level by 1:1 correspondence on the rows where both are populated,
+  never by a shared digit in the column names. Sparse levels such as
+  woredas, adminpoints hierarchies and capitals-only columns map to their
+  own level instead of merging into a neighbor or splitting off.
+
 ## [0.8.1] - 2026-09-25
 
 ### Fixed
