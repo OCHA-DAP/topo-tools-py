@@ -119,7 +119,10 @@ deciding what belongs to which level.
    nesting at all. Columns sharing a `COUNT(DISTINCT)` cluster together
    only if pairwise bijective with each other (a third column sharing
    their count but not their bijection stays its own singleton, it
-   doesn't break the other two apart). An all-null column (`COUNT
+   doesn't break the other two apart). Two fully-populated constants
+   always cluster together, even in a single-row file with too few rows
+   to test a bijection, so a one-feature layer's constants form one root
+   level rather than one level per column. An all-null column (`COUNT
    (DISTINCT) = 0`) is excluded from this step entirely: two all-null
    columns are vacuously bijective with each other and with nothing else,
    no real evidence either way, the same principle `_embeds()` already

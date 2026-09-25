@@ -336,7 +336,9 @@ def _cluster_by_bijection(
             comparable = (both_dense and counts[a] == counts[b]) or (
                 not both_dense and _same_naming_digit(a, b)
             )
-            if comparable and _bijective(conn, table, a, b):
+            # Two fully-populated constants always correspond, whatever the row count.
+            both_constant = both_dense and counts[a] == counts[b] == 1
+            if both_constant or (comparable and _bijective(conn, table, a, b)):
                 parent[find(a)] = find(b)
 
     clusters: dict[str, list[str]] = {}
