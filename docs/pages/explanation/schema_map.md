@@ -152,7 +152,8 @@ deciding what belongs to which level.
    The constant-root exemption only ever applies to an unbroken
    count-1 prefix starting at the file's own root, never a later,
    coincidentally-constant column further down the chain, and on a
-   length tie a code-shaped candidate is preferred over a name-shaped one
+   length tie a parent embedded in the finer level's codes is preferred
+   over one that isn't, then a code-shaped candidate over a name-shaped one
    (an audit column otherwise chaining as far as a real admin hierarchy
    purely by coincidence, see `docs/adr/0100`). Both the root exemption
    (when it's the edge's only justification) and the single-violator
