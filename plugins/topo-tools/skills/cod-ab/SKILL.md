@@ -4,9 +4,11 @@ description: Clean, code, and package COD-AB administrative boundary polygons wi
 ---
 
 Guide the user through cleaning and reconciling a COD-AB administrative
-boundary layer with topo-tools. Ask every question with the
-AskUserQuestion tool, offering your inferred answer as the first,
-recommended option.
+boundary layer with topo-tools. Ask only where no documented default
+exists or a step can't be undone; otherwise state the choice and
+continue. Ask with the AskUserQuestion tool, in terms of the data, never
+flag names, offering your inferred answer as the first, recommended
+option.
 
 File a GitHub issue against this repo, rather than patching around it,
 whenever a command crashes or raises unexpectedly, output looks wrong (bad
@@ -93,7 +95,7 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
    | Stage | Defining output |
    | --- | --- |
    | `01_schema/` | `{iso3}_admin{n}.parquet` for every supplied level, plus `{iso3}_admin{n}_issues.parquet` only where `schema-join` wrote issues; no other parquet |
-   | `02_geometry/` | the topo-cleaned file (edge-match and the dissolve check are conditional, skip if not applicable) |
+   | `02_geometry/` | the topo-cleaned file (edge-match is conditional, skip if not applicable) |
    | `03_codes/` | the code-refactored file |
    | `04_names/` | the names issues file (present, any row count, even zero, since this stage has no other output) |
    | `05_packaging/` | one parquet per output layer |
@@ -117,7 +119,7 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
    normalizes every supplied level into
    `01_schema/{iso3}_admin{n}.parquet` (one file per level, updated in
    place by each step, never a suffixed copy). Only the base continues past
-   stage 1. The others feed stage 2's dissolve check. Skip
+   stage 1. The others are `schema-join`'s parent layers. Skip
    this step when resuming past stage 1.
 
 ## Stages
@@ -128,6 +130,11 @@ use generic placeholder filenames, substitute your own paths there).
 
 1. [Map the source schema](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/01-schema.md)
 2. [Clean geometry](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/02-geometry.md)
+
+   Always ask whether any large `topo-detect` gap is a lake or other
+   water body left outside every unit, showing the largest gaps (area,
+   width, PNG render) and whether `00a_old/` has the same holes. "No"
+   means `--maximum-gap-width all`; "yes" means no flag.
 3. [Assign hierarchical codes](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/03-codes.md)
 4. [Review names](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/04-names.md)
 5. [Package for output](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/05-packaging.md)
