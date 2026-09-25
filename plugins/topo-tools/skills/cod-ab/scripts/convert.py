@@ -27,9 +27,6 @@ from fetch_reference import convert_layer, get_layers
 logging.basicConfig(format="%(message)s", level=logging.INFO)
 log = logging.getLogger(__name__)
 
-_COPY_OPTIONS = (
-    "FORMAT PARQUET, COMPRESSION ZSTD, COMPRESSION_LEVEL 15, GEOPARQUET_VERSION 'V2'"
-)
 _CHUNK_SIZE = 10_000
 _GDB_LAYER_OPTIONS = {"TARGET_ARCGIS_VERSION": "ARCGIS_PRO_3_2_OR_LATER"}
 
@@ -44,10 +41,6 @@ def _sql_str(value: str | Path) -> str:
     return "'" + str(value).replace("'", "''") + "'"
 
 
-def _sql_id(name: str) -> str:
-    return '"' + name.replace('"', '""') + '"'
-
-
 def _ascii_name(name: str) -> str:
     return unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode()
 
@@ -60,7 +53,7 @@ def _source_layers(con: duckdb.DuckDBPyConnection, src: Path) -> dict[str, dict]
     return {layer["name"]: layer for layer in layers}
 
 
-def to_parquet(src: Path, dst_dir: Path) -> None:
+def to_parquet(src: Path, dst_dir: Path, encoding: str | None = None) -> None:
     """Convert every layer of src to GeoParquet, raising on a feature-count mismatch."""
     dst_dir.mkdir(parents=True, exist_ok=True)
     con = _connect()
@@ -74,25 +67,20 @@ def to_parquet(src: Path, dst_dir: Path) -> None:
         if dst.exists():
             sys.exit(f"Refusing to overwrite {dst}")
         if is_gdb:
-            # DuckDB's ST_Read returns 0 rows on Esri-authored GDBs.
-            convert_layer(con, src, layer, dst)
-            expected = pyogrio.read_info(str(src), layer=layer)["features"]
+            # ST_Read_Meta lists no layers in an Esri GDB; DuckDB rejects WKT1 here.
+            crs = pyogrio.read_info(str(src), layer=layer)["crs"]
+            if crs and crs.lstrip().startswith(("PROJCS", "GEOGCS", "COMPD_CS")):
+                log.warning("%s: CRS has no authority code, written without one", layer)
+                crs = None
         else:
             geometry_fields = meta[layer]["geometry_fields"]
             if not geometry_fields:
                 log.info("%s: skipped, no geometry column", layer)
                 continue
-            # Declared fields only: ST_Read adds GDAL's own fid/OGC_FID on top.
-            columns = [
-                f"{_sql_id(geometry_fields[0]['name'])} AS geometry",
-                *(_sql_id(field["name"]) for field in meta[layer]["fields"]),
-            ]
-            con.execute(
-                f"COPY (SELECT {', '.join(columns)} "
-                f"FROM ST_Read({_sql_str(src)}, layer={_sql_str(layer)})) "
-                f"TO {_sql_str(dst)} ({_COPY_OPTIONS})"
-            )
-            expected = meta[layer]["feature_count"]
+            crs = (geometry_fields[0]["crs"] or {}).get("projjson")
+        # ST_Read returns 0 rows on Esri GDBs, and off Windows can't decode CP1252.
+        convert_layer(con, src, layer, dst, encoding=encoding, crs=crs)
+        expected = pyogrio.read_info(str(src), layer=layer)["features"]
         (written,) = con.execute(f"SELECT count(*) FROM {_sql_str(dst)}").fetchone()
         log.info("%s: source %s, written %s", dst.name, expected, written)
         if written != expected:
@@ -203,12 +191,15 @@ def main() -> None:
     p = sub.add_parser("to-parquet", help="SHP/GPKG/GeoJSON/GDB to GeoParquet")
     p.add_argument("src", type=Path)
     p.add_argument("dst_dir", type=Path)
+    p.add_argument(
+        "--encoding", help="source text encoding when it has no .cpg (e.g. cp1252)"
+    )
     g = sub.add_parser("to-gdb", help="GeoParquet layers to one FileGDB")
     g.add_argument("out", type=Path)
     g.add_argument("layers", nargs="+", metavar="[NAME=]PARQUET")
     args = parser.parse_args()
     if args.command == "to-parquet":
-        to_parquet(args.src, args.dst_dir)
+        to_parquet(args.src, args.dst_dir, args.encoding)
     else:
         to_gdb(args.out, args.layers)
 

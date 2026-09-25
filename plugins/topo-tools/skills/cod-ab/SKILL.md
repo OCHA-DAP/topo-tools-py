@@ -65,7 +65,10 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
      `uv run <skill-dir>/scripts/convert.py to-parquet {file} 02_working/{iso3}/{version}/{00a_old|00b_new}/`.
      It writes one GeoParquet per layer, named after its source with
      accents stripped, and exits non-zero when a layer's written feature
-     count doesn't match its source. Delete the file from `01_inputs/` (a
+     count doesn't match its source. If the source has no `.cpg` file and
+     accented or typographic characters come out wrong (e.g. `’` or `€`
+     missing), delete its GeoParquet and rerun with `--encoding cp1252`
+     (or the source's actual codepage). Delete the file from `01_inputs/` (a
      zip together with everything extracted from it) only after it
      converts cleanly. On a failure, stop and keep the file.
    - `01_inputs/` is empty and `02_working/` has no country folders: ask
