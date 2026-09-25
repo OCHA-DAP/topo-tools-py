@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `cod-ab` plugin: `convert.py to-parquet` reads every source through
+  pyogrio and accepts `--encoding` for a shapefile without a `.cpg` file,
+  so CP1252 characters like `’` and `€` decode correctly on every OS. The
+  source CRS, projected or from a GDB, is kept in the GeoParquet.
+
 ## [0.8.2] - 2026-09-25
 
 ### Fixed

@@ -143,26 +143,34 @@ def increment_version(version: str) -> str:
     return f"v{major + 1:02d}"
 
 
-def _field_sql_types(path: Path, layer: str) -> dict[str, str]:
+def _field_sql_types(
+    path: Path, layer: str, encoding: str | None = None
+) -> dict[str, str]:
     """Map each field name to its DuckDB SQL type.
 
     Read from the layer's own field definitions, never inferred from a chunk.
     """
-    info = pyogrio.read_info(str(path), layer=layer)
+    info = pyogrio.read_info(str(path), layer=layer, encoding=encoding)
     return {
         name: _DTYPE_KIND_TO_SQL.get(np.dtype(dtype).kind, "VARCHAR")
         for name, dtype in zip(info["fields"], info["dtypes"], strict=True)
     }
 
 
-def _read_chunk(gdb_path: Path, layer: str, offset: int) -> tuple[dict, int]:
+def _read_chunk(
+    gdb_path: Path, layer: str, offset: int, encoding: str | None = None
+) -> tuple[dict, int]:
     """Read up to _CHUNK_SIZE features as a dict of numpy arrays (geometry as WKB).
 
     Drops any field that's entirely NULL in this chunk: DuckDB's numpy
     registration errors on a large all-NULL object array.
     """
     meta, _fids, geometry, field_data = pyogrio.raw.read(
-        str(gdb_path), layer=layer, skip_features=offset, max_features=_CHUNK_SIZE
+        str(gdb_path),
+        layer=layer,
+        skip_features=offset,
+        max_features=_CHUNK_SIZE,
+        encoding=encoding,
     )
     cols = {}
     for name, raw_arr in zip(meta["fields"], field_data, strict=True):
@@ -176,8 +184,14 @@ def _read_chunk(gdb_path: Path, layer: str, offset: int) -> tuple[dict, int]:
     return cols, len(geometry)
 
 
-def convert_layer(
-    con: duckdb.DuckDBPyConnection, gdb_path: Path, layer: str, dst: Path
+def convert_layer(  # noqa: PLR0913
+    con: duckdb.DuckDBPyConnection,
+    gdb_path: Path,
+    layer: str,
+    dst: Path,
+    *,
+    encoding: str | None = None,
+    crs: str | None = None,
 ) -> None:
     """Convert one layer to GeoParquet via chunked pyogrio reads + DuckDB writes."""
     if dst.exists():
@@ -187,21 +201,25 @@ def convert_layer(
         return
     dst.parent.mkdir(parents=True, exist_ok=True)
 
-    field_types = _field_sql_types(gdb_path, layer)
-    table = f"_convert_{layer}"
+    field_types = _field_sql_types(gdb_path, layer, encoding)
+    geometry_type = "GEOMETRY"
+    if crs is not None:
+        escaped = crs.replace("'", "''")
+        geometry_type = f"GEOMETRY('{escaped}')"
+    table = '"_convert_' + layer.replace('"', '""') + '"'
     con.execute(f"DROP TABLE IF EXISTS {table}")
     cols_sql = ", ".join(
         f'"{name}" {sql_type}' for name, sql_type in field_types.items()
     )
-    con.execute(f"CREATE TABLE {table} (geometry GEOMETRY, {cols_sql})")
+    con.execute(f"CREATE TABLE {table} (geometry {geometry_type}, {cols_sql})")
 
     offset, total = 0, 0
     while True:
-        cols, n = _read_chunk(gdb_path, layer, offset)
+        cols, n = _read_chunk(gdb_path, layer, offset, encoding)
         if n == 0:
             break
         con.register("_chunk", cols)
-        select_list = ["ST_GeomFromWKB(_geom_wkb) AS geometry"] + [
+        select_list = [f"ST_GeomFromWKB(_geom_wkb)::{geometry_type} AS geometry"] + [
             f'"{name}"' if name in cols else f'NULL::{sql_type} AS "{name}"'
             for name, sql_type in field_types.items()
         ]
