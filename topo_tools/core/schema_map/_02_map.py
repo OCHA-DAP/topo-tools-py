@@ -275,18 +275,9 @@ def _is_near_row_unique(conn: DuckDBPyConnection, table: str, column: str) -> bo
 
 
 _MIN_JOINT_EVIDENCE_FOR_BIJECTION = 2
+_MAX_TOLERATED_COLLAPSE = 2
 _MIN_ROOT_EVIDENCE_COLUMNS = 2
 _LEVEL_DIGIT_RE = re.compile(r"\d+")
-
-
-def _same_naming_digit(a: str, b: str) -> bool:
-    """Check a and b share an actual naming digit; neither having one doesn't count."""
-    match_a, match_b = _LEVEL_DIGIT_RE.search(a), _LEVEL_DIGIT_RE.search(b)
-    return (
-        match_a is not None
-        and match_b is not None
-        and match_a.group() == match_b.group()
-    )
 
 
 def _companion_holds(conn: DuckDBPyConnection, table: str, x: str, y: str) -> bool:
@@ -297,24 +288,54 @@ def _companion_holds(conn: DuckDBPyConnection, table: str, x: str, y: str) -> bo
         WHERE {quote_identifier(x)} IS NOT NULL AND {quote_identifier(y)} IS NOT NULL
         GROUP BY {quote_identifier(x)}
     """).fetchall()
-    violators = sum(1 for (y_count,) in groups if y_count > 1)
+    violators = [y_count for (y_count,) in groups if y_count > 1]
     tolerance = 1 if len(groups) > _MIN_GROUPS_FOR_TOLERANCE else 0
-    return violators <= tolerance
+    # One duplicated pair is tolerated; a placeholder spanning many values isn't.
+    return len(violators) <= tolerance and all(
+        y_count <= _MAX_TOLERATED_COLLAPSE for y_count in violators
+    )
 
 
 def _bijective(conn: DuckDBPyConnection, table: str, a: str, b: str) -> bool:
-    """Check a and b correspond 1:1, using the joint subset only if both are sparse."""
-    joint = conn.execute(f"""--sql
-        SELECT COUNT(*) FROM {quote_identifier(table)}
-        WHERE {quote_identifier(a)} IS NOT NULL AND {quote_identifier(b)} IS NOT NULL
-    """).fetchone()[0]
-    if joint < _MIN_JOINT_EVIDENCE_FOR_BIJECTION and not _same_naming_digit(a, b):
+    """Check two fully-populated columns correspond 1:1."""
+    rows = conn.execute(f"SELECT COUNT(*) FROM {quote_identifier(table)}").fetchone()[0]
+    if rows < _MIN_JOINT_EVIDENCE_FOR_BIJECTION:
         return False
-    if _fully_populated(conn, table, a) or _fully_populated(conn, table, b):
-        return _containment_holds(conn, table, a, b) and _containment_holds(
-            conn, table, b, a
-        )
-    return _companion_holds(conn, table, a, b) and _companion_holds(conn, table, b, a)
+    return _containment_holds(conn, table, a, b) and _containment_holds(
+        conn, table, b, a
+    )
+
+
+def _corresponds_on_joint_rows(
+    conn: DuckDBPyConnection, table: str, a: str, b: str
+) -> bool:
+    """Check a and b correspond 1:1 where both are populated, on enough values."""
+    a_id, b_id = quote_identifier(a), quote_identifier(b)
+    joint_a, joint_b, all_a, all_b = conn.execute(f"""--sql
+        SELECT COUNT(DISTINCT {a_id}) FILTER (WHERE {b_id} IS NOT NULL),
+               COUNT(DISTINCT {b_id}) FILTER (WHERE {a_id} IS NOT NULL),
+               COUNT(DISTINCT {a_id}), COUNT(DISTINCT {b_id})
+        FROM {quote_identifier(table)}
+    """).fetchone()
+    # Covering every value of both columns is enough evidence for a small level.
+    covered = joint_a == all_a and joint_b == all_b
+    enough = joint_a >= _MIN_GROUPS_FOR_STRICT_CONTAINMENT or (
+        covered and joint_a >= _MIN_JOINT_EVIDENCE_FOR_BIJECTION
+    )
+    return (
+        enough
+        and _companion_holds(conn, table, a, b)
+        and _companion_holds(conn, table, b, a)
+    )
+
+
+def _same_coverage(conn: DuckDBPyConnection, table: str, a: str, b: str) -> bool:
+    """Check a and b are populated on exactly the same rows."""
+    mismatched = conn.execute(f"""--sql
+        SELECT COUNT(*) FROM {quote_identifier(table)}
+        WHERE ({quote_identifier(a)} IS NULL) != ({quote_identifier(b)} IS NULL)
+    """).fetchone()[0]
+    return mismatched == 0
 
 
 def _combined_distinct_count(
@@ -341,12 +362,11 @@ def _build_level_groups(
     return groups
 
 
-def _cluster_by_bijection(
-    conn: DuckDBPyConnection, table: str, cols: list[str], counts: dict[str, int]
+def _cluster_dense(
+    conn: DuckDBPyConnection, table: str, dense: list[str], counts: dict[str, int]
 ) -> list[list[str]]:
-    """Union bijective columns, cross-count only if either side is NULL-sparse."""
-    fully_populated = {c: _fully_populated(conn, table, c) for c in cols}
-    parent = {c: c for c in cols}
+    """Union fully-populated columns of equal count that correspond 1:1."""
+    parent = {c: c for c in dense}
 
     def find(c: str) -> str:
         while parent[c] != c:
@@ -354,21 +374,96 @@ def _cluster_by_bijection(
             c = parent[c]
         return c
 
-    for i, a in enumerate(cols):
-        for b in cols[i + 1 :]:
-            both_dense = fully_populated[a] and fully_populated[b]
-            comparable = (both_dense and counts[a] == counts[b]) or (
-                not both_dense and _same_naming_digit(a, b)
-            )
+    for i, a in enumerate(dense):
+        for b in dense[i + 1 :]:
             # Two fully-populated constants always correspond, whatever the row count.
-            both_constant = both_dense and counts[a] == counts[b] == 1
-            if both_constant or (comparable and _bijective(conn, table, a, b)):
+            if counts[a] == counts[b] and (
+                counts[a] == 1 or _bijective(conn, table, a, b)
+            ):
                 parent[find(a)] = find(b)
-
     clusters: dict[str, list[str]] = {}
-    for c in cols:
+    for c in dense:
         clusters.setdefault(find(c), []).append(c)
     return list(clusters.values())
+
+
+def _matching_clusters(
+    conn: DuckDBPyConnection,
+    table: str,
+    column: str,
+    candidates: list[list[str]],
+    *,
+    coverage: bool,
+) -> list[list[str]]:
+    """Every candidate cluster `column` corresponds with on joint rows, member-wise."""
+    return [
+        cl
+        for cl in candidates
+        if all(
+            (not coverage or _same_coverage(conn, table, column, c))
+            and _corresponds_on_joint_rows(conn, table, column, c)
+            for c in cl
+        )
+    ]
+
+
+def _group_by_coverage(
+    conn: DuckDBPyConnection, table: str, sparse: list[str]
+) -> list[list[str]]:
+    """Group sparse columns populated on the same rows that correspond there."""
+    groups: list[list[str]] = []
+    for column in sparse:
+        matches = _matching_clusters(conn, table, column, groups, coverage=True)
+        if len(matches) == 1:
+            matches[0].append(column)
+        else:
+            groups.append([column])
+    return groups
+
+
+def _nests_both_ways(
+    conn: DuckDBPyConnection, table: str, group: list[str], cluster: list[str]
+) -> bool:
+    """Check every pair across group and cluster nests both ways, within tolerance."""
+    return all(
+        _containment_holds(conn, table, a, b) and _containment_holds(conn, table, b, a)
+        for a in group
+        for b in cluster
+    )
+
+
+def _cluster_by_bijection(
+    conn: DuckDBPyConnection, table: str, cols: list[str], counts: dict[str, int]
+) -> list[list[str]]:
+    """Union bijective dense columns, then group or attach sparse ones on joint rows."""
+    dense = [c for c in cols if _fully_populated(conn, table, c)]
+    clusters = _cluster_dense(conn, table, dense, counts)
+    dense_clusters = [cl for cl in clusters if counts[cl[0]] > 1]
+    # A sparse level's own columns share their rows, so they group first.
+    groups = _group_by_coverage(conn, table, [c for c in cols if c not in dense])
+    sparse_clusters: list[list[str]] = []
+    for group in (g for g in groups if len(g) > 1):
+        # A group missing from one row only is that dense level with a stray gap.
+        homes = [
+            cl for cl in dense_clusters if _nests_both_ways(conn, table, group, cl)
+        ]
+        if len(homes) == 1:
+            homes[0].extend(group)
+        else:
+            sparse_clusters.append(group)
+    ambiguous: list[list[str]] = []
+    # A lone sparse column matching several clusters is ambiguous, so it joins none.
+    for (column,) in (g for g in groups if len(g) == 1):
+        matches = _matching_clusters(
+            conn, table, column, dense_clusters, coverage=False
+        ) or _matching_clusters(conn, table, column, sparse_clusters, coverage=False)
+        if len(matches) == 1:
+            matches[0].append(column)
+        elif not matches:
+            sparse_clusters.append([column])
+        else:
+            ambiguous.append([column])
+    return clusters + sparse_clusters + ambiguous
 
 
 def _order_groups_by_containment(

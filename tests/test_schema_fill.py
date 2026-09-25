@@ -26,6 +26,15 @@ _LEAF_ROWS = [
     {
         "adm1_code": "AA",
         "adm1_name": "Country A",
+        "adm2_code": "AA01",
+        "adm2_name": "Prov1",
+        "adm3_code": "AA0102",
+        "adm3_name": "Dist2",
+        "wkt": "POLYGON((1 0, 2 0, 2 1, 1 1, 1 0))",
+    },
+    {
+        "adm1_code": "AA",
+        "adm1_name": "Country A",
         "adm2_code": "AA02",
         "adm2_name": "Prov2",
         "adm3_code": None,
@@ -92,7 +101,7 @@ def admin1_only_input(tmp_path):
     path = tmp_path / "leaf1.parquet"
     rows = [
         {"adm1_code": "AA", "adm1_name": "Country A", "wkt": _LEAF_ROWS[0]["wkt"]},
-        {"adm1_code": "BB", "adm1_name": "Country B", "wkt": _LEAF_ROWS[2]["wkt"]},
+        {"adm1_code": "BB", "adm1_name": "Country B", "wkt": _LEAF_ROWS[-1]["wkt"]},
     ]
     _write_synthetic(path, rows)
     return path
@@ -345,6 +354,13 @@ def test_falls_back_to_level_zero_when_present(tmp_path):
             "wkt": "POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))",
         },
         {
+            "adm0_code": "AA",
+            "adm0_name": "Country A",
+            "adm1_code": "AA02",
+            "adm1_name": "Prov2",
+            "wkt": "POLYGON((1 0, 2 0, 2 1, 1 1, 1 0))",
+        },
+        {
             "adm0_code": "BB",
             "adm0_name": "Country B",
             "adm1_code": None,
@@ -362,10 +378,11 @@ def test_falls_back_to_level_zero_when_present(tmp_path):
         conn.execute("LOAD spatial")
         result = conn.execute(
             f"SELECT adm0_code, adm1_code, adm1_name, adm_lvl "
-            f"FROM '{output_path}' ORDER BY adm0_code"
+            f"FROM '{output_path}' ORDER BY adm0_code, adm1_code"
         ).fetchall()
     assert result == [
         ("AA", "AA01", "Prov1", _LEVEL_1),
+        ("AA", "AA02", "Prov2", _LEVEL_1),
         ("BB", "BB", "Country B", 0),
     ]
 
@@ -429,15 +446,21 @@ def test_per_row_depth_scoping(tmp_path):
             "adm3_name": None,
             "wkt": "POLYGON((0 1, 1 1, 1 2, 0 2, 0 1))",
         },
+    ]
+    # Ten named adm2 units give the sparse name column enough joint evidence.
+    rows += [
         {
             "adm1_code": "CC",
             "adm1_name": "Country C",
-            "adm2_code": "CC01",
-            "adm2_name": "Prov1",
-            "adm3_code": "CC0101",
-            "adm3_name": "Dist1",
-            "wkt": "POLYGON((5 5, 6 5, 6 6, 5 6, 5 5))",
-        },
+            "adm2_code": f"CC{p:02d}",
+            "adm2_name": f"Prov{p}",
+            "adm3_code": f"CC{p:02d}{d:02d}",
+            "adm3_name": f"Dist{p}_{d}",
+            "wkt": f"POLYGON(({p} {d + 4}, {p + 1} {d + 4}, {p + 1} {d + 5}, "
+            f"{p} {d + 5}, {p} {d + 4}))",
+        }
+        for p in range(1, 11)
+        for d in range(1, 3)
     ]
     input_path = tmp_path / "mixed_depth_leaf.parquet"
     _write_synthetic(input_path, rows)
@@ -449,13 +472,13 @@ def test_per_row_depth_scoping(tmp_path):
         conn.execute("LOAD spatial")
         result = conn.execute(
             "SELECT adm1_code, adm2_name, adm3_name, adm_lvl "
-            f"FROM '{output_path}' ORDER BY adm1_code"
+            f"FROM '{output_path}' ORDER BY adm1_code, adm3_code LIMIT 3"
         ).fetchall()
 
     assert result == [
         ("AA", "Country A", "Country A", _LEVEL_1),
         ("BB", None, None, _LEVEL_2),
-        ("CC", "Prov1", "Dist1", _LEVEL_3),
+        ("CC", "Prov1", "Dist1_1", _LEVEL_3),
     ]
 
 
