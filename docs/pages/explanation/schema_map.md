@@ -155,7 +155,12 @@ deciding what belongs to which level.
    length tie a parent embedded in the finer level's codes is preferred
    over one that isn't, then a code-shaped candidate over a name-shaped one
    (an audit column otherwise chaining as far as a real admin hierarchy
-   purely by coincidence, see `docs/adr/0100`). Both the root exemption
+   purely by coincidence, see `docs/adr/0100`). A chain level linked to
+   its child only by an unembedded edge is dropped, and reported
+   `supplemental, superset of level {k}`, when it alone breaks the naming
+   the rest of the chain shares (one column per level agreeing on a common
+   prefix and suffix); naming only ever rejects a weakly justified level
+   this way, never adds one (see `docs/adr/0113`). Both the root exemption
    (when it's the edge's only justification) and the single-violator
    tolerance additionally require the finer column to be spatially
    coherent (its own value groups explain most of the file's centroid
