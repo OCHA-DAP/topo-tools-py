@@ -4,6 +4,7 @@ See docs/explanation/schema_map.md and docs/adr/0054, 0064-0066 for the
 algorithm and why.
 """
 
+import os
 import re
 from dataclasses import dataclass
 from logging import getLogger
@@ -468,7 +469,7 @@ def _bridged_edges(
 
 def _build_chain(
     conn: DuckDBPyConnection, table: str, groups: list[tuple[int, list[str]]]
-) -> list[tuple[int, list[str]]]:
+) -> tuple[list[tuple[int, list[str]]], list[tuple[list[str], list[str]]]]:
     """Longest nesting path; a non-constant edge must be embedding-justified.
 
     See docs/adr/0066: a constant needs no embedding, anything else does,
@@ -544,7 +545,7 @@ def _build_chain(
                 best_edge_embeds[finer_idx] = embeds
                 chain_has_embed[finer_idx] = embeds or chain_has_embed[coarser_idx]
     if n == 0:
-        return []
+        return [], []
     end = max(range(n), key=lambda i: (best_len[i], len(groups[i][1]), groups[i][0]))
     chain_indices = []
     i: int | None = end
@@ -552,7 +553,69 @@ def _build_chain(
         chain_indices.append(i)
         i = best_prev[i]
     chain_indices.reverse()
-    return [groups[i] for i in chain_indices]
+    chain_indices, vetoed = _veto_unanchored_groupings(
+        groups, edges, chain_indices, best_edge_embeds, in_root_prefix
+    )
+    return [groups[i] for i in chain_indices], vetoed
+
+
+def _pair_shared(a: str, b: str) -> int:
+    prefix = os.path.commonprefix([a, b])
+    rest = [a[len(prefix) :][::-1], b[len(prefix) :][::-1]]
+    return len(prefix) + len(os.path.commonprefix(rest))
+
+
+def _shared_naming_length(column_sets: list[list[str]]) -> int:
+    """Most prefix+suffix text one column per set shares, middles kept distinct."""
+    best = 0
+    for reference in min(column_sets, key=len):
+        picked = [
+            max(cols, key=lambda c, r=reference: _pair_shared(r, c))
+            for cols in column_sets
+        ]
+        prefix = os.path.commonprefix(picked)
+        rest = [p[len(prefix) :][::-1] for p in picked]
+        suffix_length = len(os.path.commonprefix(rest))
+        middles = [r[suffix_length:] for r in rest]
+        if all(middles) and len(set(middles)) == len(middles):
+            best = max(best, len(prefix) + suffix_length)
+    return best
+
+
+def _veto_unanchored_groupings(
+    groups: list[tuple[int, list[str]]],
+    edges: dict[tuple[int, int], tuple[bool, bool, bool]],
+    chain_indices: list[int],
+    best_edge_embeds: list[bool],
+    in_root_prefix: list[bool],
+) -> tuple[list[int], list[tuple[list[str], list[str]]]]:
+    """Drop a level linked to its child only unembedded, the odd one out by naming.
+
+    Returns the kept chain, and each dropped group with the child it nests.
+    """
+    vetoed: list[tuple[list[str], list[str]]] = []
+    embedded = list(best_edge_embeds)
+    pos = 1
+    while pos < len(chain_indices) - 1:
+        parent, group, child = chain_indices[pos - 1 : pos + 2]
+        with_group = [groups[i][1] for i in chain_indices]
+        without = _shared_naming_length(with_group[:pos] + with_group[pos + 1 :])
+        without_child = _shared_naming_length(
+            with_group[: pos + 1] + with_group[pos + 2 :]
+        )
+        if (
+            not embedded[child]
+            and not in_root_prefix[group]
+            and edges[parent, child][0]
+            and without > max(_shared_naming_length(with_group), without_child)
+        ):
+            vetoed.append((groups[group][1], groups[child][1]))
+            embedded[child] = edges[parent, child][1]
+            chain_indices = chain_indices[:pos] + chain_indices[pos + 1 :]
+            pos = 1
+            continue
+        pos += 1
+    return chain_indices, vetoed
 
 
 def _numbered_target(template: str, level: int, index: int) -> str:
@@ -757,6 +820,30 @@ def _bracket_other_columns(  # noqa: PLR0913, PLR0917
     return rows
 
 
+def _vetoed_rows(
+    chain: list[tuple[int, list[str]]],
+    vetoed: list[tuple[list[str], list[str]]],
+    counts: dict[str, int],
+    offset: int,
+) -> dict[str, "_Row"]:
+    """Label each vetoed grouping supplemental over the chain level it nests."""
+    level_of = {c: index for index, (_count, cols) in enumerate(chain) for c in cols}
+    rows: dict[str, _Row] = {}
+    for group_cols, child_cols in vetoed:
+        if child_cols[0] not in level_of:
+            continue
+        level_n = level_of[child_cols[0]] + offset
+        for column in group_cols:
+            rows[column] = _Row(
+                column,
+                None,
+                f"{CONFIDENCE_SUPPLEMENTAL}, superset of level {level_n}",
+                level=level_n,
+                unique_count=counts[column],
+            )
+    return rows
+
+
 def resolve_columns(
     conn: DuckDBPyConnection,
     table: str,
@@ -780,7 +867,7 @@ def resolve_columns(
     ]
     level_groups = _build_level_groups(conn, table, chainable_columns, counts)
     level_groups = _order_groups_by_containment(conn, table, level_groups)
-    chain = _build_chain(conn, table, level_groups)
+    chain, vetoed = _build_chain(conn, table, level_groups)
     # A lone level with a lone column has no parent to embed and no sibling
     # to pair with, indistinguishable from an arbitrary non-hierarchy column.
     if len(chain) == 1 and len(chain[0][1]) < _MIN_ROOT_EVIDENCE_COLUMNS:
@@ -809,12 +896,16 @@ def resolve_columns(
         raise ValueError(msg)
 
     chained_columns = {c for _count, cols in chain for c in cols}
-    other_columns = [c for c in columns if c not in chained_columns]
+    vetoed_rows = _vetoed_rows(chain, vetoed, counts, offset)
+    other_columns = [
+        c for c in columns if c not in chained_columns and c not in vetoed_rows
+    ]
 
     other_rows = _bracket_other_columns(
         conn, table, chain, other_columns, counts, schema, rows, offset
     )
     rows.update(other_rows)
+    rows.update(vetoed_rows)
 
     for column in columns:
         if column not in rows:

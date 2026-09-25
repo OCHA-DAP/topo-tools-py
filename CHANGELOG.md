@@ -10,10 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Structural level detection: when a coarser grouping nests a level
-  without the level's codes embedding it (e.g. senatorial districts over
-  LGAs), the parent whose codes the level embeds takes the chain slot, so
-  the real level keeps its own number instead of becoming the finer
-  level's name siblings.
+  without the level's codes embedding it, the parent whose codes the level
+  embeds takes the chain slot, so the real level keeps its own number
+  instead of becoming the finer level's name siblings.
+- Structural level detection: a grouping that nests a level without the
+  level's codes embedding it (e.g. senatorial districts over LGAs), and
+  alone breaks the column naming the rest of the chain shares, is reported
+  as `supplemental` rather than taking a level of its own.
 
 ## [0.8.0] - 2026-09-24
 
