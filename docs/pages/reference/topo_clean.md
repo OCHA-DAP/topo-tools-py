@@ -1,4 +1,5 @@
 ---
+status: draft
 title: "topo-clean"
 ---
 
@@ -86,3 +87,22 @@ detection stage directly rather than owning separate logic (see
   exists and overwriting wasn't requested.
 - If a single pipeline step is requested, it MUST be one of `inputs`,
   `issues`, `topo-clean`, `outputs`. Any other value MUST raise `ValueError`.
+
+## Examples
+
+### Example 1: explicit output (default is INPUT_FILE with a "_cleaned" suffix)
+
+    topo-tools topo-clean example.geojson example_cleaned.geojson
+
+### Example 2: fill thin/sliver-shaped gaps regardless of width
+
+    topo-tools topo-clean example.gpkg --maximum-gap-width thin
+
+### Example 3: fill every detected gap, not just slivers
+
+    topo-tools topo-clean example.gpkg --maximum-gap-width all
+
+### Example 4: custom issues report path and snapping distance
+
+    topo-tools topo-clean example.parquet --issues-file example_report.parquet \
+      --snapping-distance 0.0001

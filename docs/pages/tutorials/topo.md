@@ -1,11 +1,14 @@
 ---
-title: "Fix gaps and overlaps in one layer"
+status: draft
+title: "Topo"
 ---
 
-Detect coverage defects (gaps, overlaps) in a single polygon layer, then
-fix them.
+Detect gap/overlap coverage defects in a single polygon layer, review
+them, then fix them.
 
-Inspect first, without fixing anything:
+## Detect defects
+
+Inspect the layer first, without fixing anything:
 
     topo-tools topo-detect admin2.geojson
 
@@ -13,6 +16,8 @@ This writes `admin2_issues.geojson`, listing every gap/overlap with its
 area, width, and (for gaps) a compactness score. Review it to judge which
 gaps are real features (a strait, a lake) versus digitization slivers,
 before picking a fix width.
+
+## Fix defects
 
 Fix gaps at or below the default snap tolerance, plus every overlap:
 
@@ -25,6 +30,6 @@ Widen the fill to every thin, elongated gap regardless of size
 issues file records each defect's actual fixed outcome, not just what was
 detected.
 
-See [`topo-detect` reference](../reference/topo_detect/),
-[`topo-clean` reference](../reference/topo_clean/), and their explanation
-pages for the full gap/overlap detection and fix rules.
+See the [`topo-detect`](../reference/topo_detect/) and
+[`topo-clean`](../reference/topo_clean/) references for the full
+detection and fix rules.

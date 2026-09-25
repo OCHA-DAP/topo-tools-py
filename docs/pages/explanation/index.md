@@ -1,4 +1,5 @@
 ---
+status: draft
 title: "Explanation"
 ---
 
@@ -10,7 +11,9 @@ alternatives.
 `docs/reference/` states *what* it currently does; `docs/adr/` records the
 one-off decisions behind both.
 
-<div class="grid cards" markdown>
+## Draft
+
+<div class="grid cards draft" markdown>
 
 -   :material-gavel:{ .lg .middle } **assign**
 

@@ -1,4 +1,5 @@
 ---
+status: draft
 title: "package"
 ---
 
@@ -44,3 +45,19 @@ See `docs/reference/README.md` for the MUST/SHOULD/MAY convention.
   either sub-tool) MUST be run through `package-points`/`package-lines`
   directly with a non-colliding `--depth-column` instead of through
   `package`.
+
+## Examples
+
+### Example 1: defaults for all three outputs
+
+Each sub-tool falls back to its own default naming
+(`_admin{n}`/`_points`/`_lines`):
+
+    topo-tools package adm3.geojson
+
+### Example 2: explicit output template
+
+`{x}` MUST appear in `--output` if given; it's substituted per sub-tool
+(`admin{n}`, `points`, `lines`):
+
+    topo-tools package adm3.geojson --output "web/{x}.geojson"

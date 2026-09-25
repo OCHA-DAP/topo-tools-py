@@ -1,4 +1,5 @@
 ---
+status: draft
 title: "package-points"
 ---
 
@@ -66,3 +67,18 @@ tools.
 - `name_field`/`code_field` MUST be given together, or both omitted; when
   both are omitted, `package-points` MUST fall back to full structural
   auto-detection of every level.
+
+## Examples
+
+### Example 1: default naming
+
+Produces `adm3_points.geojson`, one combined file covering every detected
+level:
+
+    topo-tools package-points adm3.geojson
+
+### Example 2: custom depth column
+
+Rename the stamped level column from `adm_lvl` to something else:
+
+    topo-tools package-points adm3.geojson --depth-column level

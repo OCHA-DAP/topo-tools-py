@@ -1,4 +1,5 @@
 ---
+status: draft
 title: "edge-clip"
 ---
 
@@ -77,3 +78,14 @@ See `docs/reference/README.md` for the MUST/SHOULD/MAY convention, and
 - `edge-clip` MAY accept `carry_columns` (CLI: `--carry-column`) to copy
   named parent columns onto every matched child (see
   `docs/reference/shared.md`, `docs/adr/0077`).
+
+## Examples
+
+### Example 1: clip a children layer against a parent/clip layer, explicit output
+
+    topo-tools edge-clip children.parquet adm1.geojson clipped.parquet
+
+### Example 2: custom issues report path
+
+    topo-tools edge-clip children.parquet adm1.geojson clipped.parquet \
+      --issues-file clip_report.parquet

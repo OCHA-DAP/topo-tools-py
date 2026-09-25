@@ -16,7 +16,7 @@ uv run topo-tools <tool> <args...>
 
 e.g. `uv run topo-tools package-polygons my_layer.gpkg`. Args
 differ per tool, see `docs/reference/{tool}.md` for the contract and
-`docs/tutorials/{tool}.md` for worked examples. `uv run topo-tools
+its Examples section for worked examples. `uv run topo-tools
 <tool> --help` lists the flags directly.
 
 Supported input/output formats: GeoParquet, GeoPackage, Shapefile,

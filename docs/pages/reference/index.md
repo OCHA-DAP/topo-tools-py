@@ -1,4 +1,5 @@
 ---
+status: draft
 title: "Reference"
 ---
 
@@ -16,7 +17,9 @@ are not a substitute for tests, and a code change must keep both in sync.
 A rule identical across more than one tool goes in `shared`, referenced by
 name instead of repeated in each tool's page.
 
-<div class="grid cards" markdown>
+## Draft
+
+<div class="grid cards draft" markdown>
 
 -   :material-compare:{ .lg .middle } **change**
 

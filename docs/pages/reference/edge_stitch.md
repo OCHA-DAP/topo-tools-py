@@ -1,4 +1,5 @@
 ---
+status: draft
 title: "edge-stitch"
 ---
 
@@ -59,3 +60,25 @@ See `docs/reference/README.md` for the MUST/SHOULD/MAY convention, and
   raise `ValueError` if given without `fill_schema=True`.
   `edge-stitch` MUST raise `ValueError` if `depth_column` already names an
   existing column when `fill_schema` is set (see `docs/adr/0095`).
+
+## Examples
+
+### Example 1: basic run, output name chosen automatically
+
+    topo-tools edge-stitch tiled.geojson
+
+### Example 2: explicit output
+
+    topo-tools edge-stitch tiled.gpkg stitched.gpkg
+
+### Example 3: custom issues report path
+
+    topo-tools edge-stitch tiled.parquet stitched.parquet --issues-file stitch_report.parquet
+
+### Example 4: combine every already-clipped file into one global output
+
+    topo-tools edge-stitch "tmp/clipped/*.parquet" stitched.parquet
+
+### Example 5: cascade admin-hierarchy columns and stamp each row's depth before export
+
+    topo-tools edge-stitch tiled.parquet stitched.parquet --fill-schema
