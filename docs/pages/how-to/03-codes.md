@@ -17,5 +17,3 @@ Reconciling an already-coded prior release against a new, uncoded
 candidate instead of cold-starting uses `code-update` (see its own
 reference/tutorial page); that tool always writes a changelog CSV rather
 than an issues file.
-
-Next: [review names](04-names/).

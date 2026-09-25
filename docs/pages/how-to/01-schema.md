@@ -5,47 +5,40 @@ title: "1. Map the source schema"
 First step of [preparing an administrative boundary
 release](administrative-boundary-release/).
 
-    topo-tools schema-map your_admin2.parquet crosswalk.csv
+Run `schema-map` on each supplied level:
 
-This writes `crosswalk.csv` without changing the input. `schema-map`
-matches columns by cardinality (unique-value count), not by name, so open
-the crosswalk and check every row before trusting it, for example:
+    topo-tools schema-map admin2.parquet admin2_crosswalk.csv
+
+This writes a crosswalk without changing the input. `schema-map` matches
+columns by their values, not their names, so check every row:
 
     source_column, target_column, unique_count, note
     NAME_2,        adm2_name,     8,
     PCODE_2,       adm2_code,     8,
-    LOCAL_REF,     adm2_code1,    8,
     NAME_1,        adm1_name,     2,
     PCODE_1,       adm1_code,     2,
 
-A source column that happens to share a level's cardinality can match as
-a decoy second code candidate (`adm2_code1` above), even when it's really
-just a source reference number, not a p-code. The same trap applies to
-names. Map every name column for a level to that level's name family: the
-primary name to `adm2_name`, and any other (a translation, an alternate
-spelling, or a second name that differs from the first) to the next free
-`adm2_name1`, `adm2_name2`. Never give a column a target outside the
-`adm{n}_code`/`adm{n}_name` families. Blank out a decoy code's
-`target_column` before applying the crosswalk:
+A column with the same number of unique values as a level can be matched
+by mistake, such as a reference number mapped as a second code
+(`adm2_code1`). Blank out its `target_column`. Map extra name columns (a
+translation or alternate spelling) to the next free `adm2_name1`,
+`adm2_name2`, and never use a target outside the `adm{n}_code`/`adm{n}_name`
+families. Then apply it:
 
-    topo-tools schema-refactor your_admin2.parquet crosswalk.csv admin2_mapped.parquet
+    topo-tools schema-refactor admin2.parquet admin2_crosswalk.csv admin2_mapped.parquet
 
-For a target schema other than `adm{n}_name`/`adm{n}_code`, pass the same
-`--name-field`/`--code-field` to `schema-refactor` and `schema-join`, or
-rows keep their input order.
-
-The mapped output now has only the columns you kept a `target_column` for,
-plus `geometry`.
+The output keeps only the columns with a `target_column`, plus `geometry`.
 
 With more than one level, copy each parent's codes and names onto its
 children, coarsest first, overwriting each child in place:
 
     topo-tools schema-join admin2_mapped.parquet admin1_mapped.parquet admin2_mapped.parquet
-    topo-tools schema-join admin3_mapped.parquet admin2_mapped.parquet admin3_mapped.parquet
 
-Where a child's own value differs from its parent's, `schema-join` keeps
-both, adding the parent's as the next free numbered sibling
-(`adm2_name1`), and writes one issues row per child for
-[review names](04-names/).
+If any child's value differs from its parent's, `schema-join` keeps the
+child's column and adds the parent's as the next free sibling
+(`adm2_name1`), filled on every row. Its issues file lists:
 
-Next: [clean geometry](02-geometry/).
+- `value-mismatch`: a differing name or code, settled in
+  [review names](04-names/);
+- `no-parent`, `low-overlap`: a child outside or mostly outside its
+  parent, settled with the data provider before coding.

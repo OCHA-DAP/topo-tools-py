@@ -46,5 +46,3 @@ other column null), `kind` one of `duplicate-name`, `near-duplicate-name`,
 issues file, write this one even when it has zero rows: it's the only
 artifact this stage produces, and Setup step 4 checks for its presence
 (not its row count) to know this stage is done.
-
-Next: [package for output](05-packaging/).
