@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Structural level detection: when a coarser grouping nests a level
+  without the level's codes embedding it (e.g. senatorial districts over
+  LGAs), the parent whose codes the level embeds takes the chain slot, so
+  the real level keeps its own number instead of becoming the finer
+  level's name siblings.
+
 ## [0.8.0] - 2026-09-24
 
 ### Added
