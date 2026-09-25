@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   EPSG:4326, since reprojection can itself make a valid polygon invalid
   (e.g. a sliver with near-duplicate vertices), which crashed later GEOS
   operations with a `TopologyException`.
+- `schema-map`: a blank value is never evidence that one column embeds
+  another, so a column that's blank on every row (e.g. an empty
+  `salb_id`) can't make every name look like a code.
 
 ## [0.8.0] - 2026-09-24
 
