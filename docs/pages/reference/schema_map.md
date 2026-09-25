@@ -45,14 +45,21 @@ empirical justification.
   vacuously bijective with each other and with nothing else, no real
   evidence either way, the same principle already applied to `_embeds()`
   (see `docs/adr/0069`). It still MUST appear in the crosswalk as
-  `unmatched`.
+  `unmatched`. A float or decimal column holding any non-whole value MUST
+  be excluded the same way, from both chain groups and bracketing.
 - Every remaining candidate column, code or name alike, MUST be grouped by
   identical `COUNT(DISTINCT)` (constants are kept, not dropped: a
   single-country file's admin0 code is legitimately constant), and
-  same-count columns clustered by pairwise verified bijection (two
-  columns merge only if bijective with each other; a third column sharing
-  their count but not their bijection MUST NOT prevent the other two from
-  merging).
+  same-count fully-populated columns clustered by pairwise verified
+  bijection (two columns merge only if bijective with each other; a third
+  column sharing their count but not their bijection MUST NOT prevent the
+  other two from merging).
+- A column with any NULL MUST cluster only by 1:1 correspondence on the
+  rows where both columns are populated, over at least 10 joint values,
+  or over every value of both columns (and at least 2). Column names MUST
+  NOT be consulted. Sparse columns populated on identical rows MUST group
+  first. A group or lone column that matches more than one cluster MUST
+  join none.
 - The admin hierarchy MUST be built as the longest path through every
   coarser/finer pair of level-groups that satisfies containment
   (`GROUP BY finer HAVING COUNT(DISTINCT coarser) > 1` MUST return zero
