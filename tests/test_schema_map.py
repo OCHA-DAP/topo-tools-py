@@ -403,6 +403,31 @@ def test_embedded_parent_wins_chain_tie_over_unembedded_grouping(tmp_path):
     assert rows_out["district"]["note"] == "supplemental, superset of level 2"
 
 
+def _unembedded_middle_crosswalk(tmp_path, middle, finest):
+    """adm1 > middle > finest, finest's codes embedding adm1 but never middle's."""
+    path = tmp_path / "middle.parquet"
+    rows = [
+        (_unit_square(i), "R0", f"R0{a}", f"R0{a}S{(b + 2) // 3}", f"R0{a}0{b}")
+        for i, (a, b) in enumerate((a, b) for a in "AB" for b in range(1, 7))
+    ]
+    _write_table(path, ["geom", "adm0_pcode", "adm1_pcode", middle, finest], rows)
+    out = tmp_path / "crosswalk.csv"
+    map(path, out, overwrite=True)
+    return _crosswalk(out)
+
+
+def test_unembedded_grouping_off_the_naming_pattern_is_supplemental(tmp_path):
+    rows_out = _unembedded_middle_crosswalk(tmp_path, "sendistpcode", "adm2_pcode")
+    assert rows_out["adm2_pcode"]["target_column"] == "adm2_code"
+    assert rows_out["sendistpcode"]["note"] == "supplemental, superset of level 2"
+
+
+def test_unembedded_level_on_the_naming_pattern_stays_a_level(tmp_path):
+    rows_out = _unembedded_middle_crosswalk(tmp_path, "adm2_pcode", "adm3_pcode")
+    assert rows_out["adm2_pcode"]["target_column"] == "adm2_code"
+    assert rows_out["adm3_pcode"]["target_column"] == "adm3_code"
+
+
 def _twenty_unit_rows(cand_values):
     """20 admin1 units (bijective pcode/name), plus one candidate column.
 
