@@ -36,7 +36,7 @@ def _unit_square(i):
 
 
 def _crosswalk_rows(path):
-    with path.open(newline="") as f:
+    with path.open(newline="", encoding="utf-8-sig") as f:
         return {row["source_column"]: row for row in csv.DictReader(f)}
 
 
@@ -249,7 +249,7 @@ def test_map_only_writes_crosswalk_only(structural_hierarchy_input, tmp_path):
     crosswalk_out = tmp_path / "out_crosswalk.csv"
     schema_map(structural_hierarchy_input, csv_output=crosswalk_out, map_only=True)
 
-    assert crosswalk_out.exists()
+    assert crosswalk_out.read_bytes().startswith(b"\xef\xbb\xbf")
     assert not structural_hierarchy_input.with_stem(
         structural_hierarchy_input.stem + "_mapped"
     ).exists()

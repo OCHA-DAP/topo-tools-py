@@ -31,7 +31,7 @@ def pipeline(tmp_path):
     crosswalk_path = tmp_path / "crosswalk.csv"
     schema_map(_DISTRICT_RAW, csv_output=crosswalk_path, map_only=True)
 
-    with crosswalk_path.open(newline="") as f:
+    with crosswalk_path.open(newline="", encoding="utf-8-sig") as f:
         rows = list(csv.DictReader(f))
     for row in rows:
         if row["source_column"] == "LOCAL_REF":
@@ -60,7 +60,7 @@ def pipeline(tmp_path):
 def test_schema_map_reproduces_cardinality_decoy(tmp_path):
     crosswalk_path = tmp_path / "crosswalk.csv"
     schema_map(_DISTRICT_RAW, csv_output=crosswalk_path, map_only=True)
-    with crosswalk_path.open(newline="") as f:
+    with crosswalk_path.open(newline="", encoding="utf-8-sig") as f:
         rows = {row["source_column"]: row["target_column"] for row in csv.DictReader(f)}
     assert rows["PCODE_2"] == "adm2_code"
     assert rows["LOCAL_REF"] == "adm2_code1"
