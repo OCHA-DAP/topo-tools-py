@@ -1,4 +1,4 @@
-"""Portability smoke tests for the standalone refactor() tool."""
+"""Smoke tests for schema-map applying an imported crosswalk (--csv)."""
 
 import csv
 
@@ -6,10 +6,14 @@ import duckdb
 import pytest
 from click.testing import CliRunner
 
-from topo_tools.api.schema_refactor import refactor
+from topo_tools.api.schema_map import map as schema_map
 from topo_tools.cli.main import cli
 
-_STEPS = ["inputs", "rename", "outputs"]
+_STEPS = ["inputs", "apply", "outputs"]
+
+
+def apply_crosswalk(input_path, crosswalk_path, output_path=None, **kwargs):
+    schema_map(input_path, output_path, csv_input=crosswalk_path, **kwargs)
 
 
 def _write_table(path, col_names, rows):
@@ -88,15 +92,15 @@ def full_crosswalk(tmp_path):
 
 
 def test_cli_help():
-    result = CliRunner().invoke(cli, ["schema-refactor", "--help"])
+    result = CliRunner().invoke(cli, ["schema-map", "--help"])
     assert result.exit_code == 0
-    assert "Rename/drop columns" in result.output
+    assert "--csv" in result.output
     assert "Examples:" in result.output
 
 
 def test_full_run_renames_and_drops(apply_input, full_crosswalk, tmp_path):
     out = tmp_path / "mapped.parquet"
-    refactor(apply_input, full_crosswalk, out, overwrite=True)
+    apply_crosswalk(apply_input, full_crosswalk, out, overwrite=True)
 
     with duckdb.connect() as conn:
         conn.execute("LOAD spatial")
@@ -111,7 +115,7 @@ def test_full_run_renames_and_drops(apply_input, full_crosswalk, tmp_path):
 
 
 def test_default_output_path(apply_input, full_crosswalk):
-    refactor(apply_input, full_crosswalk, overwrite=True)
+    apply_crosswalk(apply_input, full_crosswalk, overwrite=True)
 
     expected = apply_input.with_stem(apply_input.stem + "_mapped")
     assert expected.exists()
@@ -127,7 +131,9 @@ def test_crosswalk_missing_column_raises(apply_input, tmp_path):
         ],
     )
     with pytest.raises(ValueError, match="not decided in the crosswalk"):
-        refactor(apply_input, crosswalk, tmp_path / "out.parquet", overwrite=True)
+        apply_crosswalk(
+            apply_input, crosswalk, tmp_path / "out.parquet", overwrite=True
+        )
 
 
 def test_crosswalk_extra_column_raises(apply_input, tmp_path):
@@ -142,7 +148,9 @@ def test_crosswalk_extra_column_raises(apply_input, tmp_path):
         ],
     )
     with pytest.raises(ValueError, match="not in the file"):
-        refactor(apply_input, crosswalk, tmp_path / "out.parquet", overwrite=True)
+        apply_crosswalk(
+            apply_input, crosswalk, tmp_path / "out.parquet", overwrite=True
+        )
 
 
 def test_crosswalk_duplicate_source_column_raises(apply_input, tmp_path):
@@ -156,7 +164,9 @@ def test_crosswalk_duplicate_source_column_raises(apply_input, tmp_path):
         ],
     )
     with pytest.raises(ValueError, match="same source_column more than once"):
-        refactor(apply_input, crosswalk, tmp_path / "out.parquet", overwrite=True)
+        apply_crosswalk(
+            apply_input, crosswalk, tmp_path / "out.parquet", overwrite=True
+        )
 
 
 def test_crosswalk_duplicate_target_raises(apply_input, tmp_path):
@@ -169,7 +179,9 @@ def test_crosswalk_duplicate_target_raises(apply_input, tmp_path):
         ],
     )
     with pytest.raises(ValueError, match="used more than once"):
-        refactor(apply_input, crosswalk, tmp_path / "out.parquet", overwrite=True)
+        apply_crosswalk(
+            apply_input, crosswalk, tmp_path / "out.parquet", overwrite=True
+        )
 
 
 def test_crosswalk_reserved_target_raises(apply_input, tmp_path):
@@ -182,14 +194,18 @@ def test_crosswalk_reserved_target_raises(apply_input, tmp_path):
         ],
     )
     with pytest.raises(ValueError, match="reserved names"):
-        refactor(apply_input, crosswalk, tmp_path / "out.parquet", overwrite=True)
+        apply_crosswalk(
+            apply_input, crosswalk, tmp_path / "out.parquet", overwrite=True
+        )
 
 
 def test_crosswalk_missing_source_column_header_raises(apply_input, tmp_path):
     crosswalk = tmp_path / "crosswalk.csv"
     crosswalk.write_text("target_column\nadm1_name\n")
     with pytest.raises(ValueError, match="must be a CSV with a source_column column"):
-        refactor(apply_input, crosswalk, tmp_path / "out.parquet", overwrite=True)
+        apply_crosswalk(
+            apply_input, crosswalk, tmp_path / "out.parquet", overwrite=True
+        )
 
 
 def test_blank_source_column_row_is_skipped(apply_input, tmp_path):
@@ -203,7 +219,7 @@ def test_blank_source_column_row_is_skipped(apply_input, tmp_path):
         "Extra,\n"
     )
     out = tmp_path / "out.parquet"
-    refactor(apply_input, crosswalk, out, overwrite=True)
+    apply_crosswalk(apply_input, crosswalk, out, overwrite=True)
 
     with duckdb.connect() as conn:
         conn.execute("LOAD spatial")
@@ -229,7 +245,7 @@ def test_noise_columns_excluded_from_coverage_check(tmp_path):
         [{"source_column": "Name_Old", "target_column": "adm1_name"}],
     )
     out = tmp_path / "out.parquet"
-    refactor(path, crosswalk, out, overwrite=True)
+    apply_crosswalk(path, crosswalk, out, overwrite=True)
 
     with duckdb.connect() as conn:
         conn.execute("LOAD spatial")
@@ -249,7 +265,7 @@ def test_target_column_with_quote_round_trips(apply_input, tmp_path):
         ],
     )
     out = tmp_path / "mapped.parquet"
-    refactor(apply_input, crosswalk, out, overwrite=True)
+    apply_crosswalk(apply_input, crosswalk, out, overwrite=True)
 
     with duckdb.connect() as conn:
         conn.execute("LOAD spatial")
@@ -259,19 +275,20 @@ def test_target_column_with_quote_round_trips(apply_input, tmp_path):
     assert 'adm1"name' in columns
 
 
-def test_debug_step_inputs_exports_crosswalk_table(
+def test_debug_step_apply_exports_crosswalk_table(
     apply_input, full_crosswalk, tmp_path
 ):
     work_dir = tmp_path / "work"
-    refactor(
-        apply_input,
-        full_crosswalk,
-        tmp_path / "out.parquet",
-        tmp_dir=work_dir,
-        step="inputs",
-        debug=True,
-        overwrite=True,
-    )
+    for step in ("inputs", "apply"):
+        apply_crosswalk(
+            apply_input,
+            full_crosswalk,
+            tmp_path / "out.parquet",
+            tmp_dir=work_dir,
+            step=step,
+            debug=True,
+            overwrite=True,
+        )
     exported = {p.name for p in work_dir.glob("*.parquet")}
     assert any(name.endswith("_crosswalk.parquet") for name in exported)
 
@@ -282,10 +299,11 @@ def test_cli_error_on_existing_output(apply_input, full_crosswalk, tmp_path):
     result = CliRunner().invoke(
         cli,
         [
-            "schema-refactor",
+            "schema-map",
             str(apply_input),
-            str(full_crosswalk),
             str(out),
+            "--csv",
+            str(full_crosswalk),
             "--overwrite=false",
         ],
     )
@@ -297,7 +315,7 @@ def test_refactor_steps(apply_input, full_crosswalk, tmp_path):
     out = tmp_path / "steps_mapped.parquet"
     work_dir = tmp_path / "work"
     for step in _STEPS:
-        refactor(
+        apply_crosswalk(
             apply_input,
             full_crosswalk,
             out,
@@ -330,7 +348,7 @@ def test_columns_follow_crosswalk_rows_and_rows_sort_by_code(tmp_path):
         ],
     )
     out = tmp_path / "out.parquet"
-    refactor(src, crosswalk, out)
+    apply_crosswalk(src, crosswalk, out)
 
     with duckdb.connect() as conn:
         result = conn.execute(f"SELECT * EXCLUDE (geometry) FROM '{out}'")
@@ -344,7 +362,7 @@ def test_columns_follow_crosswalk_rows_and_rows_sort_by_code(tmp_path):
 
 def test_name_field_requires_code_field(apply_input, full_crosswalk, tmp_path):
     with pytest.raises(ValueError, match="given together"):
-        refactor(
+        apply_crosswalk(
             apply_input, full_crosswalk, tmp_path / "out.parquet", name_field="n{n}"
         )
 
@@ -352,7 +370,7 @@ def test_name_field_requires_code_field(apply_input, full_crosswalk, tmp_path):
 def test_warns_when_no_code_template_column(
     apply_input, full_crosswalk, tmp_path, caplog
 ):
-    refactor(apply_input, full_crosswalk, tmp_path / "out.parquet")
+    apply_crosswalk(apply_input, full_crosswalk, tmp_path / "out.parquet")
     assert "no 'adm{n}_code' target column" in caplog.text
 
 
@@ -366,7 +384,7 @@ def test_warns_when_numbered_sibling_precedes_its_base(apply_input, tmp_path, ca
         ],
     )
     out = tmp_path / "out.parquet"
-    refactor(apply_input, crosswalk, out)
+    apply_crosswalk(apply_input, crosswalk, out)
 
     with duckdb.connect() as conn:
         columns = [d[0] for d in conn.execute(f"SELECT * FROM '{out}'").description]

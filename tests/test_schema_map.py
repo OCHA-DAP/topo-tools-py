@@ -1,4 +1,4 @@
-"""Portability smoke tests for the standalone map() tool."""
+"""Smoke tests for schema-map's crosswalk inference (--map-only)."""
 
 import csv
 
@@ -6,11 +6,14 @@ import duckdb
 import pytest
 from click.testing import CliRunner
 
-from topo_tools.api.schema_map import map  # noqa: A004
-from topo_tools.api.schema_refactor import refactor
+from topo_tools.api.schema_map import map as schema_map
 from topo_tools.cli.main import cli
 
 _STEPS = ["inputs", "map", "outputs"]
+
+
+def map(path, output_path=None, **kwargs):  # noqa: A001
+    schema_map(path, csv_output=output_path, map_only=True, **kwargs)
 
 
 def _write_table(path, col_names, rows):
@@ -86,7 +89,7 @@ def noise_input(tmp_path):
 def test_cli_help():
     result = CliRunner().invoke(cli, ["schema-map", "--help"])
     assert result.exit_code == 0
-    assert "Map a source-column" in result.output
+    assert "Map columns onto a target schema" in result.output
     assert "Examples:" in result.output
 
 
@@ -215,6 +218,8 @@ def test_cli_error_on_existing_output(chain_input, chain_schema, tmp_path):
         [
             "schema-map",
             str(chain_input),
+            "--map-only",
+            "--csv-output",
             str(out),
             "--name-field",
             chain_schema["name_field"],
@@ -584,7 +589,7 @@ def test_unedited_crosswalk_with_ambiguous_and_unmatched_survives_refactor(
     map(chain_input, crosswalk, **chain_schema, overwrite=True)
 
     out = tmp_path / "mapped.parquet"
-    refactor(chain_input, crosswalk, out, overwrite=True)
+    schema_map(chain_input, out, csv_input=crosswalk, **chain_schema)
 
     with duckdb.connect() as conn:
         conn.execute("LOAD spatial")
@@ -681,7 +686,16 @@ def test_level_too_shallow_raises(no_country_input, tmp_path):
 def test_cli_level(no_country_input, tmp_path):
     out = tmp_path / "crosswalk.csv"
     result = CliRunner().invoke(
-        cli, ["schema-map", str(no_country_input), str(out), "--level", "2"]
+        cli,
+        [
+            "schema-map",
+            str(no_country_input),
+            "--map-only",
+            "--csv-output",
+            str(out),
+            "--level",
+            "2",
+        ],
     )
     assert result.exit_code == 0, result.output
     assert _crosswalk(out)["reg_code"]["target_column"] == "adm1_code"

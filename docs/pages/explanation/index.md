@@ -70,10 +70,9 @@ one-off decisions behind both.
 
     ---
 
-    schema-crosswalk, schema-fill, schema-map, schema-refactor: crosswalk
-    and fill a column schema.
+    schema-fill, schema-map: crosswalk and fill a column schema.
 
-    [:octicons-arrow-right-24: Schema](schema_crosswalk)
+    [:octicons-arrow-right-24: Schema](schema_map)
 
 -   :material-vector-polygon:{ .lg .middle } **Topo**
 

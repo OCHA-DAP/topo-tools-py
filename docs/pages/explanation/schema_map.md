@@ -5,18 +5,15 @@ title: "schema-map"
 
 `schema-map` reads a source file's columns and a `name_field`/`code_field`
 naming template (`adm{n}_name`/`adm{n}_code` by default, or user-supplied),
-and maps a source-column -> canonical-column
-crosswalk, without touching the file. It replaces what `hdx-cod-ab-ai`
-previously did by having a live Claude Code session freehand DuckDB
-`DESCRIBE` queries and its own judgment: matching here is embedding and
-cardinality/containment logic only, with no LLM call and no column-name
-vocabulary anywhere, so it's reusable outside an agentic session and the
-matching decisions are inspectable, versionable, and reproducible.
-`hdx-cod-ab-ai`'s PRD requires that no stage ever auto-applies without a
-human confirming it first (see its "no auto-approve mode" requirement);
-`schema-map` never renames anything itself, it only writes a crosswalk for a
-human to review, edit, and hand to `schema-refactor`
-(`docs/explanation/schema_refactor.md`).
+maps a source-column -> canonical-column crosswalk, and applies it to a
+renamed copy of the file. Matching is embedding and cardinality/containment
+logic only, with no LLM call and no column-name vocabulary anywhere, so it
+runs outside an agentic session (unlike `hdx-cod-ab-ai`'s live Claude Code
+session freehanding DuckDB `DESCRIBE` queries) and its decisions are
+inspectable, versionable, and reproducible. The input file is never
+modified: a default run writes the crosswalk CSV beside the mapped copy,
+so a human reviews both, edits the crosswalk if needed, and re-applies it
+with `--csv`.
 
 ## How it works, in plain terms
 
@@ -35,7 +32,9 @@ relate to each other, never from column names or a fixed code shape:
    gets slotted in as `supplemental` if its cardinality fits between two
    levels, or `ambiguous`/`unmatched` otherwise.
 5. **Write the crosswalk.** One row per source column, naming its target
-   level/role, for a human to review before anything is renamed.
+   level/role, for a human to review and edit.
+6. **Apply it.** Rename each kept column to its target and drop the rest,
+   writing a mapped copy of the file.
 
 The sections below spell out the exact rules and edge cases behind each step.
 
@@ -69,17 +68,22 @@ directly (see `docs/adr/0064`, `docs/adr/0066`).
 
 ```sh
 topo-tools schema-map example.geojson
+# review/edit example_crosswalk.csv, then re-apply it:
+topo-tools schema-map example.geojson --csv example_crosswalk.csv
 ```
 
 ```python
 from topo_tools.api.schema_map import map
 
 map("example.parquet")
+map("example.parquet", csv_input="example_crosswalk.csv")
 ```
 
 `OUTPUT_FILE` (positional, optional) defaults to `INPUT_FILE` with a
-`_crosswalk.csv` name. `--name-field`/`--code-field` default to
-`adm{n}_name`/`adm{n}_code` when omitted.
+`_mapped` suffix, and `--csv-output` to `INPUT_FILE` with a
+`_crosswalk.csv` name. `--map-only` writes the crosswalk alone.
+`--name-field`/`--code-field` default to `adm{n}_name`/`adm{n}_code` when
+omitted.
 
 Run `topo-tools schema-map --help` for the full, always-current option
 list.
@@ -106,9 +110,62 @@ deciding what belongs to which level.
    form of one, e.g. `fid_1` or `Shape_Le_1`), shape-classifies and
    structurally positions every remaining source column (below), reorders
    everything, and writes one crosswalk row per column (`{name}_02`).
-3. **`_03_outputs`**: exports `{name}_02` as the crosswalk CSV file. No
-   hard gate: like `topo-detect`, this tool never modifies geometry, so there's
-   nothing to validate against.
+3. **`_03_apply`** (`core/schema_crosswalk/_03_apply.py`): applies
+   `{name}_02`, or the CSV passed to `--csv` instead (skipping `_02_map`), to
+   `{name}_01` via `core.schema_refactor`'s stages, see "Table namespacing"
+   below. It first re-validates the crosswalk with
+   `core.schema_refactor._01_inputs.validate_and_materialize_crosswalk()`:
+   its `source_column` set must exactly equal the input's own non-noise
+   column set, catching a stale crosswalk referencing a column the file
+   no longer has, or a file column the crosswalk never decided about. For
+   a freshly mapped crosswalk this is a safety net that only fails on a
+   `_02_map` bug. `core.schema_refactor._02_rename` then builds one
+   `SELECT` that renames every source column to its `target_column` and
+   drops any column whose `target_column` is null/empty. A freshly mapped
+   crosswalk's columns follow `core.admin_columns.canonical_order()`; a
+   `--csv` crosswalk's follow its row order, so moving rows (in a
+   spreadsheet, say) moves the output columns, and a numbered sibling
+   placed before its base logs a warning. Rows are sorted by the deepest
+   level's code either way. `--map-only` skips this stage.
+4. **`_04_outputs`** (`core/schema_crosswalk/_04_outputs.py`): exports the
+   crosswalk CSV via `core.schema_map._03_outputs.main()` and the mapped
+   file via `core.schema_refactor._03_outputs.main()`, each only in a mode
+   that writes it. No hard gate: nothing here modifies geometry.
+
+## Table namespacing
+
+`core.schema_map._02_map.main()` and `core.schema_refactor._02_rename.main()` each
+hardcode their own output as `"{name}_02"` for entirely different data
+(the crosswalk proposal vs. the renamed/mapped table); reusing both back
+to back under the same `name` would silently overwrite one with the
+other. `_03_apply.py` avoids this by giving the apply half of the
+pipeline a distinct sub-namespace, `f"{name}_apply"`: it creates
+`"{name}_apply_01"` as a DuckDB **view** over the already-loaded
+`"{name}_01"`, rather than a copy, respecting this project's
+memory-constrained deployment targets. `core.schema_refactor._02_rename.main()`
+then runs unmodified against `name=f"{name}_apply"`, reading the view as
+if it were its own `{name}_01`. The view is dropped immediately after the
+rename stage finishes with it, not deferred to the outputs stage:
+DuckDB's `DROP TABLE IF EXISTS`, which
+`core.schema_refactor._03_outputs.main()`'s own cleanup uses, raises a
+Catalog Error against a view, so the view must be gone by the time that
+cleanup runs.
+
+## Crosswalk semantics
+
+A `target_column` of `null`/empty means "drop this column"; anything else
+is the new name to rename it to, including the column's own original name
+to keep it unchanged. Every `ambiguous`/`unmatched` row's `target_column`
+is empty, so a default run drops those columns; keeping one is an
+explicit edit a human makes.
+
+Applying rejects a crosswalk where two source columns share the same
+non-null `target_column`, or where a `target_column` collides with a
+reserved name (`fid`/`geom`/`geometry`), raising before any rename runs.
+Without this check, DuckDB doesn't error on a duplicate output column
+name; it silently disambiguates by appending `_1`, `_2`, etc., which would
+rename the user's requested column away from the name they asked for with
+no warning.
 
 ## Algorithm
 
@@ -267,7 +324,7 @@ deciding what belongs to which level.
    else becomes `supplemental` (a bracketed column that's a confirmed
    coarser grouping over the level, see `docs/adr/0065`), `ambiguous`
    (bracketed but failing the function check entirely), or `unmatched`,
-   `target_column` left empty in every case: `schema-refactor` drops a column
+   `target_column` left empty in every case: applying drops a column
    whose crosswalk `target_column` is empty, so keeping one under its
    own name is a decision a human makes by editing the crosswalk, not
    something `schema-map` assumes (see `docs/adr/0059`).

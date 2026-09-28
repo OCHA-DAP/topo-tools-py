@@ -1,4 +1,4 @@
-"""Reads the input file and crosswalk, validating the crosswalk against it."""
+"""Parses a crosswalk CSV and validates it against the loaded input."""
 
 import csv
 from pathlib import Path
@@ -6,10 +6,9 @@ from pathlib import Path
 from duckdb import DuckDBPyConnection
 
 from topo_tools.core.constants import is_noise_column
-from topo_tools.core.io import read_and_reproject
 
 
-def _parse_crosswalk(crosswalk_path: Path) -> list[dict]:
+def parse_crosswalk(crosswalk_path: Path) -> list[dict]:
     """Load the crosswalk CSV, raising ValueError on any shape violation."""
     with crosswalk_path.open(newline="") as f:
         reader = csv.DictReader(f)
@@ -96,12 +95,3 @@ def validate_and_materialize_crosswalk(
             f'INSERT INTO "{name}_crosswalk" VALUES (?, ?, ?)',
             [i, row["source_column"], row.get("target_column") or None],
         )
-
-
-def main(
-    conn: DuckDBPyConnection, name: str, path: Path | str, crosswalk_path: Path
-) -> None:
-    """Read geodata into `{name}_01`; validate the crosswalk exactly covers it."""
-    read_and_reproject(conn, name, path)
-    crosswalk = _parse_crosswalk(crosswalk_path)
-    validate_and_materialize_crosswalk(conn, name, f"{name}_01", crosswalk, path)

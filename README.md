@@ -15,9 +15,7 @@ Full documentation: <https://ocha-dap.github.io/topo-tools-py/>
 
 | Tool | Description |
 | --- | --- |
-| **schema-crosswalk** | map and apply a source to target schema crosswalk |
-| **schema-map** | infer a source to target schema crosswalk |
-| **schema-refactor** | apply a schema crosswalk |
+| **schema-map** | map and apply a source to target schema crosswalk |
 | **schema-fill** | fill down admin-hierarchy columns |
 | **schema-join** | copy parent admin-hierarchy columns onto each child |
 | **topo-clean** | detect and fix gap/overlap defects |

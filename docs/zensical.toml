@@ -51,11 +51,9 @@ nav = [
       "reference/package_polygons.md",
     ] },
     { "Schema" = [
-      "reference/schema_crosswalk.md",
       "reference/schema_fill.md",
       "reference/schema_join.md",
       "reference/schema_map.md",
-      "reference/schema_refactor.md",
     ] },
     "reference/shared.md",
     { "Topo" = [
@@ -91,11 +89,9 @@ nav = [
     "explanation/performance.md",
     { "Schema" = [
       "explanation/schema_overview.md",
-      "explanation/schema_crosswalk.md",
       "explanation/schema_fill.md",
       "explanation/schema_join.md",
       "explanation/schema_map.md",
-      "explanation/schema_refactor.md",
     ] },
     { "Topo" = [
       "explanation/topo_overview.md",

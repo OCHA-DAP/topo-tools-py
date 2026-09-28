@@ -12,17 +12,16 @@ depth.
 
 Propose a crosswalk and apply it in one call:
 
-    topo-tools schema-crosswalk example.geojson
+    topo-tools schema-map example.geojson
 
 This writes the renamed output plus `example_crosswalk.csv`. Review and
-hand-edit the crosswalk, then re-apply it with `schema-refactor` alone,
-without re-running the mapping:
+hand-edit the crosswalk (retarget, blank a target to drop, move rows to
+reorder columns), then re-apply it without re-running the mapping:
 
-    topo-tools schema-refactor example.geojson example_crosswalk.csv --overwrite
+    topo-tools schema-map example.geojson --csv example_crosswalk.csv
 
-`schema-crosswalk` is `schema-map` (propose the crosswalk) followed by
-`schema-refactor` (apply it); run `schema-map` on its own to review the
-crosswalk before anything is renamed.
+Add `--map-only` to write just the crosswalk, for review before anything
+is renamed.
 
 ## Copy ancestor columns from a parent layer
 
@@ -45,7 +44,5 @@ genuine `NULL` at a row's own real depth stays `NULL` rather than being
 backfilled from a shallower ancestor.
 
 See the [`schema-map`](../reference/schema_map/),
-[`schema-refactor`](../reference/schema_refactor/),
-[`schema-crosswalk`](../reference/schema_crosswalk/),
 [`schema-join`](../reference/schema_join/), and
 [`schema-fill`](../reference/schema_fill/) references for details.

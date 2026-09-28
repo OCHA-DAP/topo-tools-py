@@ -13,11 +13,9 @@ from topo_tools.api import edge_match as _edge_match
 from topo_tools.api import edge_mosaic as _edge_mosaic
 from topo_tools.api import edge_stitch as _edge_stitch
 from topo_tools.api import package as _package
-from topo_tools.api import schema_crosswalk as _schema_crosswalk
 from topo_tools.api import schema_fill as _schema_fill
 from topo_tools.api import schema_join as _schema_join
 from topo_tools.api import schema_map as _schema_map
-from topo_tools.api import schema_refactor as _schema_refactor
 from topo_tools.api import topo_clean as _topo_clean
 from topo_tools.api import topo_detect as _topo_detect
 from topo_tools.api.code_refactor import code_refactor as _code_refactor
@@ -2043,220 +2041,26 @@ def schema_join(  # noqa: PLR0913, PLR0917
 @click.argument("input_file", envvar="INPUT_FILE")
 @click.argument("output_file", envvar="OUTPUT_FILE", required=False, default=None)
 @click.option(
-    "--name-field",
-    envvar="NAME_FIELD",
+    "--csv",
+    "csv_input",
+    envvar="CSV",
     default=None,
-    help="Name-field template, e.g. 'adm{n}_name' (requires --code-field; "
-    "default: 'adm{n}_name').",
+    help="Apply this (edited) crosswalk CSV instead of mapping one; output "
+    "columns follow its row order.",
 )
 @click.option(
-    "--code-field",
-    envvar="CODE_FIELD",
+    "--csv-output",
+    envvar="CSV_OUTPUT",
     default=None,
-    help="Code-field template, e.g. 'adm{n}_code' (requires --name-field; "
-    "default: 'adm{n}_code').",
+    help="Where to write the mapped crosswalk CSV (default: INPUT_FILE with a "
+    "'_crosswalk.csv' name).",
 )
 @click.option(
-    "--level",
-    envvar="LEVEL",
-    type=click.IntRange(min=0),
-    default=None,
-    help="The file's own admin level, numbering its finest level (default: "
-    "coarsest level numbered 1, a single-value country column 0).",
-)
-@click.option(
-    "--layer",
-    envvar="LAYER",
-    default=None,
-    help="Layer name, for a multi-layer source (e.g. FileGDB). Auto-detected "
-    "when possible; required if auto-detection can't resolve it to exactly "
-    "one geometry-bearing layer.",
-)
-@click.option(
-    "--overwrite",
-    envvar="OVERWRITE",
-    type=bool,
-    default=True,
-    show_default=True,
-    help="Overwrite an existing output; pass --overwrite=false to error instead.",
-)
-@click.option(
-    "--threads", envvar="THREADS", type=int, default=None, help="DuckDB thread count."
-)
-@click.option(
-    "--debug",
-    envvar="DEBUG",
+    "--map-only",
+    envvar="MAP_ONLY",
     is_flag=True,
-    help="Keep intermediate tables, export to Parquet, log timing/memory per query.",
+    help="Only write the crosswalk CSV, not the mapped layer.",
 )
-@click.option(
-    "--tmp-dir",
-    envvar="TMP_DIR",
-    default=None,
-    help="Intermediate DuckDB + Parquet location.",
-)
-@click.option(
-    "--step",
-    envvar="STEP",
-    type=click.Choice(["inputs", "map", "outputs"]),
-    default=None,
-    help="Run only one named stage.",
-)
-def schema_map(  # noqa: PLR0913, PLR0917
-    input_file: str,
-    output_file: str | None,
-    name_field: str | None,
-    code_field: str | None,
-    level: int | None,
-    layer: str | None,
-    overwrite: bool,  # noqa: FBT001
-    threads: int | None,
-    debug: bool,  # noqa: FBT001
-    tmp_dir: str | None,
-    step: str | None,
-) -> None:
-    r"""Map a source-column -> target-schema crosswalk for one input file.
-
-    Rendered target names default to "adm{n}_name"/"adm{n}_code"; override
-    with --name-field/--code-field. OUTPUT_FILE defaults to INPUT_FILE with
-    a "_crosswalk.csv" name if omitted. Never renames anything itself;
-    review/edit the crosswalk, then run schema-refactor.
-
-    \b
-    Examples:
-      # Basic run: default naming, output name chosen automatically
-      topo-tools schema-map example.geojson
-
-      \b
-      # Custom target field naming
-      topo-tools schema-map example.geojson --name-field adm{n}_name \
-        --code-field adm{n}_pcode
-
-      \b
-      # Number levels from the file's own admin level
-      topo-tools schema-map admin3.geojson --level 3
-
-      \b
-      # Global multi-country file (country + region columns)
-      topo-tools schema-map global_admin1.geojson --level 1
-    """
-    logger.info("--debug=%s", debug)
-    try:
-        _schema_map(
-            input_file,
-            Path(output_file) if output_file is not None else None,
-            name_field=name_field,
-            code_field=code_field,
-            level=level,
-            layer=layer,
-            threads=threads,
-            tmp_dir=tmp_dir,
-            overwrite=overwrite,
-            debug=debug,
-            step=step,
-        )
-    except (FileExistsError, RuntimeError, ValueError) as e:
-        raise click.ClickException(str(e)) from e
-
-
-@cli.command(name="schema-refactor")
-@click.argument("input_file", envvar="INPUT_FILE")
-@click.argument("crosswalk_file", envvar="CROSSWALK_FILE")
-@click.argument("output_file", envvar="OUTPUT_FILE", required=False, default=None)
-@click.option(
-    "--name-field",
-    envvar="NAME_FIELD",
-    default=None,
-    help="Name-field template, e.g. 'adm{n}_name', for column order (requires "
-    "--code-field; default: 'adm{n}_name').",
-)
-@click.option(
-    "--code-field",
-    envvar="CODE_FIELD",
-    default=None,
-    help="Code-field template, e.g. 'adm{n}_code', for column and row order "
-    "(requires --name-field; default: 'adm{n}_code').",
-)
-@click.option(
-    "--overwrite",
-    envvar="OVERWRITE",
-    type=bool,
-    default=True,
-    show_default=True,
-    help="Overwrite an existing output; pass --overwrite=false to error instead.",
-)
-@click.option(
-    "--threads", envvar="THREADS", type=int, default=None, help="DuckDB thread count."
-)
-@click.option(
-    "--debug",
-    envvar="DEBUG",
-    is_flag=True,
-    help="Keep intermediate tables, export to Parquet, log timing/memory per query.",
-)
-@click.option(
-    "--tmp-dir",
-    envvar="TMP_DIR",
-    default=None,
-    help="Intermediate DuckDB + Parquet location.",
-)
-@click.option(
-    "--step",
-    envvar="STEP",
-    type=click.Choice(["inputs", "rename", "outputs"]),
-    default=None,
-    help="Run only one named stage.",
-)
-def schema_refactor(  # noqa: PLR0913, PLR0917
-    input_file: str,
-    crosswalk_file: str,
-    output_file: str | None,
-    name_field: str | None,
-    code_field: str | None,
-    overwrite: bool,  # noqa: FBT001
-    threads: int | None,
-    debug: bool,  # noqa: FBT001
-    tmp_dir: str | None,
-    step: str | None,
-) -> None:
-    r"""Rename/drop columns per a crosswalk from schema-map (possibly edited).
-
-    CROSSWALK_FILE is the CSV crosswalk schema-map wrote (or a hand-edited copy
-    of it). Raises if the crosswalk's columns don't exactly match
-    INPUT_FILE's, catching a stale crosswalk or wrong input file.
-    OUTPUT_FILE defaults to INPUT_FILE with a "_mapped" suffix if omitted.
-
-    \b
-    Examples:
-      # Basic run, output name chosen automatically
-      topo-tools schema-refactor example.geojson crosswalk.csv
-
-      \b
-      # Explicit output
-      topo-tools schema-refactor example.gpkg crosswalk.csv example_mapped.gpkg
-    """
-    logger.info("--debug=%s", debug)
-    try:
-        _schema_refactor(
-            input_file,
-            crosswalk_file,
-            Path(output_file) if output_file is not None else None,
-            name_field=name_field,
-            code_field=code_field,
-            threads=threads,
-            tmp_dir=tmp_dir,
-            overwrite=overwrite,
-            debug=debug,
-            step=step,
-        )
-    except (FileExistsError, RuntimeError, ValueError) as e:
-        raise click.ClickException(str(e)) from e
-
-
-@cli.command(name="schema-crosswalk")
-@click.argument("input_file", envvar="INPUT_FILE")
-@click.argument("output_file", envvar="OUTPUT_FILE", required=False, default=None)
-@click.argument("crosswalk_file", envvar="CROSSWALK_FILE", required=False, default=None)
 @click.option(
     "--name-field",
     envvar="NAME_FIELD",
@@ -2317,10 +2121,12 @@ def schema_refactor(  # noqa: PLR0913, PLR0917
     default=None,
     help="Run only one named stage.",
 )
-def schema_crosswalk(  # noqa: PLR0913, PLR0917
+def schema_map(  # noqa: PLR0913, PLR0917
     input_file: str,
     output_file: str | None,
-    crosswalk_file: str | None,
+    csv_input: str | None,
+    csv_output: str | None,
+    map_only: bool,  # noqa: FBT001
     name_field: str | None,
     code_field: str | None,
     level: int | None,
@@ -2331,31 +2137,41 @@ def schema_crosswalk(  # noqa: PLR0913, PLR0917
     tmp_dir: str | None,
     step: str | None,
 ) -> None:
-    r"""Map a crosswalk, then apply it (schema-map + schema-refactor, combined).
+    r"""Map columns onto a target schema: rename/drop them via a crosswalk.
 
-    Rendered target names default to "adm{n}_name"/"adm{n}_code"; override
-    with --name-field/--code-field. OUTPUT_FILE defaults to INPUT_FILE with
-    a "_mapped" suffix; CROSSWALK_FILE defaults to INPUT_FILE with a
-    "_crosswalk.csv" name. To iterate, hand-edit the written crosswalk CSV
-    and re-run schema-refactor on it, not schema-crosswalk again (which
-    always maps fresh).
+    By default, maps a crosswalk from the file's structure, writes it as CSV,
+    and applies it. To iterate, edit the CSV (retarget, blank to drop, move
+    rows to reorder) and re-run with --csv. --map-only writes the CSV
+    alone. OUTPUT_FILE defaults to INPUT_FILE with a "_mapped" suffix.
+    Target names default to "adm{n}_name"/"adm{n}_code"; override with
+    --name-field/--code-field.
 
     \b
     Examples:
-      # Basic run: default naming, output names chosen automatically
-      topo-tools schema-crosswalk example.geojson
+      # Map and apply, output names chosen automatically
+      topo-tools schema-map example.geojson
 
       \b
-      # Custom target field naming, explicit outputs
-      topo-tools schema-crosswalk example.geojson example_mapped.geojson \
-          example_crosswalk.csv --name-field adm{n}_name --code-field adm{n}_pcode
+      # Apply an edited crosswalk
+      topo-tools schema-map example.geojson --csv example_crosswalk.csv
+
+      \b
+      # Only write the crosswalk, numbering levels from the file's own level
+      topo-tools schema-map admin3.geojson --map-only --level 3
+
+      \b
+      # Custom target field naming
+      topo-tools schema-map example.geojson --name-field adm{n}_name \
+        --code-field adm{n}_pcode
     """
     logger.info("--debug=%s", debug)
     try:
-        _schema_crosswalk(
+        _schema_map(
             input_file,
             Path(output_file) if output_file is not None else None,
-            Path(crosswalk_file) if crosswalk_file is not None else None,
+            csv_input=csv_input,
+            csv_output=csv_output,
+            map_only=map_only,
             name_field=name_field,
             code_field=code_field,
             level=level,
