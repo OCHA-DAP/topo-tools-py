@@ -6,8 +6,8 @@ from pathlib import Path
 import duckdb
 from build_nld import get
 
-from topo_tools.api.schema_crosswalk import crosswalk
 from topo_tools.api.schema_join import join
+from topo_tools.api.schema_map import map as schema_map
 from topo_tools.api.topo_detect import detect
 
 SIMPLIFY_M = 100.0
@@ -149,10 +149,10 @@ def main() -> None:
         if n := overlaps(path, args.cache):
             msg = f"{path}: {n} overlaps after simplify and clean"
             raise SystemExit(msg)
-    crosswalk(
+    schema_map(
         raw,
         mapped,
-        mapped.with_name("nld_admin2_crosswalk.csv"),
+        csv_output=mapped.with_name("nld_admin2_crosswalk.csv"),
         tmp_dir=args.cache / "tmp",
     )
     if n := join_issues(child, parent, args.cache):
