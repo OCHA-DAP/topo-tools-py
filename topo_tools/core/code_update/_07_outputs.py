@@ -7,7 +7,7 @@ from duckdb import DuckDBPyConnection
 from topo_tools.core.code import TABLE_COPY_OPTS, CodeFormat, parent_prefix
 from topo_tools.core.code_update._02_levels import SideLevels
 from topo_tools.core.code_update._06_assign import ChangeRow
-from topo_tools.core.io import export_geometry_table
+from topo_tools.core.io import add_csv_bom, export_geometry_table
 
 
 def _flag_overflow(changelog: list[ChangeRow], fmt: CodeFormat) -> None:
@@ -149,6 +149,7 @@ def main(  # noqa: PLR0913
         f"COPY (SELECT * FROM \"{changelog_table}\") TO '{changelog_dest}' "
         f"{TABLE_COPY_OPTS[changelog_dest.suffix]}"
     )
+    add_csv_bom(changelog_dest)
     conn.execute(f'DROP TABLE IF EXISTS "{changelog_table}"')
 
     if not debug:

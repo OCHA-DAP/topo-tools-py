@@ -4,7 +4,7 @@
 
 `topo-tools` is a Python package of DuckDB-powered geospatial topology utilities,
 `pip install`-able and importable, mirroring the organization of the sister JS app
-at `../topo-tools` (a DuckDB-WASM web app with the same tools). It ships seventeen
+at `../topo-tools-js` (a DuckDB-WASM web app with the same tools). It ships seventeen
 tools, all used for improving administrative boundary datasets and matching
 sub-national boundaries to national boundaries (import-linter contracts
 governing which tool may depend on which are in `docs/pages/reference/shared.md`).

@@ -10,7 +10,7 @@ from topo_tools.core.code import (
     last_component,
     parent_prefix,
 )
-from topo_tools.core.io import export_geometry_table
+from topo_tools.core.io import add_csv_bom, export_geometry_table
 
 
 def main(  # noqa: PLR0913
@@ -91,4 +91,5 @@ def _write_overflow_issues(
         f"COPY (SELECT * FROM \"{issues_table}\") TO '{issues_dest}' "
         f"{TABLE_COPY_OPTS[issues_dest.suffix]}"
     )
+    add_csv_bom(issues_dest)
     conn.execute(f'DROP TABLE IF EXISTS "{issues_table}"')

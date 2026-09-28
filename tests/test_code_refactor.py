@@ -193,6 +193,7 @@ def test_overflow_writes_four_digit_code_and_issues_row(tmp_path):
         min_width=3,
     )
 
+    assert issues_path.read_bytes().startswith(b"\xef\xbb\xbf")
     codes = {r[0] for r in _fetch(output_path, "adm1_code", "adm1_code")}
     assert len(codes) == total
     assert "BRA.999" in codes

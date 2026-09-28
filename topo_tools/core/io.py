@@ -1,5 +1,6 @@
 """Shared geodata read/write helpers."""
 
+import shutil
 from logging import getLogger
 from pathlib import Path
 from urllib.parse import urlparse
@@ -242,6 +243,17 @@ def export_geometry_table(
             SELECT geom AS geometry, * EXCLUDE ({exclude}){rename_sql} FROM "{table}"
         ) TO '{dest}' {COPY_OPTS[dest.suffix]}
     """)
+
+
+def add_csv_bom(path: Path) -> None:
+    """Prefix a `.csv` file with a UTF-8 BOM so spreadsheet apps detect its encoding."""
+    if path.suffix != ".csv":
+        return
+    tmp = path.with_name(path.name + ".tmp")
+    with path.open("rb") as src, tmp.open("wb") as dst:
+        dst.write(b"\xef\xbb\xbf")
+        shutil.copyfileobj(src, dst)
+    tmp.replace(path)
 
 
 def export_issues_table(conn: DuckDBPyConnection, table: str, dest: Path) -> None:

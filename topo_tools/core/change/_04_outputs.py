@@ -4,7 +4,7 @@ from pathlib import Path
 
 from duckdb import DuckDBPyConnection
 
-from topo_tools.core.io import export_geometry_table
+from topo_tools.core.io import add_csv_bom, export_geometry_table
 
 from ._constants import TABLE_COPY_OPTS
 
@@ -47,6 +47,7 @@ def main(
     conn.execute(f"""--sql
         COPY (SELECT * FROM "{name}_03c") TO '{dest}' {TABLE_COPY_OPTS[dest.suffix]}
     """)
+    add_csv_bom(dest)
     export_geometry_table(conn, f"{name}_04", overlay_dest, exclude_fid=False)
 
     if not debug:
