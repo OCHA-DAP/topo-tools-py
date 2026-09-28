@@ -83,9 +83,9 @@ def main() -> None:
     args.cache.mkdir(parents=True, exist_ok=True)
 
     src = args.catalog / "nld" / "2025" / "nld_admin2" / "nld_admin2.parquet"
-    tier = args.catalog / "nld" / "demo" / "admin2-simplified"
-    raw = tier / "00_raw" / "nld_admin2_raw.parquet"
-    mapped = tier / "01_mapped" / "nld_admin2_mapped.parquet"
+    demo = args.catalog / "nld" / "demo"
+    raw = demo / "schema-crosswalk" / "admin2-simplified" / "nld_admin2.parquet"
+    mapped = args.cache / "admin2-simplified" / "nld_admin2_mapped.parquet"
 
     admin2_simplified_raw(src, raw, gebieden(args.cache))
     if n := overlaps(raw, args.cache):
