@@ -42,7 +42,21 @@ DESCRIPTION = {
     "wijken": "{land} wijken from the CBS Wijk- en Buurtkaart {year}, plus {water} water wijken and one `B` row for Belgian territory around Baarle-Nassau.",
     "buurten": "{land} buurten from the CBS Wijk- en Buurtkaart {year}, plus {water} water buurten (codes ending in `9997` or `9998`) and one `B` row for Belgian territory around Baarle-Nassau.",
 }
-
+DEMO = {
+    "": {
+        "title": "Netherlands demo inputs",
+        "description": "Input layers for trying each topo-tools tool on Dutch boundaries. There is one folder per tool, and each tool folder holds one or more inputs of different sizes. Running a tool on its input produces the output, which is never stored here. See [AGENTS.md](AGENTS.md).",
+    },
+    "schema-crosswalk": {
+        "title": "schema-crosswalk demo inputs",
+        "description": "Inputs for `topo-tools schema-crosswalk`, which renames an input's columns to the `adm{n}_name`/`adm{n}_code` schema. It works out the admin hierarchy from the values themselves, not from the column names. See [AGENTS.md](AGENTS.md).",
+    },
+    "schema-crosswalk/admin2-simplified": {
+        "title": "Gemeenten 2025, simplified",
+        "description": "The 342 land gemeenten from the CBS Wijk- en Buurtkaart 2025, in EPSG:28992 with the CBS column names. Boundaries are simplified to 100 m, with neighbouring gemeenten still sharing their edges. The provincie code and name come from CBS StatLine table 86059NED (Gebieden in Nederland 2025). Running schema-crosswalk on it maps the gemeente columns to adm2 and the provincie columns to adm1. It drops `landcode`, `landnaam`, `water` and `jaar` because each holds a single value. See [AGENTS.md](AGENTS.md).",
+        "processing_notes": "Provincie columns joined on gemeentecode from the CBS StatLine OData table 86059NED: https://opendata.cbs.nl/ODataApi/odata/86059NED/TypedDataSet?$format=json&$select=RegioS,Code_28,Naam_29",
+    },
+}
 
 DATA = "https://data.source.coop/hdx/topo-tools"
 TEMPLATES = Path(__file__).parent / "agents"
@@ -289,6 +303,9 @@ def main() -> None:
             )
             if assets is not None:
                 annotate(collection_dir, admin, year, assets)
+    for path, fields in DEMO.items():
+        if (demo_dir := args.catalog / "nld" / "demo" / path).exists():
+            write_yaml(demo_dir / ".portolan" / "metadata.yaml", fields)
     if not args.metadata_only:
         apply_titles(args.catalog)
         write_agents(args.catalog)
