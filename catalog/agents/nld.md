@@ -1,6 +1,6 @@
 # AGENTS.md: Netherlands
 
-CBS Wijk- en Buurtkaart 2021 to 2025, downloaded from the PDOK GeoPackages. The layers are gemeenten (`nld_admin2`), wijken (`nld_admin3`) and buurten (`nld_admin4`). Credit: © Kadaster / Centraal Bureau voor de Statistiek.
+CBS Wijk- en Buurtkaart 2021 to 2025, downloaded from the PDOK GeoPackages. The layers are gemeenten (`nld_admin2`), wijken (`nld_admin3`) and buurten (`nld_admin4`). Inputs for demonstrating each topo-tools tool are in [demo/AGENTS.md](demo/AGENTS.md). Credit: © Kadaster / Centraal Bureau voor de Statistiek.
 
 ## Conventions shared by every year
 

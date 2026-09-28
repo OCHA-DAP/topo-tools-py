@@ -54,8 +54,44 @@ DEMO = {
     "schema-crosswalk/admin2-simplified": {
         "title": "Gemeenten 2025, simplified",
         "description": "The 342 land gemeenten from the CBS Wijk- en Buurtkaart 2025, in EPSG:28992 with the CBS column names. Boundaries are simplified to 100 m, with neighbouring gemeenten still sharing their edges. The provincie code and name come from CBS StatLine table 86059NED (Gebieden in Nederland 2025). Running schema-crosswalk on it maps the gemeente columns to adm2 and the provincie columns to adm1. It drops `landcode`, `landnaam`, `water` and `jaar` because each holds a single value. See [AGENTS.md](AGENTS.md).",
-        "processing_notes": "Provincie columns joined on gemeentecode from the CBS StatLine OData table 86059NED: https://opendata.cbs.nl/ODataApi/odata/86059NED/TypedDataSet?$format=json&$select=RegioS,Code_28,Naam_29",
+        "keywords": [
+            "administrative boundaries",
+            "Netherlands",
+            "CBS",
+            "gemeenten",
+            "provincies",
+            "topo-tools",
+            "schema-crosswalk",
+        ],
+        "processing_notes": "Built by `catalog/build_demo.py` in [topo-tools-py](https://github.com/OCHA-DAP/topo-tools-py) from the land rows of `nld/2025/nld_admin2`: `ST_CoverageSimplify` at 100 m, then `ST_CoverageClean` with 0.01 m snapping and no gap filling. Provincie columns joined on `gemeentecode` from the CBS StatLine [OData table 86059NED](https://opendata.cbs.nl/ODataApi/odata/86059NED/TypedDataSet?$format=json&$select=RegioS,Code_28,Naam_29).",
     },
+}
+for fields in DEMO.values():
+    fields.setdefault(
+        "keywords", ["administrative boundaries", "Netherlands", "CBS", "topo-tools"]
+    )
+DEMO_COLUMNS = {
+    **COLUMNS,
+    "geometry": "Polygon or MultiPolygon in EPSG:28992 (RD New, metres), simplified to 100 m with `ST_CoverageSimplify` so neighbouring gemeenten keep shared edges.",
+    "provinciecode": "Provincie code: `PV` plus 2 digits, from CBS StatLine table 86059NED.",
+    "provincienaam": "Provincie name, from CBS StatLine table 86059NED.",
+    "landcode": "Country code, always `NL`.",
+    "landnaam": "Country name, always `Nederland`.",
+    "water": "Always `NEE` (land). Water rows are left out.",
+}
+PROVINCIES = {
+    "Groningen": "#a6cee3",
+    "Fryslân": "#1f78b4",
+    "Drenthe": "#b2df8a",
+    "Overijssel": "#33a02c",
+    "Flevoland": "#fb9a99",
+    "Gelderland": "#e31a1c",
+    "Utrecht": "#fdbf6f",
+    "Noord-Holland": "#ff7f00",
+    "Zuid-Holland": "#cab2d6",
+    "Zeeland": "#6a3d9a",
+    "Noord-Brabant": "#e6d93f",
+    "Limburg": "#b15928",
 }
 
 DATA = "https://data.source.coop/hdx/topo-tools"
@@ -256,6 +292,81 @@ def write_agents(catalog: Path) -> None:
             )
 
 
+def annotate_demo(collection_dir: Path, cache: Path) -> None:
+    path = collection_dir / "collection.json"
+    collection = json.loads(path.read_text())
+    for column in collection["table:columns"]:
+        if column["name"] in DEMO_COLUMNS:
+            column["description"] = DEMO_COLUMNS[column["name"]]
+    collection["extent"]["temporal"]["interval"] = [["2025-01-01T00:00:00Z"] * 2]
+
+    style_path = collection_dir / "styles" / "default.json"
+    source = json.loads(style_path.read_text())["sources"]["data"]
+    fill = ["match", ["get", "provincienaam"]]
+    for name, color in PROVINCIES.items():
+        fill += [name, color]
+    provincie_style = {
+        "version": 8,
+        "name": "Provincies",
+        "sources": {"data": source},
+        "layers": [
+            {
+                "id": "nld_admin2-fill",
+                "type": "fill",
+                "source": "data",
+                "source-layer": "nld_admin2",
+                "paint": {"fill-color": [*fill, "#cccccc"], "fill-opacity": 0.7},
+            },
+            {
+                "id": "nld_admin2-outline",
+                "type": "line",
+                "source": "data",
+                "source-layer": "nld_admin2",
+                "paint": {"line-color": "#333333", "line-width": 0.5},
+            },
+        ],
+    }
+    style_path.write_text(
+        json.dumps(provincie_style, indent=2, ensure_ascii=False) + "\n"
+    )
+    for asset in collection["assets"].values():
+        local = collection_dir / asset["href"]
+        if "://" not in asset["href"] and local.exists():
+            asset.update(file_fields(local))
+    path.write_text(json.dumps(collection, indent=2, ensure_ascii=False) + "\n")
+
+    tier = collection_dir.name
+    url = f"{DATA}/nld/demo/schema-crosswalk/{tier}/nld_admin2.parquet"
+    parquet = collection_dir / "nld_admin2.parquet"
+    counts = duckdb.execute(
+        f"SELECT provinciecode, provincienaam, count(*) FROM read_parquet('{parquet}') GROUP BY ALL ORDER BY 1"
+    ).fetchall()
+    rows = sum(n for *_, n in counts)
+    crosswalk = duckdb.execute(
+        f"SELECT source_column, coalesce(target_column, 'dropped'), unique_count FROM read_csv('{cache / tier / 'nld_admin2_crosswalk.csv'}', all_varchar=true)"
+    ).fetchall()
+    gaps = duckdb.execute(
+        f"SELECT count(*) FROM read_parquet('{cache / f'{tier}_nld_admin2_issues.parquet'}') WHERE kind = 'gap'"
+    ).fetchone()[0]
+    (collection_dir / "AGENTS.md").write_text(
+        template(
+            "demo_collection",
+            title=DEMO[f"schema-crosswalk/{tier}"]["title"],
+            rows=str(rows),
+            url=url,
+            crosswalk="\n".join(
+                ["| source_column | target_column | unique_count |", "|---|---|---|"]
+                + [
+                    f"| `{c}` | {t if t == 'dropped' else f'`{t}`'} | {n} |"
+                    for c, t, n in crosswalk
+                ]
+            ),
+            gaps=str(gaps),
+            counts=", ".join(f"{c} {name} {n}" for c, name, n in counts),
+        )
+    )
+
+
 def apply_titles(catalog: Path) -> None:
     for metadata in catalog.rglob(".portolan/metadata.yaml"):
         fields = yaml.safe_load(metadata.read_text()) or {}
@@ -303,12 +414,19 @@ def main() -> None:
             )
             if assets is not None:
                 annotate(collection_dir, admin, year, assets)
+    demo = args.catalog / "nld" / "demo"
     for path, fields in DEMO.items():
-        if (demo_dir := args.catalog / "nld" / "demo" / path).exists():
-            write_yaml(demo_dir / ".portolan" / "metadata.yaml", fields)
+        if (demo / path).exists():
+            write_yaml(demo / path / ".portolan" / "metadata.yaml", fields)
     if not args.metadata_only:
         apply_titles(args.catalog)
         write_agents(args.catalog)
+        if (collection_dir := demo / "schema-crosswalk" / "admin2-simplified").exists():
+            (demo / "AGENTS.md").write_text(template("demo"))
+            (demo / "schema-crosswalk" / "AGENTS.md").write_text(
+                template("demo_schema_crosswalk")
+            )
+            annotate_demo(collection_dir, args.cache / "demo")
 
 
 if __name__ == "__main__":
