@@ -6,6 +6,18 @@ title: "schema-map"
 See `docs/reference/README.md` for the MUST/SHOULD/MAY convention, and
 `docs/reference/shared.md` for rules `schema-map` shares with other tools.
 
+## Modes
+
+- By default, `schema-map` MUST map a crosswalk from the input's
+  structure, write it as CSV, and apply it, writing the mapped layer.
+- With `csv_input` (`--csv`), it MUST skip mapping and apply
+  that crosswalk CSV, writing only the mapped layer.
+- With `map_only` (`--map-only`), it MUST map and write only the
+  crosswalk CSV.
+- `schema-map` MUST raise `ValueError` if `csv_input` is given with
+  `map_only`, `csv_output`, or `level`, or if `map_only` is given
+  with an output path.
+
 ## Inputs
 
 - `schema-map` MUST read the input and reproject it to EPSG:4326 the same way
@@ -28,6 +40,15 @@ See `docs/reference/README.md` for the MUST/SHOULD/MAY convention, and
   ESRI Shapefile DBF driver's field-name limit) with that stripped base a
   prefix of a `NOISE_COLUMNS` entry (e.g. `Shape_Le_1` -> `shape_le`, a
   prefix of `shape_length`, the DBF-truncated form of a duplicate field).
+- A `csv_input` MUST be a CSV with a `source_column` column (as
+  written by `schema-map`, or a hand-edited copy), one row per source
+  column, else `ValueError`. A row with a blank `source_column` MUST be
+  skipped.
+- `schema-map` MUST raise `ValueError` if the crosswalk's `source_column`
+  set does not exactly equal the input's own column set, excluding any
+  column matching `core.constants.is_noise_column()`, if it lists the same
+  `source_column` twice, if two rows share a non-null `target_column`, or
+  if a `target_column` is reserved (`fid`, `geom`, `geometry`).
 
 ## Matching
 
@@ -142,11 +163,22 @@ empirical justification.
   without `level`; it only excludes columns with no real variation to report.
 - `target_column` MUST be non-empty only for a `code`/`name` row; every
   `ambiguous`/`unmatched` row's `target_column` MUST be empty, since
-  `schema-refactor` drops any source column whose crosswalk `target_column` is
-  empty (see `docs/reference/schema_refactor.md`) and a human, not `schema-map`,
+  applying drops any source column whose crosswalk `target_column` is
+  empty (see "Applying") and a human, not `schema-map`,
   decides whether to keep such a column and under what name.
 - `schema-map` MUST NOT call an LLM or any external service; matching is
   embedding and cardinality/containment logic only.
+
+## Applying
+
+- A source column whose `target_column` is null or empty MUST be dropped.
+  Every other source column MUST be renamed to its `target_column`. The
+  geometry column MUST pass through unchanged.
+- A freshly mapped crosswalk MUST follow the shared column order in
+  `docs/reference/shared.md`. A `csv_input` MUST set column order by
+  its row order, after `geometry`, with a warning (no reordering) when a
+  column's numbered siblings (`adm2_name1`, `adm2_name2`) don't follow it
+  in numeric order. Rows MUST follow the shared row order either way.
 
 ## Outputs
 
@@ -171,23 +203,27 @@ empirical justification.
   matching COD-AB's own-level-then-ancestors order), name before code
   within a level, then every `unmatched` column last in the source
   file's own column order.
-- `schema-map` MUST NOT rename or drop any column in the input file itself
-  (see `docs/reference/schema_refactor.md` for the tool that does).
+- `schema-map` MUST NOT modify the input file.
 
 ## Configuration (`api.schema_map.map()` / CLI)
 
 - `schema-map` MUST process exactly one input file per call.
-- The crosswalk path MUST default to the input path with a `_crosswalk`
-  stem suffix and a `.csv` extension.
-- `schema-map` MUST raise `FileExistsError` if the output path already exists
-  and overwriting wasn't requested.
+- The mapped-layer path MUST default to the input path with a `_mapped`
+  suffix, and MUST raise `ValueError` if it ends in `.csv`, pointing to
+  `csv_output`.
+- The crosswalk path (`csv_output`, `--csv-output`) MUST
+  default to the input path with a `_crosswalk` stem suffix and a `.csv`
+  extension.
+- `schema-map` MUST raise `FileExistsError` if an output it writes already
+  exists and overwriting wasn't requested.
 - `level`, if given, MUST be a non-negative integer (`--level`).
-- `step`, if given, MUST be one of `inputs`, `schema-map`, `outputs`; any
-  other value MUST raise `ValueError`.
+- `step`, if given, MUST be one of `inputs`, `map`, `apply`, `outputs`,
+  minus the stage the mode skips (`map` with `csv_input`, `apply`
+  with `map_only`); any other value MUST raise `ValueError`.
 
 ## Examples
 
-### Example 1: basic run, default (`adm{n}_name`/`adm{n}_code`) naming, output name chosen automatically
+### Example 1: basic run, default (`adm{n}_name`/`adm{n}_code`) naming, output names chosen automatically
 
     topo-tools schema-map example.geojson
 
@@ -195,14 +231,22 @@ empirical justification.
 
     topo-tools schema-map example.geojson --name-field state_name --code-field state_code
 
-### Example 3: explicit output
+### Example 3: explicit outputs
 
-    topo-tools schema-map example.gpkg crosswalk.csv --name-field state_name --code-field state_code
+    topo-tools schema-map example.gpkg example_mapped.gpkg --csv-output example_crosswalk.csv
 
-### Example 4: number levels from the file's own admin level
+### Example 4: apply an edited crosswalk
+
+    topo-tools schema-map example.geojson --csv example_crosswalk.csv
+
+### Example 5: only write the crosswalk
+
+    topo-tools schema-map example.geojson --map-only
+
+### Example 6: number levels from the file's own admin level
 
     topo-tools schema-map admin3.geojson --level 3
 
-### Example 5: number a multi-country file
+### Example 7: number a multi-country file
 
     topo-tools schema-map global_admin1.geojson --level 1

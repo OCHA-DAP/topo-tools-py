@@ -48,8 +48,8 @@ order on one layer.
 
     ---
 
-    schema-crosswalk, schema-fill, schema-join, schema-map, schema-refactor:
-    crosswalk, join, and fill a column schema.
+    schema-fill, schema-join, schema-map: crosswalk, join, and fill a
+    column schema.
 
     [:octicons-arrow-right-24: Schema](schema.md)
 

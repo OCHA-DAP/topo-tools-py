@@ -6,9 +6,9 @@ First step of COD-AB cleaning.
 
 Run `schema-map` on each supplied level:
 
-    topo-tools schema-map admin2.parquet admin2_crosswalk.csv
+    topo-tools schema-map admin2.parquet --map-only
 
-This writes a crosswalk without changing the input. `schema-map` matches
+This writes `admin2_crosswalk.csv` without changing the input. `schema-map` matches
 columns by their values, not their names, so check every row:
 
     source_column, target_column, unique_count, note
@@ -25,7 +25,7 @@ translation or alternate spelling) to the next free `adm2_name1`,
 families. Output columns follow the crosswalk's row order, so move rows to
 rearrange them. Then apply it:
 
-    topo-tools schema-refactor admin2.parquet admin2_crosswalk.csv admin2_mapped.parquet
+    topo-tools schema-map admin2.parquet admin2_mapped.parquet --csv admin2_crosswalk.csv
 
 The output keeps only the columns with a `target_column`, plus `geometry`.
 

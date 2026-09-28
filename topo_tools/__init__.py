@@ -11,11 +11,9 @@ from .api import (
     package_lines,
     package_points,
     package_polygons,
-    schema_crosswalk,
     schema_fill,
     schema_join,
     schema_map,
-    schema_refactor,
     topo_clean,
     topo_detect,
 )
@@ -33,11 +31,9 @@ __all__ = [
     "package_lines",
     "package_points",
     "package_polygons",
-    "schema_crosswalk",
     "schema_fill",
     "schema_join",
     "schema_map",
-    "schema_refactor",
     "topo_clean",
     "topo_detect",
 ]

@@ -12,7 +12,6 @@ from topo_tools.api.package import package
 from topo_tools.api.package_polygons import package_polygons
 from topo_tools.api.schema_fill import fill
 from topo_tools.api.schema_map import map as schema_map
-from topo_tools.api.schema_refactor import refactor
 from topo_tools.api.topo_clean import clean
 
 _FIXTURES_DIR = Path(__file__).parent / "fixtures"
@@ -30,7 +29,7 @@ def _rows(path, columns="*") -> list[tuple]:
 def pipeline(tmp_path):
     """Run schema mapping through coding once; matching/fill/package branch here."""
     crosswalk_path = tmp_path / "crosswalk.csv"
-    schema_map(_DISTRICT_RAW, crosswalk_path)
+    schema_map(_DISTRICT_RAW, csv_output=crosswalk_path, map_only=True)
 
     with crosswalk_path.open(newline="") as f:
         rows = list(csv.DictReader(f))
@@ -46,7 +45,7 @@ def pipeline(tmp_path):
         writer.writerows(rows)
 
     mapped_path = tmp_path / "district_mapped.parquet"
-    refactor(_DISTRICT_RAW, crosswalk_path, mapped_path)
+    schema_map(_DISTRICT_RAW, mapped_path, csv_input=crosswalk_path)
 
     topo_path = tmp_path / "district_topo.parquet"
     issues_path = tmp_path / "district_topo_issues.parquet"
@@ -60,7 +59,7 @@ def pipeline(tmp_path):
 
 def test_schema_map_reproduces_cardinality_decoy(tmp_path):
     crosswalk_path = tmp_path / "crosswalk.csv"
-    schema_map(_DISTRICT_RAW, crosswalk_path)
+    schema_map(_DISTRICT_RAW, csv_output=crosswalk_path, map_only=True)
     with crosswalk_path.open(newline="") as f:
         rows = {row["source_column"]: row["target_column"] for row in csv.DictReader(f)}
     assert rows["PCODE_2"] == "adm2_code"

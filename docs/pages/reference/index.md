@@ -59,10 +59,9 @@ name instead of repeated in each tool's page.
 
     ---
 
-    schema-crosswalk, schema-fill, schema-map, schema-refactor: crosswalk
-    and fill a column schema.
+    schema-fill, schema-map: crosswalk and fill a column schema.
 
-    [:octicons-arrow-right-24: Schema](schema_crosswalk)
+    [:octicons-arrow-right-24: Schema](schema_map)
 
 -   :material-share-variant-outline:{ .lg .middle } **shared**
 

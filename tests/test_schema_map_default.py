@@ -1,4 +1,4 @@
-"""Portability smoke tests for the composite crosswalk() tool (map + refactor)."""
+"""Smoke tests for schema-map's default mode (map, then apply) and its modes."""
 
 import csv
 
@@ -6,7 +6,7 @@ import duckdb
 import pytest
 from click.testing import CliRunner
 
-from topo_tools.api.schema_crosswalk import crosswalk
+from topo_tools.api.schema_map import map as schema_map
 from topo_tools.cli.main import cli
 
 _STEPS = ["inputs", "map", "apply", "outputs"]
@@ -104,9 +104,9 @@ def structural_hierarchy_input(tmp_path):
 
 
 def test_cli_help():
-    result = CliRunner().invoke(cli, ["schema-crosswalk", "--help"])
+    result = CliRunner().invoke(cli, ["schema-map", "--help"])
     assert result.exit_code == 0
-    assert "schema-map + schema-refactor, combined" in result.output
+    assert "--map-only" in result.output
     assert "Examples:" in result.output
 
 
@@ -115,10 +115,10 @@ def test_end_to_end_writes_crosswalk_and_mapped_output(
 ):
     crosswalk_out = tmp_path / "out_crosswalk.csv"
     mapped_out = tmp_path / "out_mapped.parquet"
-    crosswalk(
+    schema_map(
         structural_hierarchy_input,
         mapped_out,
-        crosswalk_out,
+        csv_output=crosswalk_out,
         name_field="adm{n}_name",
         code_field="adm{n}_pcode",
         overwrite=True,
@@ -159,7 +159,7 @@ def test_end_to_end_writes_crosswalk_and_mapped_output(
 
 
 def test_default_output_paths(structural_hierarchy_input):
-    crosswalk(
+    schema_map(
         structural_hierarchy_input,
         name_field="adm{n}_name",
         code_field="adm{n}_pcode",
@@ -179,28 +179,28 @@ def test_default_output_paths(structural_hierarchy_input):
 def test_overwrite_required_for_both_outputs(structural_hierarchy_input, tmp_path):
     crosswalk_out = tmp_path / "out_crosswalk.csv"
     mapped_out = tmp_path / "out_mapped.parquet"
-    crosswalk(
+    schema_map(
         structural_hierarchy_input,
         mapped_out,
-        crosswalk_out,
+        csv_output=crosswalk_out,
         name_field="adm{n}_name",
         code_field="adm{n}_pcode",
     )
 
     with pytest.raises(FileExistsError, match="output already exists"):
-        crosswalk(
+        schema_map(
             structural_hierarchy_input,
             mapped_out,
-            crosswalk_out,
+            csv_output=crosswalk_out,
             name_field="adm{n}_name",
             code_field="adm{n}_pcode",
             overwrite=False,
         )
 
-    crosswalk(
+    schema_map(
         structural_hierarchy_input,
         mapped_out,
-        crosswalk_out,
+        csv_output=crosswalk_out,
         name_field="adm{n}_name",
         code_field="adm{n}_pcode",
     )
@@ -212,7 +212,7 @@ def test_cli_error_on_existing_output(structural_hierarchy_input, tmp_path):
     result = CliRunner().invoke(
         cli,
         [
-            "schema-crosswalk",
+            "schema-map",
             str(structural_hierarchy_input),
             str(mapped_out),
             "--name-field",
@@ -231,10 +231,10 @@ def test_crosswalk_steps(structural_hierarchy_input, tmp_path):
     crosswalk_out = tmp_path / "steps_crosswalk.csv"
     work_dir = tmp_path / "work"
     for step in _STEPS:
-        crosswalk(
+        schema_map(
             structural_hierarchy_input,
             mapped_out,
-            crosswalk_out,
+            csv_output=crosswalk_out,
             name_field="adm{n}_name",
             code_field="adm{n}_pcode",
             tmp_dir=work_dir,
@@ -243,3 +243,70 @@ def test_crosswalk_steps(structural_hierarchy_input, tmp_path):
         )
     assert mapped_out.exists()
     assert crosswalk_out.exists()
+
+
+def test_map_only_writes_crosswalk_only(structural_hierarchy_input, tmp_path):
+    crosswalk_out = tmp_path / "out_crosswalk.csv"
+    schema_map(structural_hierarchy_input, csv_output=crosswalk_out, map_only=True)
+
+    assert crosswalk_out.exists()
+    assert not structural_hierarchy_input.with_stem(
+        structural_hierarchy_input.stem + "_mapped"
+    ).exists()
+
+
+def test_csv_input_writes_mapped_layer_only(structural_hierarchy_input, tmp_path):
+    crosswalk_out = tmp_path / "out_crosswalk.csv"
+    schema_map(structural_hierarchy_input, csv_output=crosswalk_out, map_only=True)
+    crosswalk_out.rename(tmp_path / "edited.csv")
+
+    mapped_out = tmp_path / "out_mapped.parquet"
+    schema_map(
+        structural_hierarchy_input,
+        mapped_out,
+        csv_input=tmp_path / "edited.csv",
+    )
+
+    assert mapped_out.exists()
+    assert not crosswalk_out.exists()
+    assert (
+        not structural_hierarchy_input.with_stem(
+            structural_hierarchy_input.stem + "_crosswalk"
+        )
+        .with_suffix(".csv")
+        .exists()
+    )
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "match"),
+    [
+        (
+            {"csv_input": "x.csv", "map_only": True},
+            "csv_input and map_only",
+        ),
+        (
+            {"csv_input": "x.csv", "csv_output": "y.csv"},
+            "csv_input and csv_output",
+        ),
+        ({"csv_input": "x.csv", "level": 2}, "csv_input and level"),
+        (
+            {"output_path": "out.parquet", "map_only": True},
+            "map_only and output_path",
+        ),
+        ({"output_path": "out.csv"}, "is a CSV"),
+        ({"map_only": True, "step": "apply"}, "step must be one of"),
+        ({"csv_input": "x.csv", "step": "map"}, "step must be one of"),
+    ],
+)
+def test_invalid_mode_arguments_raise(structural_hierarchy_input, kwargs, match):
+    with pytest.raises(ValueError, match=match):
+        schema_map(structural_hierarchy_input, **kwargs)
+
+
+def test_cli_csv_output_points_to_csv_output(structural_hierarchy_input, tmp_path):
+    result = CliRunner().invoke(
+        cli, ["schema-map", str(structural_hierarchy_input), str(tmp_path / "x.csv")]
+    )
+    assert result.exit_code != 0
+    assert "--csv-output" in result.output

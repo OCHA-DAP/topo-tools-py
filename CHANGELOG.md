@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `schema-map` maps a crosswalk and applies it in one run by default,
+  writing both the `_crosswalk.csv` and the `_mapped` layer. `--csv`
+  applies an edited crosswalk (columns in its row order), and `--map-only`
+  writes only the crosswalk. The crosswalk path moves from the second
+  positional argument to `--csv-output`, and a `.csv` output path is
+  rejected.
+
+### Removed
+
+- `schema-refactor` and `schema-crosswalk` (CLI and `topo_tools.api`). Use
+  `schema-map --csv` and plain `schema-map`.
+
 ### Fixed
 
 - `cod-ab` plugin: `convert.py to-parquet` reads every source through
