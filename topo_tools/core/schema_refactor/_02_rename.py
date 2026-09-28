@@ -44,13 +44,13 @@ def main(
         columns = list(targets)
         if misordered := _misordered_siblings(columns):
             logger.warning(
-                "schema-refactor: numbered siblings of %s are out of order in "
+                "schema-map: numbered siblings of %s are out of order in "
                 "the crosswalk; output columns follow its row order",
                 misordered,
             )
     if sort_column is None:
         logger.warning(
-            "schema-refactor: no %r target column; rows keep input order "
+            "schema-map: no %r target column; rows keep input order "
             "(pass --name-field/--code-field for another schema)",
             code_field,
         )

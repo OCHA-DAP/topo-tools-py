@@ -88,6 +88,12 @@ instead of repeating them.
   tool MUST log a warning. `schema-map` then keeps crosswalk-row column
   order, and `schema-join` keeps the child's input column order.
 
+## CSV outputs
+
+- Every CSV a tool writes (`schema-map`'s crosswalk, `change`'s changelog,
+  `code-refactor`'s issues, `code-update`'s changelog) MUST be UTF-8 with a
+  byte-order mark, so spreadsheet apps detect the encoding.
+
 ## Coverage-topology checks
 
 - The shared overlap/mismatched-edge check MUST NOT be treated as a gap

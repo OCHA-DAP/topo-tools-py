@@ -23,9 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- `schema-map` writes the crosswalk CSV as UTF-8 with a byte-order mark,
-  so Excel opens non-ASCII names correctly, and reads one with or without
-  it.
+- `schema-map`, `change`, `code-refactor` and `code-update` write their CSV
+  outputs as UTF-8 with a byte-order mark, so Excel opens non-ASCII names
+  correctly. `schema-map` reads a crosswalk with or without one.
+- Every command's `--help` prints its examples one per line, without
+  literal `\b` markers.
 - `cod-ab` plugin: `convert.py to-parquet` reads every source through
   pyogrio and accepts `--encoding` for a shapefile without a `.cpg` file,
   so CP1252 characters like `’` and `€` decode correctly on every OS. The

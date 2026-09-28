@@ -205,7 +205,7 @@ def edge_extend(  # noqa: PLR0913, PLR0917
     tmp_dir: str | None,
     step: str | None,
 ) -> None:
-    r"""Extend polygon boundaries outward with Voronoi diagrams to fill coverage gaps.
+    """Extend polygon boundaries outward with Voronoi diagrams to fill coverage gaps.
 
     OUTPUT_FILE defaults to INPUT_FILE with an "_extended" suffix if omitted.
 
@@ -214,11 +214,11 @@ def edge_extend(  # noqa: PLR0913, PLR0917
       # Basic run, output name chosen automatically
       topo-tools edge-extend example.geojson
 
-      \b
+    \b
       # Explicit output
       topo-tools edge-extend example.gpkg example_extended.gpkg
 
-      \b
+    \b
       # Error instead of silently overwriting an existing output
       topo-tools edge-extend example.parquet example_extended.parquet --overwrite=false
     """
@@ -279,7 +279,7 @@ def topo_detect(  # noqa: PLR0913, PLR0917
     tmp_dir: str | None,
     step: str | None,
 ) -> None:
-    r"""Scan a single polygon layer for gap/overlap coverage defects.
+    """Scan a single polygon layer for gap/overlap coverage defects.
 
     OUTPUT_FILE defaults to INPUT_FILE with an "_issues" suffix if omitted.
 
@@ -288,7 +288,7 @@ def topo_detect(  # noqa: PLR0913, PLR0917
       # Basic run, output name chosen automatically
       topo-tools topo-detect example.geojson
 
-      \b
+    \b
       # Explicit output
       topo-tools topo-detect example.gpkg example_issues.gpkg
     """
@@ -399,7 +399,7 @@ def package_polygons(  # noqa: PLR0913, PLR0917
     tmp_dir: str | None,
     step: str | None,
 ) -> None:
-    r"""Dissolve a polygon layer into every detected coarser admin level.
+    """Dissolve a polygon layer into every detected coarser admin level.
 
     OUTPUT_FILE, if given, MUST contain a literal "{n}" placeholder, formatted
     per level; if omitted, each level defaults to INPUT_FILE with an
@@ -411,9 +411,9 @@ def package_polygons(  # noqa: PLR0913, PLR0917
       # Default naming: input_admin1.geojson, input_admin2.geojson, ...
       topo-tools package-polygons admin3.geojson
 
-      \b
+    \b
       # Explicit {n} template
-      topo-tools package-polygons admin3.geojson "level_{n}.geojson" \
+      topo-tools package-polygons admin3.geojson "level_{n}.geojson" \\
         --name-field adm{n}_name --code-field adm{n}_pcode
     """
     logger.info("--debug=%s", debug)
@@ -503,7 +503,7 @@ def package_points(  # noqa: PLR0913, PLR0917
     tmp_dir: str | None,
     step: str | None,
 ) -> None:
-    r"""One pole-of-inaccessibility label point per admin unit, every level combined.
+    """One pole-of-inaccessibility label point per admin unit, every level combined.
 
     OUTPUT_FILE defaults to INPUT_FILE with a "_points" suffix if omitted.
 
@@ -595,7 +595,7 @@ def package_lines(  # noqa: PLR0913, PLR0917
     tmp_dir: str | None,
     step: str | None,
 ) -> None:
-    r"""Deduplicated shared+exterior boundary lines, classified by admin level.
+    """Deduplicated shared+exterior boundary lines, classified by admin level.
 
     OUTPUT_FILE defaults to INPUT_FILE with a "_lines" suffix if omitted.
 
@@ -704,14 +704,14 @@ def package(  # noqa: PLR0913, PLR0917
     debug: bool,  # noqa: FBT001
     tmp_dir: str | None,
 ) -> None:
-    r"""Run package-polygons, package-points, and package-lines against one input.
+    """Run package-polygons, package-points, and package-lines against one input.
 
     \b
     Examples:
       # Defaults for all three outputs
       topo-tools package admin3.geojson
 
-      \b
+    \b
       # Explicit {x} template
       topo-tools package admin3.geojson --output "web/{x}.geojson"
     """
@@ -803,7 +803,7 @@ def topo_clean(  # noqa: PLR0913, PLR0917
     tmp_dir: str | None,
     step: str | None,
 ) -> None:
-    r"""Detect and fix gap/overlap defects in a single polygon layer.
+    """Detect and fix gap/overlap defects in a single polygon layer.
 
     OUTPUT_FILE defaults to INPUT_FILE with a "_cleaned" suffix if omitted.
 
@@ -812,15 +812,15 @@ def topo_clean(  # noqa: PLR0913, PLR0917
       # Basic run: fills only floating-point-noise-scale gaps (the default)
       topo-tools topo-clean example.geojson
 
-      \b
+    \b
       # Fill thin/sliver-shaped gaps regardless of width
       topo-tools topo-clean example.gpkg --maximum-gap-width thin
 
-      \b
+    \b
       # Fill every detected gap, not just slivers
       topo-tools topo-clean example.gpkg --maximum-gap-width all
 
-      \b
+    \b
       # Cap gap-filling at ~0.0001 degrees (~11m at the equator)
       topo-tools topo-clean example.parquet --maximum-gap-width 0.0001
     """
@@ -969,7 +969,7 @@ def change(  # noqa: PLR0913, PLR0917
     tmp_dir: str | None,
     step: str | None,
 ) -> None:
-    r"""Compare two polygon layer versions and classify what changed.
+    """Compare two polygon layer versions and classify what changed.
 
     OLD_FILE is the previous version, NEW_FILE is the new version. OUTPUT_FILE
     (the tabular changelog, CSV or Parquet) defaults to a name combining both
@@ -981,11 +981,11 @@ def change(  # noqa: PLR0913, PLR0917
       # Basic run, pure spatial matching
       topo-tools change admin2_2020.geojson admin2_2024.geojson
 
-      \b
+    \b
       # Also link units sharing a unique pcode across versions
       topo-tools change old.gpkg new.gpkg --link-by-code
 
-      \b
+    \b
       # Loosen the "related" threshold for heavily redrawn boundaries
       topo-tools change old.parquet new.parquet --tau-match 0.6
     """
@@ -1089,7 +1089,7 @@ def code_refactor(  # noqa: PLR0913, PLR0917
     tmp_dir: str | None,
     step: str | None,
 ) -> None:
-    r"""Cold-start a hierarchical code on one input file, ranked per parent.
+    """Cold-start a hierarchical code on one input file, ranked per parent.
 
     Each level's own code column is written into in place, no separate
     output-naming flag; OUTPUT_FILE defaults to INPUT_FILE with a "_coded"
@@ -1099,12 +1099,12 @@ def code_refactor(  # noqa: PLR0913, PLR0917
     \b
     Examples:
       # Default naming, levels auto-detected structurally
-      topo-tools code-refactor admin2.geojson --root-code AFG --delimiter . \
+      topo-tools code-refactor admin2.geojson --root-code AFG --delimiter . \\
         --min-width 3
 
-      \b
+    \b
       # Explicit code/name columns, when auto-detection is ambiguous
-      topo-tools code-refactor admin2.geojson --root-code AFG --delimiter . \
+      topo-tools code-refactor admin2.geojson --root-code AFG --delimiter . \\
         --min-width 3 --code-field adm{n}_code --name-field adm{n}_name
     """
     logger.info("--debug=%s", debug)
@@ -1302,7 +1302,7 @@ def code_update(  # noqa: PLR0913, PLR0917
     tmp_dir: str | None,
     step: str | None,
 ) -> None:
-    r"""Reconcile an already-coded OLD layer against an uncoded NEW candidate.
+    """Reconcile an already-coded OLD layer against an uncoded NEW candidate.
 
     OLD_FILE is the previous already-coded version, NEW_FILE is the uncoded
     candidate version. OUTPUT_FILE (NEW's geometry, coded) defaults to
@@ -1314,9 +1314,9 @@ def code_update(  # noqa: PLR0913, PLR0917
       # Basic run, format and levels auto-detected off OLD's own codes
       topo-tools code-update admin1_old.geojson admin1_new.geojson
 
-      \b
+    \b
       # Identity-link on a shared source code, for relocated units
-      topo-tools code-update old.gpkg new.gpkg --link-by-code \
+      topo-tools code-update old.gpkg new.gpkg --link-by-code \\
         --code-column-a srcid --code-column-b srcid
     """
     logger.info("--debug=%s", debug)
@@ -1465,7 +1465,7 @@ def edge_match(  # noqa: PLR0913, PLR0917
     code_field: str | None,
     depth_column: str,
 ) -> None:
-    r"""Match one or more children layers to parents by largest overlap.
+    """Match one or more children layers to parents by largest overlap.
 
     OUTPUT_FILE defaults to INPUT_FILE with a "_matched" suffix if omitted;
     it is required when INPUT_FILE is a glob matching more than one file, or
@@ -1476,29 +1476,29 @@ def edge_match(  # noqa: PLR0913, PLR0917
       # Fit an admin4 layer into a single country boundary
       topo-tools edge-match adm4.geojson adm0.geojson
 
-      \b
+    \b
       # Fit admin3 into admin2 groups, each cleaned against its own parent
       topo-tools edge-match adm3.gpkg adm2.gpkg adm3_matched.gpkg
 
-      \b
+    \b
       # Combine several raw countries' admin1 layers, matched and extended
       # together against one shared parent
-      topo-tools edge-match sen_adm1.parquet world_adm0.geojson out.parquet \
+      topo-tools edge-match sen_adm1.parquet world_adm0.geojson out.parquet \\
         --input gmb_adm1.parquet,gnb_adm1.parquet
 
-      \b
+    \b
       # Prefer an existing pcode join over spatial overlap where they disagree
       topo-tools edge-match adm3.gpkg adm2.gpkg --match-column pcode
 
-      \b
+    \b
       # Copy just iso_3/adm0_name onto every matched child
       topo-tools edge-match adm3.gpkg adm2.gpkg --merge --parent-include iso_3,adm0_name
 
-      \b
+    \b
       # Keep the parent's version automatically on a name collision
       topo-tools edge-match adm3.gpkg adm2.gpkg --merge --prefer parent
 
-      \b
+    \b
       # A poorly-digitized admin4 layer whose children legitimately
       # scatter across many different admin3 parents
       topo-tools edge-match adm4.gpkg adm3.gpkg --multi-parent
@@ -1645,7 +1645,7 @@ def edge_mosaic(  # noqa: PLR0913, PLR0917
     code_field: str | None,
     depth_column: str,
 ) -> None:
-    r"""Fit an already-extended children layer into a new parent/clip layer.
+    """Fit an already-extended children layer into a new parent/clip layer.
 
     OUTPUT_FILE defaults to INPUT_FILE with a "_mosaicked" suffix if omitted;
     it is required when INPUT_FILE is a glob matching more than one file, or
@@ -1656,29 +1656,29 @@ def edge_mosaic(  # noqa: PLR0913, PLR0917
       # Re-clip a pre-extended admin3 layer against a new admin0 boundary
       topo-tools edge-mosaic adm3_extended.parquet adm0_new.geojson
 
-      \b
+    \b
       # Combine every country's pre-extended layer, re-clip against a world admin0
-      topo-tools edge-mosaic "*/latest/adm2/extended.parquet" world_adm0.geojson \
+      topo-tools edge-mosaic "*/latest/adm2/extended.parquet" world_adm0.geojson \\
         out.parquet
 
-      \b
+    \b
       # Combine explicit files instead of a glob (--input MAY be repeated
       # and/or comma-separated)
-      topo-tools edge-mosaic afg.parquet world_adm0.geojson out.parquet \
+      topo-tools edge-mosaic afg.parquet world_adm0.geojson out.parquet \\
         --input ago.parquet,are.parquet
 
-      \b
+    \b
       # Prefer an existing pcode join over spatial overlap where they disagree
       topo-tools edge-mosaic adm3_extended.parquet adm0_new.geojson --match-column pcode
 
-      \b
+    \b
       # Keep a parent's own boundary when no children file covers it
-      topo-tools edge-mosaic "*/latest/adm4/extended.parquet" world_adm0.geojson \
+      topo-tools edge-mosaic "*/latest/adm4/extended.parquet" world_adm0.geojson \\
         out.parquet --merge
 
-      \b
+    \b
       # Keep the parent's version automatically on a name collision
-      topo-tools edge-mosaic adm3_extended.parquet adm0_new.geojson \
+      topo-tools edge-mosaic adm3_extended.parquet adm0_new.geojson \\
         --merge --prefer parent
     """
     logger.info("--debug=%s", debug)
@@ -1788,7 +1788,7 @@ def edge_stitch(  # noqa: PLR0913, PLR0917
     code_field: str | None,
     depth_column: str,
 ) -> None:
-    r"""Close seams in an already-tiled polygon layer via coverage-clean.
+    """Close seams in an already-tiled polygon layer via coverage-clean.
 
     OUTPUT_FILE defaults to INPUT_FILE with a "_stitched" suffix if omitted;
     it is required when INPUT_FILE is a glob matching more than one file, or
@@ -1799,21 +1799,21 @@ def edge_stitch(  # noqa: PLR0913, PLR0917
       # Basic run, output name chosen automatically
       topo-tools edge-stitch tiled.geojson
 
-      \b
+    \b
       # Explicit output
       topo-tools edge-stitch tiled.gpkg stitched.gpkg
 
-      \b
+    \b
       # Combine every already-clipped file into one global stitched output
       topo-tools edge-stitch "tmp/clipped/*.parquet" stitched.parquet
 
-      \b
+    \b
       # Combine explicit files instead of a glob (--input MAY be repeated
       # and/or comma-separated)
-      topo-tools edge-stitch afg.parquet stitched.parquet \
+      topo-tools edge-stitch afg.parquet stitched.parquet \\
         --input ago.parquet,are.parquet
 
-      \b
+    \b
       # Error instead of silently overwriting an existing output
       topo-tools edge-stitch tiled.parquet stitched.parquet --overwrite=false
     """
@@ -1915,7 +1915,7 @@ def schema_fill(  # noqa: PLR0913, PLR0917
     step: str | None,
     depth_column: str,
 ) -> None:
-    r"""Cascade each admin-hierarchy column down from its nearest shallower level.
+    """Cascade each admin-hierarchy column down from its nearest shallower level.
 
     Pinned to each row's own real depth; stamps a new depth column ("adm_lvl").
     """
@@ -2137,7 +2137,7 @@ def schema_map(  # noqa: PLR0913, PLR0917
     tmp_dir: str | None,
     step: str | None,
 ) -> None:
-    r"""Map columns onto a target schema: rename/drop them via a crosswalk.
+    """Map columns onto a target schema: rename/drop them via a crosswalk.
 
     By default, maps a crosswalk from the file's structure, writes it as CSV,
     and applies it. To iterate, edit the CSV (retarget, blank to drop, move
@@ -2151,17 +2151,17 @@ def schema_map(  # noqa: PLR0913, PLR0917
       # Map and apply, output names chosen automatically
       topo-tools schema-map example.geojson
 
-      \b
+    \b
       # Apply an edited crosswalk
       topo-tools schema-map example.geojson --csv example_crosswalk.csv
 
-      \b
+    \b
       # Only write the crosswalk, numbering levels from the file's own level
       topo-tools schema-map admin3.geojson --map-only --level 3
 
-      \b
+    \b
       # Custom target field naming
-      topo-tools schema-map example.geojson --name-field adm{n}_name \
+      topo-tools schema-map example.geojson --name-field adm{n}_name \\
         --code-field adm{n}_pcode
     """
     logger.info("--debug=%s", debug)
@@ -2283,7 +2283,7 @@ def edge_clip(  # noqa: PLR0913, PLR0917
     child_match_column: str | None,
     carry_columns: tuple[str, ...],
 ) -> None:
-    r"""Assign each child to its parent, then clip it to that parent's geometry.
+    """Assign each child to its parent, then clip it to that parent's geometry.
 
     INPUT_FILE and CLIP_FILE are both raw polygon layers; INPUT_FILE's
     children are assigned to CLIP_FILE's parents internally (assign-one)
@@ -2295,15 +2295,15 @@ def edge_clip(  # noqa: PLR0913, PLR0917
       # Clip a children layer against a parent/clip layer
       topo-tools edge-clip children.parquet adm1.geojson
 
-      \b
+    \b
       # Explicit output
       topo-tools edge-clip children.parquet adm1.geojson clipped.parquet
 
-      \b
+    \b
       # Prefer an existing pcode join over spatial overlap where they disagree
       topo-tools edge-clip children.parquet adm1.geojson --match-column pcode
 
-      \b
+    \b
       # Copy parent columns onto every matched child
       topo-tools edge-clip children.parquet adm1.geojson --carry-column iso_3,adm0_name
     """

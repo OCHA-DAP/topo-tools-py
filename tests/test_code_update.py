@@ -205,6 +205,7 @@ def all_classes_result(tmp_path):
         tau_match=0.4,
     )
 
+    assert changelog_path.read_bytes().startswith(b"\xef\xbb\xbf")
     rows = _read_changelog(changelog_path)
     predecessor_by_code = dict(
         _fetch(output_path, "adm1_pcode, predecessor_code", "adm1_pcode")

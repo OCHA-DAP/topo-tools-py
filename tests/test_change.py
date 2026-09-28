@@ -104,7 +104,7 @@ def test_change_full_run(old_layer, new_layer, tmp_path):
     overlay_path = tmp_path / "overlay.parquet"
     change(old_layer, new_layer, output_path, overlay_path, overwrite=True)
 
-    assert output_path.exists()
+    assert output_path.read_bytes().startswith(b"\xef\xbb\xbf")
     assert overlay_path.exists()
     rows = _read_changelog(output_path)
     # code_a/code_b are NULL (no --code-column-a/-b set); geometry-only
