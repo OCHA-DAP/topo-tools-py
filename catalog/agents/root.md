@@ -4,7 +4,7 @@ Sample inputs for [topo-tools](https://github.com/OCHA-DAP/topo-tools-py), group
 
 ## Layout
 
-Files sit at `{{iso3}}/{{year}}/{{iso3}}_admin{{n}}/{{iso3}}_admin{{n}}.parquet`. Demo inputs, one folder per topo-tools tool, sit at `{{iso3}}/demo/{{tool}}/{{tier}}/`. The only country so far is the Netherlands, see [nld/AGENTS.md](nld/AGENTS.md).
+Files sit at `{{iso3}}/{{year}}/{{iso3}}_admin{{n}}/{{iso3}}_admin{{n}}.parquet`. Demo inputs, one folder per topo-tools tool group, sit at `{{iso3}}/demo/{{group}}/{{tier}}/`. The only country so far is the Netherlands, see [nld/AGENTS.md](nld/AGENTS.md).
 
 ## Reading
 

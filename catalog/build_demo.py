@@ -84,7 +84,7 @@ def main() -> None:
 
     src = args.catalog / "nld" / "2025" / "nld_admin2" / "nld_admin2.parquet"
     demo = args.catalog / "nld" / "demo"
-    raw = demo / "schema-crosswalk" / "admin2-simplified" / "nld_admin2.parquet"
+    raw = demo / "schema" / "admin2-simplified" / "nld_admin2.parquet"
     mapped = args.cache / "admin2-simplified" / "nld_admin2_mapped.parquet"
 
     admin2_simplified_raw(src, raw, gebieden(args.cache))

@@ -1,14 +1,15 @@
 # AGENTS.md: {title}
 
-Input for `topo-tools schema-crosswalk`: the {rows} land gemeenten from the CBS Wijk- en Buurtkaart 2025 ([full precision](../../../2025/nld_admin2/AGENTS.md)), with the provincie code and name from CBS StatLine table 86059NED. The CRS is EPSG:28992, in metres.
+Input for `topo-tools schema-map` and `topo-tools schema-crosswalk`: the {rows} land gemeenten from the CBS Wijk- en Buurtkaart 2025 ([full precision](../../../2025/nld_admin2/AGENTS.md)), with the provincie code and name from CBS StatLine table 86059NED. The CRS is EPSG:28992, in metres.
 
 ## Run the demo
 
 ```bash
+topo-tools schema-map {url} nld_admin2_crosswalk.csv
 topo-tools schema-crosswalk {url} nld_admin2_mapped.parquet nld_admin2_crosswalk.csv
 ```
 
-The crosswalk it writes:
+`schema-map` writes only the crosswalk. `schema-crosswalk` writes the same crosswalk and applies it:
 
 {crosswalk}
 
@@ -18,7 +19,7 @@ The crosswalk it writes:
 
 - Boundaries are simplified to 100 m. Use the full-precision layer for areas.
 - Water rows are left out, so `topo-detect` reports the water bodies, such as the IJsselmeer, as {gaps} gaps.
-- `landcode` and `landnaam` each hold one value. They are there to show schema-crosswalk dropping single-value columns.
+- `landcode` and `landnaam` each hold one value. They are there to show the schema tools dropping single-value columns.
 
 ## Queries
 

@@ -47,13 +47,13 @@ DEMO = {
         "title": "Netherlands demo inputs",
         "description": "Input layers for trying each topo-tools tool on Dutch boundaries. There is one folder per tool, and each tool folder holds one or more inputs of different sizes. Running a tool on its input produces the output, which is never stored here. See [AGENTS.md](AGENTS.md).",
     },
-    "schema-crosswalk": {
-        "title": "schema-crosswalk demo inputs",
-        "description": "Inputs for `topo-tools schema-crosswalk`, which renames an input's columns to the `adm{n}_name`/`adm{n}_code` schema. It works out the admin hierarchy from the values themselves, not from the column names. See [AGENTS.md](AGENTS.md).",
+    "schema": {
+        "title": "schema demo inputs",
+        "description": "Inputs for the topo-tools schema tools. `schema-map` and `schema-crosswalk` both take a layer with its source column names and work out the admin hierarchy from the values themselves, not from the column names. See [AGENTS.md](AGENTS.md).",
     },
-    "schema-crosswalk/admin2-simplified": {
+    "schema/admin2-simplified": {
         "title": "Gemeenten 2025, simplified",
-        "description": "The 342 land gemeenten from the CBS Wijk- en Buurtkaart 2025, in EPSG:28992 with the CBS column names. Boundaries are simplified to 100 m, with neighbouring gemeenten still sharing their edges. The provincie code and name come from CBS StatLine table 86059NED (Gebieden in Nederland 2025). Running schema-crosswalk on it maps the gemeente columns to adm2 and the provincie columns to adm1. It drops `landcode`, `landnaam`, `water` and `jaar` because each holds a single value. See [AGENTS.md](AGENTS.md).",
+        "description": "The 342 land gemeenten from the CBS Wijk- en Buurtkaart 2025, in EPSG:28992 with the CBS column names. Boundaries are simplified to 100 m, with neighbouring gemeenten still sharing their edges. The provincie code and name come from CBS StatLine table 86059NED (Gebieden in Nederland 2025). Running schema-map or schema-crosswalk on it maps the gemeente columns to adm2 and the provincie columns to adm1. It drops `landcode`, `landnaam`, `water` and `jaar` because each holds a single value. See [AGENTS.md](AGENTS.md).",
         "keywords": [
             "administrative boundaries",
             "Netherlands",
@@ -61,6 +61,7 @@ DEMO = {
             "gemeenten",
             "provincies",
             "topo-tools",
+            "schema-map",
             "schema-crosswalk",
         ],
         "processing_notes": "Built by `catalog/build_demo.py` in [topo-tools-py](https://github.com/OCHA-DAP/topo-tools-py) from the land rows of `nld/2025/nld_admin2`: `ST_CoverageSimplify` at 100 m, then `ST_CoverageClean` with 0.01 m snapping and no gap filling. Provincie columns joined on `gemeentecode` from the CBS StatLine [OData table 86059NED](https://opendata.cbs.nl/ODataApi/odata/86059NED/TypedDataSet?$format=json&$select=RegioS,Code_28,Naam_29).",
@@ -336,7 +337,7 @@ def annotate_demo(collection_dir: Path, cache: Path) -> None:
     path.write_text(json.dumps(collection, indent=2, ensure_ascii=False) + "\n")
 
     tier = collection_dir.name
-    url = f"{DATA}/nld/demo/schema-crosswalk/{tier}/nld_admin2.parquet"
+    url = f"{DATA}/nld/demo/schema/{tier}/nld_admin2.parquet"
     parquet = collection_dir / "nld_admin2.parquet"
     counts = duckdb.execute(
         f"SELECT provinciecode, provincienaam, count(*) FROM read_parquet('{parquet}') GROUP BY ALL ORDER BY 1"
@@ -351,7 +352,7 @@ def annotate_demo(collection_dir: Path, cache: Path) -> None:
     (collection_dir / "AGENTS.md").write_text(
         template(
             "demo_collection",
-            title=DEMO[f"schema-crosswalk/{tier}"]["title"],
+            title=DEMO[f"schema/{tier}"]["title"],
             rows=str(rows),
             url=url,
             crosswalk="\n".join(
@@ -421,11 +422,9 @@ def main() -> None:
     if not args.metadata_only:
         apply_titles(args.catalog)
         write_agents(args.catalog)
-        if (collection_dir := demo / "schema-crosswalk" / "admin2-simplified").exists():
+        if (collection_dir := demo / "schema" / "admin2-simplified").exists():
             (demo / "AGENTS.md").write_text(template("demo"))
-            (demo / "schema-crosswalk" / "AGENTS.md").write_text(
-                template("demo_schema_crosswalk")
-            )
+            (demo / "schema" / "AGENTS.md").write_text(template("demo_schema"))
             annotate_demo(collection_dir, args.cache / "demo")
 
 
