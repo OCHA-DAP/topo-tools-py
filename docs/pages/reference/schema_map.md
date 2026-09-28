@@ -42,7 +42,8 @@ See `docs/reference/README.md` for the MUST/SHOULD/MAY convention, and
   prefix of `shape_length`, the DBF-truncated form of a duplicate field).
 - A `csv_input` MUST be a CSV with a `source_column` column (as
   written by `schema-map`, or a hand-edited copy), one row per source
-  column, else `ValueError`. A row with a blank `source_column` MUST be
+  column, with or without a leading UTF-8 byte-order mark, else
+  `ValueError`. A row with a blank `source_column` MUST be
   skipped.
 - `schema-map` MUST raise `ValueError` if the crosswalk's `source_column`
   set does not exactly equal the input's own column set, excluding any
@@ -184,8 +185,9 @@ empirical justification.
 
 - `schema-map` performs no topology hard gate at all; it only inspects and
   never mutates geometry.
-- `schema-map` MUST always produce a crosswalk file, one CSV row per source
-  column with exactly four columns: `source_column`, `target_column`,
+- Unless given a `csv_input`, `schema-map` MUST produce a crosswalk file,
+  UTF-8 with a byte-order mark, one CSV row per source column with exactly
+  four columns: `source_column`, `target_column`,
   `unique_count`, `note`. Every row MUST carry a `unique_count`: for a
   row bracketed to a level (`code`, `name`, `ambiguous`, or
   `supplemental`), `COUNT(DISTINCT parent_code, this_column)` against

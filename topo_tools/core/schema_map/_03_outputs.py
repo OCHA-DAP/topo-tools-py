@@ -19,7 +19,7 @@ def main(
     """).fetchall()
 
     dest.parent.mkdir(exist_ok=True, parents=True)
-    with dest.open("w", newline="") as f:
+    with dest.open("w", newline="", encoding="utf-8-sig") as f:
         writer = csv.writer(f)
         writer.writerow(_FIELDNAMES)
         writer.writerows(rows)

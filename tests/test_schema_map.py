@@ -40,7 +40,7 @@ def _unit_square(i):
 
 
 def _crosswalk(path):
-    with path.open(newline="") as f:
+    with path.open(newline="", encoding="utf-8-sig") as f:
         return {row["source_column"]: row for row in csv.DictReader(f)}
 
 
@@ -147,7 +147,7 @@ def test_output_ordering_level_desc_name_before_code_unmatched_last(
     out = tmp_path / "crosswalk.csv"
     map(chain_input, out, **chain_schema, overwrite=True)
 
-    with out.open(newline="") as f:
+    with out.open(newline="", encoding="utf-8-sig") as f:
         ordered = [row["source_column"] for row in csv.DictReader(f)]
     assert ordered == ["adm1_name", "adm1_pcode", "decoy_code", "adm0_pcode", "notes"]
 

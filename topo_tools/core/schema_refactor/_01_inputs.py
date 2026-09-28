@@ -10,7 +10,7 @@ from topo_tools.core.constants import is_noise_column
 
 def parse_crosswalk(crosswalk_path: Path) -> list[dict]:
     """Load the crosswalk CSV, raising ValueError on any shape violation."""
-    with crosswalk_path.open(newline="") as f:
+    with crosswalk_path.open(newline="", encoding="utf-8-sig") as f:
         reader = csv.DictReader(f)
         fieldnames = reader.fieldnames or []
         if "source_column" not in fieldnames:

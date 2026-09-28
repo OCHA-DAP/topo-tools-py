@@ -114,6 +114,18 @@ def test_full_run_renames_and_drops(apply_input, full_crosswalk, tmp_path):
     assert names == [("Alpha",), ("Beta",)]
 
 
+def test_bom_prefixed_crosswalk_applies(apply_input, full_crosswalk, tmp_path):
+    full_crosswalk.write_bytes(b"\xef\xbb\xbf" + full_crosswalk.read_bytes())
+    out = tmp_path / "mapped.parquet"
+    apply_crosswalk(apply_input, full_crosswalk, out, overwrite=True)
+
+    with duckdb.connect() as conn:
+        columns = {
+            r[0] for r in conn.execute(f"DESCRIBE SELECT * FROM '{out}'").fetchall()
+        }
+    assert columns == {"adm1_name", "adm1_pcode", "geometry"}
+
+
 def test_default_output_path(apply_input, full_crosswalk):
     apply_crosswalk(apply_input, full_crosswalk, overwrite=True)
 
