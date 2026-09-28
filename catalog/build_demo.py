@@ -4,12 +4,15 @@ import argparse
 from pathlib import Path
 
 import duckdb
+from build_nld import get
 
 from topo_tools.api.schema_crosswalk import crosswalk
 from topo_tools.api.topo_detect import detect
 
 SIMPLIFY_M = 100.0
 SNAP_M = 0.01
+# CBS StatLine "Gebieden in Nederland 2025"; Code_28/Naam_29 are its Provincies group.
+GEBIEDEN = "https://opendata.cbs.nl/ODataApi/odata/86059NED/TypedDataSet?$format=json&$select=RegioS,Code_28,Naam_29"
 
 
 def coverage(con: duckdb.DuckDBPyConnection, table: str, call: str) -> None:
@@ -27,9 +30,20 @@ def coverage(con: duckdb.DuckDBPyConnection, table: str, call: str) -> None:
     """)
 
 
-def admin2_simplified_raw(src: Path, out: Path) -> None:
+def gebieden(cache: Path) -> Path:
+    path = cache / "gebieden_2025.json"
+    if not path.exists():
+        path.write_text(get(GEBIEDEN))
+    return path
+
+
+def admin2_simplified_raw(src: Path, out: Path, provinces: Path) -> None:
     con = duckdb.connect()
     con.execute("LOAD spatial")
+    con.execute(
+        f"CREATE TABLE p AS SELECT trim(r.RegioS) AS gemeentecode, trim(r.Code_28) AS provinciecode, "
+        f"trim(r.Naam_29) AS provincienaam FROM (SELECT unnest(value) AS r FROM read_json('{provinces}'))"
+    )
     con.execute(
         f"CREATE TABLE t AS SELECT row_number() OVER (ORDER BY gemeentecode) AS i, * EXCLUDE (bbox) "
         f"FROM read_parquet('{src}') WHERE water = 'NEE'"
@@ -38,9 +52,16 @@ def admin2_simplified_raw(src: Path, out: Path) -> None:
     # Snap only (gap width 0): removes the simplify's zero-area overlaps, keeps every water gap.
     coverage(con, "t", f"ST_CoverageClean({{geoms}}, {SNAP_M}::DOUBLE, 0::DOUBLE)")
     out.parent.mkdir(parents=True, exist_ok=True)
+    missing = con.execute(
+        "SELECT count(*) FROM t ANTI JOIN p USING (gemeentecode)"
+    ).fetchone()[0]
+    if missing:
+        msg = f"{missing} gemeenten missing from the provincie lookup"
+        raise SystemExit(msg)
     con.execute(
-        f"COPY (SELECT geometry, * EXCLUDE (i, geometry) FROM t ORDER BY gemeentecode) "
-        f"TO '{out}' (FORMAT parquet, COMPRESSION zstd)"
+        "COPY (SELECT geometry, gemeentecode, gemeentenaam, provinciecode, provincienaam, "
+        "'NL' AS landcode, 'Nederland' AS landnaam, water, jaar "
+        f"FROM t JOIN p USING (gemeentecode) ORDER BY gemeentecode) TO '{out}' (FORMAT parquet, COMPRESSION zstd)"
     )
 
 
@@ -66,7 +87,7 @@ def main() -> None:
     raw = tier / "00_raw" / "nld_admin2_raw.parquet"
     mapped = tier / "01_mapped" / "nld_admin2_mapped.parquet"
 
-    admin2_simplified_raw(src, raw)
+    admin2_simplified_raw(src, raw, gebieden(args.cache))
     if n := overlaps(raw, args.cache):
         msg = f"{raw}: {n} overlaps after simplify and clean"
         raise SystemExit(msg)
@@ -74,7 +95,6 @@ def main() -> None:
         raw,
         mapped,
         mapped.with_name("nld_admin2_crosswalk.csv"),
-        level=2,
         tmp_dir=args.cache / "tmp",
     )
 
