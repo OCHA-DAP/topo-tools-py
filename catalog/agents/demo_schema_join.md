@@ -5,7 +5,7 @@ Input for `topo-tools schema-join`: the {rows} land gemeenten from the CBS Wijk-
 ## Run the demo
 
 ```bash
-topo-tools schema-join {child} {parent} nld_admin2_join.parquet
+topo-tools schema-join {input} {join} nld_admin2_join.parquet
 ```
 
 `schema-join` assigns each gemeente to the provincie it overlaps most and copies that provincie's `adm1_code` and `adm1_name` onto it. `nld_admin2_join.parquet` has the columns `adm2_name, adm2_code, adm1_name, adm1_code` and is in EPSG:4326. Every gemeente lies inside one provincie, so no issues file is written.
@@ -20,6 +20,6 @@ topo-tools schema-join {child} {parent} nld_admin2_join.parquet
 ```sql
 -- Provincie area in km², water included
 SELECT adm1_code, adm1_name, round(ST_Area(geometry) / 1e6) AS km2
-FROM read_parquet('{parent}') ORDER BY adm1_code;
+FROM read_parquet('{join}') ORDER BY adm1_code;
 -- {areas}
 ```

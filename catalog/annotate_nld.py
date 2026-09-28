@@ -63,7 +63,7 @@ DEMO = {
     },
     "schema-join": {
         "title": "Gemeenten and provincies 2025",
-        "description": "A child and a parent layer for schema-join, in EPSG:28992, simplified to 100 m. `nld_admin2.parquet` has the 342 land gemeenten from the CBS Wijk- en Buurtkaart 2025, with `adm2_code` and `adm2_name`. `nld_admin1.parquet` has the 12 provincies from Kadaster Bestuurlijke Gebieden, with `adm1_code` and `adm1_name`. Running schema-join copies each gemeente's provincie code and name onto it. See [AGENTS.md](AGENTS.md).",
+        "description": "An input and a join layer for schema-join, in EPSG:28992, simplified to 100 m. `nld_admin2.parquet` has the 342 land gemeenten from the CBS Wijk- en Buurtkaart 2025, with `adm2_code` and `adm2_name`. `nld_admin1.parquet` has the 12 provincies from Kadaster Bestuurlijke Gebieden, with `adm1_code` and `adm1_name`. Running schema-join copies each gemeente's provincie code and name onto it. See [AGENTS.md](AGENTS.md).",
         "keywords": [
             "administrative boundaries",
             "Netherlands",
@@ -450,8 +450,8 @@ def annotate_schema_join(collection_dir: Path) -> None:
             "demo_schema_join",
             title=DEMO["schema-join"]["title"],
             rows=str(rows),
-            child=f"{url}/nld_admin2.parquet",
-            parent=f"{url}/nld_admin1.parquet",
+            input=f"{url}/nld_admin2.parquet",
+            join=f"{url}/nld_admin1.parquet",
             areas=", ".join(f"{c} {name} {km2}" for c, name, km2 in areas),
         )
     )

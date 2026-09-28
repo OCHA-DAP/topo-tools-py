@@ -82,7 +82,7 @@ def schema_map_input(con: duckdb.DuckDBPyConnection, out: Path) -> None:
     )
 
 
-def schema_join_child(con: duckdb.DuckDBPyConnection, out: Path) -> None:
+def schema_join_input(con: duckdb.DuckDBPyConnection, out: Path) -> None:
     copy(
         con,
         "SELECT geometry, gemeentecode AS adm2_code, gemeentenaam AS adm2_name "
@@ -91,7 +91,7 @@ def schema_join_child(con: duckdb.DuckDBPyConnection, out: Path) -> None:
     )
 
 
-def schema_join_parent(provinciegebied: Path, out: Path) -> None:
+def schema_join_layer(provinciegebied: Path, out: Path) -> None:
     con = duckdb.connect()
     con.execute("LOAD spatial")
     con.execute(
@@ -114,9 +114,9 @@ def overlaps(path: Path, cache: Path) -> int:
     ).fetchone()[0]
 
 
-def join_issues(child: Path, parent: Path, cache: Path) -> int:
+def join_issues(input_path: Path, join_path: Path, cache: Path) -> int:
     out = cache / "schema-join" / "nld_admin2_join.parquet"
-    join(child, parent, out, tmp_dir=cache / "tmp")
+    join(input_path, join_path, out, tmp_dir=cache / "tmp")
     issues = out.with_stem(out.stem + "_issues")
     if not issues.exists():
         return 0
@@ -135,17 +135,17 @@ def main() -> None:
     src = args.catalog / "nld" / "2025" / "nld_admin2" / "nld_admin2.parquet"
     demo = args.catalog / "nld" / "demo"
     raw = demo / "schema-map" / "nld_admin2.parquet"
-    child = demo / "schema-join" / "nld_admin2.parquet"
-    parent = demo / "schema-join" / "nld_admin1.parquet"
+    input_path = demo / "schema-join" / "nld_admin2.parquet"
+    join_path = demo / "schema-join" / "nld_admin1.parquet"
     mapped = args.cache / "schema-map" / "nld_admin2_mapped.parquet"
 
     con = gemeenten(src, cached(GEBIEDEN, args.cache / "gebieden_2025.json"))
     schema_map_input(con, raw)
-    schema_join_child(con, child)
-    schema_join_parent(
-        cached(PROVINCIEGEBIED, args.cache / "provinciegebied.json"), parent
+    schema_join_input(con, input_path)
+    schema_join_layer(
+        cached(PROVINCIEGEBIED, args.cache / "provinciegebied.json"), join_path
     )
-    for path in (raw, child, parent):
+    for path in (raw, input_path, join_path):
         if n := overlaps(path, args.cache):
             msg = f"{path}: {n} overlaps after simplify and clean"
             raise SystemExit(msg)
@@ -155,7 +155,7 @@ def main() -> None:
         csv_output=mapped.with_name("nld_admin2_crosswalk.csv"),
         tmp_dir=args.cache / "tmp",
     )
-    if n := join_issues(child, parent, args.cache):
+    if n := join_issues(input_path, join_path, args.cache):
         msg = f"schema-join reported {n} issues"
         raise SystemExit(msg)
 
