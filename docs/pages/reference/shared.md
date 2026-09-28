@@ -69,23 +69,23 @@ instead of repeating them.
 
 - Every geometry output MUST write `geometry` as its first column (see
   `docs/adr/0111`).
-- `schema-refactor`, `schema-crosswalk`, and `schema-join` MUST order
-  columns by the `name_field`/`code_field` templates: levels deepest first,
-  and within each level its name-template columns, then any other column
-  with that level's prefix and number, then its code-template columns,
-  numbered siblings in numeric order. Every other column follows in input
-  order.
+- `schema-crosswalk` and `schema-join` MUST order columns by the
+  `name_field`/`code_field` templates: levels deepest first, and within
+  each level its name-template columns, then any other column with that
+  level's prefix and number, then its code-template columns, numbered
+  siblings in numeric order. Every other column follows in input order.
+  `schema-refactor` follows its crosswalk's row order (see
+  `docs/reference/schema_refactor.md`).
 - A numbered sibling of a column (a second same-level name, or a parent's
   differing value in `schema-join`) MUST be named by appending an integer
   starting at 1, separated by `_` when the column ends in a digit
   (`adm2_name` → `adm2_name1`, `GID_2` → `GID_2_1`), so a sibling never
   reads as a deeper level.
-- Those three tools MUST sort rows by the deepest level's own code column,
+- `schema-refactor`, `schema-crosswalk`, and `schema-join` MUST sort rows by the deepest level's own code column,
   by value (text codes as text), NULLs last, ties in input order.
 - With no code-template column, rows MUST keep their input order, and the
-  tool MUST log a warning. `schema-refactor` and `schema-crosswalk` then keep
-  crosswalk-row column order, and `schema-join` keeps the child's input
-  column order.
+  tool MUST log a warning. `schema-crosswalk` then keeps crosswalk-row
+  column order, and `schema-join` keeps the child's input column order.
 
 ## Coverage-topology checks
 

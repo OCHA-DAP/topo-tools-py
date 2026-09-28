@@ -36,8 +36,11 @@ See `docs/reference/README.md` for the MUST/SHOULD/MAY convention, and
 - Every other source column MUST be renamed to its `target_column`.
 - The geometry column MUST always pass through unchanged, regardless of
   the crosswalk.
-- Output columns and rows MUST follow the shared order in
-  `docs/reference/shared.md`, whatever the crosswalk's row order.
+- Output columns MUST follow the crosswalk's row order, after `geometry`.
+  `schema-refactor` MUST log a warning, without reordering, when a
+  column's numbered siblings (`adm2_name1`, `adm2_name2`) don't follow it
+  in numeric order. Rows MUST follow the shared row order in
+  `docs/reference/shared.md`.
 
 ## Outputs
 
@@ -52,7 +55,7 @@ See `docs/reference/README.md` for the MUST/SHOULD/MAY convention, and
   exists and overwriting wasn't requested.
 - `name_field`/`code_field` MUST be given together or not at all, raising
   `ValueError` otherwise, and MUST default to `adm{n}_name`/`adm{n}_code`.
-  They set column and row order only.
+  They set row order only.
 - `step`, if given, MUST be one of `inputs`, `rename`, `outputs`; any
   other value MUST raise `ValueError`.
 

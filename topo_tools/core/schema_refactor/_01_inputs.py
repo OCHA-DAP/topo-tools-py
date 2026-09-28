@@ -88,13 +88,13 @@ def validate_and_materialize_crosswalk(
 
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_crosswalk" (
-            source_column VARCHAR, target_column VARCHAR
+            row_order INTEGER, source_column VARCHAR, target_column VARCHAR
         )
     """)
-    for row in crosswalk:
+    for i, row in enumerate(crosswalk):
         conn.execute(
-            f'INSERT INTO "{name}_crosswalk" VALUES (?, ?)',
-            [row["source_column"], row.get("target_column") or None],
+            f'INSERT INTO "{name}_crosswalk" VALUES (?, ?, ?)',
+            [i, row["source_column"], row.get("target_column") or None],
         )
 
 
