@@ -1,9 +1,10 @@
 # AGENTS.md: Netherlands demo inputs
 
-Input layers for trying topo-tools on Dutch boundaries. Each folder is named after a topo-tools tool group and holds one folder per tier, with the files that group's tools take. Tool outputs aren't stored here: run the tool to produce them.
+Input layers for trying topo-tools on Dutch boundaries. Each folder is named after the tool it's for and holds the files that tool takes, simplified to 100 m. Tool outputs aren't stored here: run the tool to produce them.
 
-| Input | Tools | Contents |
+| Input | Tool | Contents |
 |---|---|---|
-| [schema/admin2-simplified](schema/admin2-simplified/AGENTS.md) | `schema-map`, `schema-crosswalk` | 342 gemeenten with CBS column names, simplified to 100 m |
+| [schema-map](schema-map/AGENTS.md) | `schema-map` | 342 gemeenten with CBS column names |
+| [schema-join](schema-join/AGENTS.md) | `schema-join` | 342 gemeenten and 12 provincies, each with its own code and name |
 
-Every input is built from [nld/2025/nld_admin2](../2025/nld_admin2/AGENTS.md) by `catalog/build_demo.py` in [topo-tools-py](https://github.com/OCHA-DAP/topo-tools-py). The conventions are in [../AGENTS.md](../AGENTS.md).
+The gemeenten come from [nld/2025/nld_admin2](../2025/nld_admin2/AGENTS.md) and the provincies from Kadaster Bestuurlijke Gebieden, built by `catalog/build_demo.py` in [topo-tools-py](https://github.com/OCHA-DAP/topo-tools-py). The conventions are in [../AGENTS.md](../AGENTS.md).

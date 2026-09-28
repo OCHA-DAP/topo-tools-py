@@ -45,15 +45,11 @@ DESCRIPTION = {
 DEMO = {
     "": {
         "title": "Netherlands demo inputs",
-        "description": "Input layers for trying each topo-tools tool on Dutch boundaries. There is one folder per tool, and each tool folder holds one or more inputs of different sizes. Running a tool on its input produces the output, which is never stored here. See [AGENTS.md](AGENTS.md).",
+        "description": "Input layers for trying each topo-tools tool on Dutch boundaries. Each folder is named after the tool it's for and holds the files that tool takes, simplified to 100 m. Running a tool on its input produces the output, which is never stored here. See [AGENTS.md](AGENTS.md).",
     },
-    "schema": {
-        "title": "schema demo inputs",
-        "description": "Inputs for the topo-tools schema tools. `schema-map` and `schema-crosswalk` both take a layer with its source column names and work out the admin hierarchy from the values themselves, not from the column names. See [AGENTS.md](AGENTS.md).",
-    },
-    "schema/admin2-simplified": {
-        "title": "Gemeenten 2025, simplified",
-        "description": "The 342 land gemeenten from the CBS Wijk- en Buurtkaart 2025, in EPSG:28992 with the CBS column names. Boundaries are simplified to 100 m, with neighbouring gemeenten still sharing their edges. The provincie code and name come from CBS StatLine table 86059NED (Gebieden in Nederland 2025). Running schema-map or schema-crosswalk on it maps the gemeente columns to adm2 and the provincie columns to adm1. It drops `landcode`, `landnaam`, `water` and `jaar` because each holds a single value. See [AGENTS.md](AGENTS.md).",
+    "schema-map": {
+        "title": "Gemeenten 2025",
+        "description": "The 342 land gemeenten from the CBS Wijk- en Buurtkaart 2025, in EPSG:28992 with the CBS column names. Boundaries are simplified to 100 m, with neighbouring gemeenten still sharing their edges. The provincie code and name come from CBS StatLine table 86059NED (Gebieden in Nederland 2025). Running schema-map on it maps the gemeente columns to adm2 and the provincie columns to adm1. It drops `landcode`, `landnaam`, `water` and `jaar` because each holds a single value. See [AGENTS.md](AGENTS.md).",
         "keywords": [
             "administrative boundaries",
             "Netherlands",
@@ -62,9 +58,23 @@ DEMO = {
             "provincies",
             "topo-tools",
             "schema-map",
-            "schema-crosswalk",
         ],
         "processing_notes": "Built by `catalog/build_demo.py` in [topo-tools-py](https://github.com/OCHA-DAP/topo-tools-py) from the land rows of `nld/2025/nld_admin2`: `ST_CoverageSimplify` at 100 m, then `ST_CoverageClean` with 0.01 m snapping and no gap filling. Provincie columns joined on `gemeentecode` from the CBS StatLine [OData table 86059NED](https://opendata.cbs.nl/ODataApi/odata/86059NED/TypedDataSet?$format=json&$select=RegioS,Code_28,Naam_29).",
+    },
+    "schema-join": {
+        "title": "Gemeenten and provincies 2025",
+        "description": "A child and a parent layer for schema-join, in EPSG:28992, simplified to 100 m. `nld_admin2.parquet` has the 342 land gemeenten from the CBS Wijk- en Buurtkaart 2025, with `adm2_code` and `adm2_name`. `nld_admin1.parquet` has the 12 provincies from Kadaster Bestuurlijke Gebieden, with `adm1_code` and `adm1_name`. Running schema-join copies each gemeente's provincie code and name onto it. See [AGENTS.md](AGENTS.md).",
+        "keywords": [
+            "administrative boundaries",
+            "Netherlands",
+            "CBS",
+            "Kadaster",
+            "gemeenten",
+            "provincies",
+            "topo-tools",
+            "schema-join",
+        ],
+        "processing_notes": "Built by `catalog/build_demo.py` in [topo-tools-py](https://github.com/OCHA-DAP/topo-tools-py): gemeenten from the land rows of `nld/2025/nld_admin2`, and provincies from the PDOK [Bestuurlijke Gebieden OGC API](https://api.pdok.nl/kadaster/bestuurlijkegebieden/ogc/v1) (`provinciegebied`, retrieved 2026-09-28). Each layer is simplified with `ST_CoverageSimplify` at 100 m, then `ST_CoverageClean` with 0.01 m snapping and no gap filling.",
     },
 }
 for fields in DEMO.values():
@@ -79,6 +89,14 @@ DEMO_COLUMNS = {
     "landcode": "Country code, always `NL`.",
     "landnaam": "Country name, always `Nederland`.",
     "water": "Always `NEE` (land). Water rows are left out.",
+}
+JOIN_COLUMNS = {
+    "geometry": "Polygon or MultiPolygon in EPSG:28992 (RD New, metres), simplified to 100 m with `ST_CoverageSimplify` so neighbours keep shared edges. Provincies include water; gemeenten are land only.",
+    "adm2_code": "Gemeente code: `GM` plus 4 digits, from CBS.",
+    "adm2_name": "Official gemeente name, from CBS.",
+    "adm1_code": "Provincie code: `PV` plus 2 digits, from Kadaster (`identificatie`).",
+    "adm1_name": "Provincie name, from Kadaster.",
+    "bbox": COLUMNS["bbox"],
 }
 PROVINCIES = {
     "Groningen": "#a6cee3",
@@ -293,14 +311,21 @@ def write_agents(catalog: Path) -> None:
             )
 
 
-def annotate_demo(collection_dir: Path, cache: Path) -> None:
+def demo_collection(collection_dir: Path, columns: dict) -> None:
     path = collection_dir / "collection.json"
     collection = json.loads(path.read_text())
     for column in collection["table:columns"]:
-        if column["name"] in DEMO_COLUMNS:
-            column["description"] = DEMO_COLUMNS[column["name"]]
+        if column["name"] in columns:
+            column["description"] = columns[column["name"]]
     collection["extent"]["temporal"]["interval"] = [["2025-01-01T00:00:00Z"] * 2]
+    for asset in collection["assets"].values():
+        local = collection_dir / asset["href"]
+        if "://" not in asset["href"] and local.exists():
+            asset.update(file_fields(local))
+    path.write_text(json.dumps(collection, indent=2, ensure_ascii=False) + "\n")
 
+
+def provincie_style(collection_dir: Path) -> None:
     style_path = collection_dir / "styles" / "default.json"
     source = json.loads(style_path.read_text())["sources"]["data"]
     fill = ["match", ["get", "provincienaam"]]
@@ -330,29 +355,27 @@ def annotate_demo(collection_dir: Path, cache: Path) -> None:
     style_path.write_text(
         json.dumps(provincie_style, indent=2, ensure_ascii=False) + "\n"
     )
-    for asset in collection["assets"].values():
-        local = collection_dir / asset["href"]
-        if "://" not in asset["href"] and local.exists():
-            asset.update(file_fields(local))
-    path.write_text(json.dumps(collection, indent=2, ensure_ascii=False) + "\n")
 
-    tier = collection_dir.name
-    url = f"{DATA}/nld/demo/schema/{tier}/nld_admin2.parquet"
+
+def annotate_schema_map(collection_dir: Path, cache: Path) -> None:
+    provincie_style(collection_dir)
+    demo_collection(collection_dir, DEMO_COLUMNS)
+    url = f"{DATA}/nld/demo/schema-map/nld_admin2.parquet"
     parquet = collection_dir / "nld_admin2.parquet"
     counts = duckdb.execute(
         f"SELECT provinciecode, provincienaam, count(*) FROM read_parquet('{parquet}') GROUP BY ALL ORDER BY 1"
     ).fetchall()
     rows = sum(n for *_, n in counts)
     crosswalk = duckdb.execute(
-        f"SELECT source_column, coalesce(target_column, 'dropped'), unique_count FROM read_csv('{cache / tier / 'nld_admin2_crosswalk.csv'}', all_varchar=true)"
+        f"SELECT source_column, coalesce(target_column, 'dropped'), unique_count FROM read_csv('{cache / 'schema-map' / 'nld_admin2_crosswalk.csv'}', all_varchar=true)"
     ).fetchall()
     gaps = duckdb.execute(
-        f"SELECT count(*) FROM read_parquet('{cache / f'{tier}_nld_admin2_issues.parquet'}') WHERE kind = 'gap'"
+        f"SELECT count(*) FROM read_parquet('{cache / 'schema-map_nld_admin2_issues.parquet'}') WHERE kind = 'gap'"
     ).fetchone()[0]
     (collection_dir / "AGENTS.md").write_text(
         template(
-            "demo_collection",
-            title=DEMO[f"schema/{tier}"]["title"],
+            "demo_schema_map",
+            title=DEMO["schema-map"]["title"],
             rows=str(rows),
             url=url,
             crosswalk="\n".join(
@@ -364,6 +387,72 @@ def annotate_demo(collection_dir: Path, cache: Path) -> None:
             ),
             gaps=str(gaps),
             counts=", ".join(f"{c} {name} {n}" for c, name, n in counts),
+        )
+    )
+
+
+def join_style(collection_dir: Path) -> None:
+    style_path = collection_dir / "styles" / "default.json"
+    source = next(iter(json.loads(style_path.read_text())["sources"].values()))
+    sources = {
+        layer: {**source, "url": source["url"].replace("nld_admin1", layer)}
+        for layer in ("nld_admin1", "nld_admin2")
+    }
+    fill = ["match", ["get", "adm1_name"]]
+    for name, color in PROVINCIES.items():
+        fill += [name, color]
+    join_style = {
+        "version": 8,
+        "name": "Provincies and gemeenten",
+        "sources": sources,
+        "layers": [
+            {
+                "id": "nld_admin1-fill",
+                "type": "fill",
+                "source": "nld_admin1",
+                "source-layer": "nld_admin1",
+                "paint": {"fill-color": [*fill, "#cccccc"], "fill-opacity": 0.7},
+            },
+            {
+                "id": "nld_admin2-outline",
+                "type": "line",
+                "source": "nld_admin2",
+                "source-layer": "nld_admin2",
+                "paint": {"line-color": "#333333", "line-width": 0.5},
+            },
+            {
+                "id": "nld_admin1-outline",
+                "type": "line",
+                "source": "nld_admin1",
+                "source-layer": "nld_admin1",
+                "paint": {"line-color": "#000000", "line-width": 1.5},
+            },
+        ],
+    }
+    style_path.write_text(json.dumps(join_style, indent=2, ensure_ascii=False) + "\n")
+
+
+def annotate_schema_join(collection_dir: Path) -> None:
+    join_style(collection_dir)
+    demo_collection(collection_dir, JOIN_COLUMNS)
+    url = f"{DATA}/nld/demo/schema-join"
+    con = duckdb.connect()
+    con.execute("LOAD spatial")
+    rows = con.execute(
+        f"SELECT count(*) FROM read_parquet('{collection_dir / 'nld_admin2.parquet'}')"
+    ).fetchone()[0]
+    areas = con.execute(
+        "SELECT adm1_code, adm1_name, round(ST_Area(geometry) / 1e6)::INT "
+        f"FROM read_parquet('{collection_dir / 'nld_admin1.parquet'}') ORDER BY 1"
+    ).fetchall()
+    (collection_dir / "AGENTS.md").write_text(
+        template(
+            "demo_schema_join",
+            title=DEMO["schema-join"]["title"],
+            rows=str(rows),
+            child=f"{url}/nld_admin2.parquet",
+            parent=f"{url}/nld_admin1.parquet",
+            areas=", ".join(f"{c} {name} {km2}" for c, name, km2 in areas),
         )
     )
 
@@ -422,10 +511,10 @@ def main() -> None:
     if not args.metadata_only:
         apply_titles(args.catalog)
         write_agents(args.catalog)
-        if (collection_dir := demo / "schema" / "admin2-simplified").exists():
+        if demo.exists():
             (demo / "AGENTS.md").write_text(template("demo"))
-            (demo / "schema" / "AGENTS.md").write_text(template("demo_schema"))
-            annotate_demo(collection_dir, args.cache / "demo")
+            annotate_schema_map(demo / "schema-map", args.cache / "demo")
+            annotate_schema_join(demo / "schema-join")
 
 
 if __name__ == "__main__":

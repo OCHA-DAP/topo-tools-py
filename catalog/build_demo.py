@@ -1,4 +1,4 @@
-"""Build the hdx/topo-tools NLD demo tiers: one input per topo-tools step, each built from the step before."""
+"""Build the hdx/topo-tools NLD demo inputs: one folder per topo-tools tool."""
 
 import argparse
 from pathlib import Path
@@ -7,12 +7,14 @@ import duckdb
 from build_nld import get
 
 from topo_tools.api.schema_crosswalk import crosswalk
+from topo_tools.api.schema_join import join
 from topo_tools.api.topo_detect import detect
 
 SIMPLIFY_M = 100.0
 SNAP_M = 0.01
 # CBS StatLine "Gebieden in Nederland 2025"; Code_28/Naam_29 are its Provincies group.
 GEBIEDEN = "https://opendata.cbs.nl/ODataApi/odata/86059NED/TypedDataSet?$format=json&$select=RegioS,Code_28,Naam_29"
+PROVINCIEGEBIED = "https://api.pdok.nl/kadaster/bestuurlijkegebieden/ogc/v1/collections/provinciegebied/items?f=json&limit=100&crs=http://www.opengis.net/def/crs/EPSG/0/28992"
 
 
 def coverage(con: duckdb.DuckDBPyConnection, table: str, call: str) -> None:
@@ -30,14 +32,20 @@ def coverage(con: duckdb.DuckDBPyConnection, table: str, call: str) -> None:
     """)
 
 
-def gebieden(cache: Path) -> Path:
-    path = cache / "gebieden_2025.json"
+def simplify(con: duckdb.DuckDBPyConnection, table: str) -> None:
+    coverage(con, table, f"ST_CoverageSimplify({{geoms}}, {SIMPLIFY_M}::DOUBLE)")
+    # Snap only (gap width 0): removes the simplify's zero-area overlaps, keeps every water gap.
+    coverage(con, table, f"ST_CoverageClean({{geoms}}, {SNAP_M}::DOUBLE, 0::DOUBLE)")
+
+
+def cached(url: str, path: Path) -> Path:
     if not path.exists():
-        path.write_text(get(GEBIEDEN))
+        path.write_text(get(url))
     return path
 
 
-def admin2_simplified_raw(src: Path, out: Path, provinces: Path) -> None:
+def gemeenten(src: Path, provinces: Path) -> duckdb.DuckDBPyConnection:
+    """Simplified land gemeenten with provincie columns, as table `g`."""
     con = duckdb.connect()
     con.execute("LOAD spatial")
     con.execute(
@@ -48,20 +56,53 @@ def admin2_simplified_raw(src: Path, out: Path, provinces: Path) -> None:
         f"CREATE TABLE t AS SELECT row_number() OVER (ORDER BY gemeentecode) AS i, * EXCLUDE (bbox) "
         f"FROM read_parquet('{src}') WHERE water = 'NEE'"
     )
-    coverage(con, "t", f"ST_CoverageSimplify({{geoms}}, {SIMPLIFY_M}::DOUBLE)")
-    # Snap only (gap width 0): removes the simplify's zero-area overlaps, keeps every water gap.
-    coverage(con, "t", f"ST_CoverageClean({{geoms}}, {SNAP_M}::DOUBLE, 0::DOUBLE)")
-    out.parent.mkdir(parents=True, exist_ok=True)
+    simplify(con, "t")
     missing = con.execute(
         "SELECT count(*) FROM t ANTI JOIN p USING (gemeentecode)"
     ).fetchone()[0]
     if missing:
         msg = f"{missing} gemeenten missing from the provincie lookup"
         raise SystemExit(msg)
-    con.execute(
-        "COPY (SELECT geometry, gemeentecode, gemeentenaam, provinciecode, provincienaam, "
+    con.execute("CREATE TABLE g AS SELECT * FROM t JOIN p USING (gemeentecode)")
+    return con
+
+
+def copy(con: duckdb.DuckDBPyConnection, query: str, out: Path) -> None:
+    out.parent.mkdir(parents=True, exist_ok=True)
+    con.execute(f"COPY ({query}) TO '{out}' (FORMAT parquet, COMPRESSION zstd)")
+
+
+def schema_map_input(con: duckdb.DuckDBPyConnection, out: Path) -> None:
+    copy(
+        con,
+        "SELECT geometry, gemeentecode, gemeentenaam, provinciecode, provincienaam, "
         "'NL' AS landcode, 'Nederland' AS landnaam, water, jaar "
-        f"FROM t JOIN p USING (gemeentecode) ORDER BY gemeentecode) TO '{out}' (FORMAT parquet, COMPRESSION zstd)"
+        "FROM g ORDER BY gemeentecode",
+        out,
+    )
+
+
+def schema_join_child(con: duckdb.DuckDBPyConnection, out: Path) -> None:
+    copy(
+        con,
+        "SELECT geometry, gemeentecode AS adm2_code, gemeentenaam AS adm2_name "
+        "FROM g ORDER BY adm2_code",
+        out,
+    )
+
+
+def schema_join_parent(provinciegebied: Path, out: Path) -> None:
+    con = duckdb.connect()
+    con.execute("LOAD spatial")
+    con.execute(
+        "CREATE TABLE t AS SELECT row_number() OVER (ORDER BY identificatie) AS i, geom AS geometry, identificatie, naam "
+        f"FROM ST_Read('{provinciegebied}')"
+    )
+    simplify(con, "t")
+    copy(
+        con,
+        "SELECT geometry, identificatie AS adm1_code, naam AS adm1_name FROM t ORDER BY adm1_code",
+        out,
     )
 
 
@@ -71,6 +112,15 @@ def overlaps(path: Path, cache: Path) -> int:
     return duckdb.sql(
         f"SELECT count(*) FROM read_parquet('{issues}') WHERE kind = 'overlap'"
     ).fetchone()[0]
+
+
+def join_issues(child: Path, parent: Path, cache: Path) -> int:
+    out = cache / "schema-join" / "nld_admin2_join.parquet"
+    join(child, parent, out, tmp_dir=cache / "tmp")
+    issues = out.with_stem(out.stem + "_issues")
+    if not issues.exists():
+        return 0
+    return duckdb.sql(f"SELECT count(*) FROM read_parquet('{issues}')").fetchone()[0]
 
 
 def main() -> None:
@@ -84,19 +134,30 @@ def main() -> None:
 
     src = args.catalog / "nld" / "2025" / "nld_admin2" / "nld_admin2.parquet"
     demo = args.catalog / "nld" / "demo"
-    raw = demo / "schema" / "admin2-simplified" / "nld_admin2.parquet"
-    mapped = args.cache / "admin2-simplified" / "nld_admin2_mapped.parquet"
+    raw = demo / "schema-map" / "nld_admin2.parquet"
+    child = demo / "schema-join" / "nld_admin2.parquet"
+    parent = demo / "schema-join" / "nld_admin1.parquet"
+    mapped = args.cache / "schema-map" / "nld_admin2_mapped.parquet"
 
-    admin2_simplified_raw(src, raw, gebieden(args.cache))
-    if n := overlaps(raw, args.cache):
-        msg = f"{raw}: {n} overlaps after simplify and clean"
-        raise SystemExit(msg)
+    con = gemeenten(src, cached(GEBIEDEN, args.cache / "gebieden_2025.json"))
+    schema_map_input(con, raw)
+    schema_join_child(con, child)
+    schema_join_parent(
+        cached(PROVINCIEGEBIED, args.cache / "provinciegebied.json"), parent
+    )
+    for path in (raw, child, parent):
+        if n := overlaps(path, args.cache):
+            msg = f"{path}: {n} overlaps after simplify and clean"
+            raise SystemExit(msg)
     crosswalk(
         raw,
         mapped,
         mapped.with_name("nld_admin2_crosswalk.csv"),
         tmp_dir=args.cache / "tmp",
     )
+    if n := join_issues(child, parent, args.cache):
+        msg = f"schema-join reported {n} issues"
+        raise SystemExit(msg)
 
 
 if __name__ == "__main__":
