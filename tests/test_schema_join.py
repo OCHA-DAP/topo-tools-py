@@ -28,7 +28,7 @@ def _rect(x0: float, y0: float, x1: float, y1: float) -> str:
     return f"POLYGON(({x0} {y0}, {x1} {y0}, {x1} {y1}, {x0} {y1}, {x0} {y0}))"
 
 
-def _parents() -> list[dict]:
+def _join_rows() -> list[dict]:
     return [
         {
             "adm1_code": a1c,
@@ -41,7 +41,7 @@ def _parents() -> list[dict]:
     ]
 
 
-def _children() -> list[dict]:
+def _input_rows() -> list[dict]:
     rows = []
     for _, _, a2c, a2n, x, y in _PARENT_ROWS:
         for i, dx in enumerate((0, 1), start=1):
@@ -107,16 +107,16 @@ def _issues(path) -> list[tuple]:
 
 
 @pytest.fixture
-def parent_path(tmp_path):
+def join_path(tmp_path):
     path = tmp_path / "admin2.parquet"
-    _write(path, _parents())
+    _write(path, _join_rows())
     return path
 
 
 @pytest.fixture
-def child_path(tmp_path):
+def input_path(tmp_path):
     path = tmp_path / "admin3.parquet"
-    _write(path, _children())
+    _write(path, _input_rows())
     return path
 
 
@@ -131,9 +131,9 @@ def test_cli_help():
     [{}, {"name_field": "adm{n}_name", "code_field": "adm{n}_code"}],
     ids=["auto", "explicit"],
 )
-def test_fills_every_parent_level(child_path, parent_path, tmp_path, fields):
+def test_fills_every_coarser_level(input_path, join_path, tmp_path, fields):
     out = tmp_path / "out.parquet"
-    join(child_path, parent_path, out, **fields)
+    join(input_path, join_path, out, **fields)
 
     with duckdb.connect() as conn:
         written = conn.execute(f"SELECT * FROM '{out}'")
@@ -149,7 +149,7 @@ def test_fills_every_parent_level(child_path, parent_path, tmp_path, fields):
         codes = [r[2] for r in written.fetchall()]
     assert codes == sorted(codes)
     cols, rows = _read(out)
-    assert len(rows) == len(_children())
+    assert len(rows) == len(_input_rows())
     by_code = {r[cols.index("adm3_code")]: r for r in rows}
     for code, row in by_code.items():
         assert row[cols.index("adm2_code")] == code[:3]
@@ -157,16 +157,16 @@ def test_fills_every_parent_level(child_path, parent_path, tmp_path, fields):
     assert not (tmp_path / "out_issues.parquet").exists()
 
 
-def test_geometry_unchanged(child_path, parent_path, tmp_path):
+def test_geometry_unchanged(input_path, join_path, tmp_path):
     out = tmp_path / "out.parquet"
-    join(child_path, parent_path, out)
+    join(input_path, join_path, out)
 
-    _, before = _read(child_path, geom="geom")
+    _, before = _read(input_path, geom="geom")
     _, after = _read(out)
     assert [r[-1] for r in before] == [r[-1] for r in after]
 
 
-def test_chains_coarsest_first(child_path, tmp_path):
+def test_chains_coarsest_first(input_path, tmp_path):
     admin1 = tmp_path / "admin1.parquet"
     _write(
         admin1,
@@ -186,7 +186,7 @@ def test_chains_coarsest_first(child_path, tmp_path):
     admin2_joined = tmp_path / "admin2_join.parquet"
     join(admin2, admin1, admin2_joined)
     out = tmp_path / "admin3_join.parquet"
-    join(child_path, admin2_joined, out)
+    join(input_path, admin2_joined, out)
 
     cols, rows = _read(out)
     for row in rows:
@@ -195,46 +195,46 @@ def test_chains_coarsest_first(child_path, tmp_path):
         assert row[cols.index("adm1_code")] == code[0]
 
 
-def test_no_parent_child_kept_with_null_columns(parent_path, tmp_path):
-    child = tmp_path / "orphan.parquet"
+def test_no_overlap_input_kept_with_null_columns(join_path, tmp_path):
+    src = tmp_path / "orphan.parquet"
     _write(
-        child,
+        src,
         [
-            *_children(),
+            *_input_rows(),
             {"adm3_code": "Z0101", "adm3_name": "Nowhere", "wkt": _square(10, 10, 1)},
         ],
     )
     out = tmp_path / "out.parquet"
-    join(child, parent_path, out)
+    join(src, join_path, out)
 
     cols, rows = _read(out)
-    assert len(rows) == len(_children()) + 1
+    assert len(rows) == len(_input_rows()) + 1
     orphan = next(r for r in rows if r[cols.index("adm3_code")] == "Z0101")
     assert orphan[cols.index("adm2_code")] is None
     kinds = [(k, u) for k, u, _ in _issues(tmp_path / "out_issues.parquet")]
-    assert kinds == [("no-parent", len(_children()) + 1)]
+    assert kinds == [("no-overlap", len(_input_rows()) + 1)]
 
 
-def test_low_overlap_threshold(parent_path, tmp_path):
-    child = tmp_path / "straddle.parquet"
+def test_low_overlap_threshold(join_path, tmp_path):
+    src = tmp_path / "straddle.parquet"
     _write(
-        child,
+        src,
         [{"adm3_code": "A0101", "adm3_name": "Straddle", "wkt": _square(1.5, 1.5, 1)}],
     )
     out = tmp_path / "out.parquet"
-    join(child, parent_path, out)
+    join(src, join_path, out)
     issues = _issues(tmp_path / "out_issues.parquet")
     assert [(k, u) for k, u, _ in issues] == [("low-overlap", 1)]
-    assert issues[0][2] == "best parent covers 0.25 of child"
+    assert issues[0][2] == "best join feature covers 0.25 of input feature"
 
-    join(child, parent_path, out, min_overlap=0.2)
+    join(src, join_path, out, min_overlap=0.2)
     assert not (tmp_path / "out_issues.parquet").exists()
 
 
-def test_differing_shared_column_kept_side_by_side(parent_path, tmp_path):
+def test_differing_shared_column_kept_side_by_side(join_path, tmp_path):
     rows = [
         {**r, "adm2_name": "Alpha Uno" if r["adm3_code"] == "A0101" else None}
-        for r in _children()
+        for r in _input_rows()
     ]
     for r in rows:
         if r["adm2_name"] is None:
@@ -242,10 +242,10 @@ def test_differing_shared_column_kept_side_by_side(parent_path, tmp_path):
             r["adm2_name"] = next(n for _, _, c, n, _, _ in _PARENT_ROWS if c == code)
     for r in rows:
         r["adm2_name1"] = "taken"
-    child = tmp_path / "names.parquet"
-    _write(child, rows)
+    src = tmp_path / "names.parquet"
+    _write(src, rows)
     out = tmp_path / "out.parquet"
-    join(child, parent_path, out)
+    join(src, join_path, out)
 
     cols, result = _read(out)
     assert "adm2_name2" in cols
@@ -255,20 +255,20 @@ def test_differing_shared_column_kept_side_by_side(parent_path, tmp_path):
     assert row[cols.index("adm2_name2")] == "Alpha One"
     issues = _issues(tmp_path / "out_issues.parquet")
     assert [k for k, _, _ in issues] == ["value-mismatch"]
-    assert issues[0][2] == "adm2_name: child 'Alpha Uno' vs parent 'Alpha One'"
+    assert issues[0][2] == "adm2_name: input 'Alpha Uno' vs join 'Alpha One'"
 
 
-def test_issue_unit_a_is_output_row(parent_path, tmp_path):
-    rows = sorted(_children(), key=lambda r: r["adm3_code"], reverse=True)
+def test_issue_unit_a_is_output_row(join_path, tmp_path):
+    rows = sorted(_input_rows(), key=lambda r: r["adm3_code"], reverse=True)
     for r in rows:
         code = r["adm3_code"][:3]
         r["adm2_name"] = next(n for _, _, c, n, _, _ in _PARENT_ROWS if c == code)
         if r["adm3_code"] == "A0203":
             r["adm2_name"] = "Alpha Dos"
-    child = tmp_path / "reversed.parquet"
-    _write(child, rows)
+    src = tmp_path / "reversed.parquet"
+    _write(src, rows)
     out = tmp_path / "out.parquet"
-    join(child, parent_path, out)
+    join(src, join_path, out)
 
     (unit_a,) = [u for _, u, _ in _issues(tmp_path / "out_issues.parquet")]
     with duckdb.connect() as conn:
@@ -278,12 +278,12 @@ def test_issue_unit_a_is_output_row(parent_path, tmp_path):
     assert codes[unit_a - 1] == "A0203"
 
 
-def test_identical_shared_column_skipped(parent_path, tmp_path):
-    rows = [{**r, "adm2_code": r["adm3_code"][:3]} for r in _children()]
-    child = tmp_path / "codes.parquet"
-    _write(child, rows)
+def test_identical_shared_column_skipped(join_path, tmp_path):
+    rows = [{**r, "adm2_code": r["adm3_code"][:3]} for r in _input_rows()]
+    src = tmp_path / "codes.parquet"
+    _write(src, rows)
     out = tmp_path / "out.parquet"
-    join(child, parent_path, out)
+    join(src, join_path, out)
 
     cols, _ = _read(out)
     assert "adm2_code1" not in cols
@@ -291,46 +291,47 @@ def test_identical_shared_column_skipped(parent_path, tmp_path):
 
 
 @pytest.mark.parametrize("step", _STEPS)
-def test_step_runs(child_path, parent_path, tmp_path, step):
+def test_step_runs(input_path, join_path, tmp_path, step):
     out = tmp_path / "out.parquet"
     tmp_dir = tmp_path / "tmp"
     for s in _STEPS:
-        join(child_path, parent_path, out, tmp_dir=tmp_dir, step=s, debug=True)
+        join(input_path, join_path, out, tmp_dir=tmp_dir, step=s, debug=True)
         if s == step:
             break
 
 
-def test_invalid_min_overlap_raises(child_path, parent_path):
+def test_invalid_min_overlap_raises(input_path, join_path):
     with pytest.raises(ValueError, match="min_overlap"):
-        join(child_path, parent_path, min_overlap=0)
+        join(input_path, join_path, min_overlap=0)
 
 
-def test_cli_runs(child_path, parent_path, tmp_path):
+def test_cli_runs(input_path, join_path, tmp_path):
     out = tmp_path / "cli.parquet"
     result = CliRunner().invoke(
-        cli, ["schema-join", str(child_path), str(parent_path), str(out)]
+        cli, ["schema-join", str(input_path), str(join_path), str(out)]
     )
     assert result.exit_code == 0, result.output
     assert out.exists()
 
 
-def test_parent_without_coarser_code_compares_names(tmp_path):
-    parent = tmp_path / "admin2_no_adm1_code.parquet"
+def test_join_layer_without_coarser_code_compares_names(tmp_path):
+    join_file = tmp_path / "admin2_no_adm1_code.parquet"
     _write(
-        parent, [{k: v for k, v in r.items() if k != "adm1_code"} for r in _parents()]
+        join_file,
+        [{k: v for k, v in r.items() if k != "adm1_code"} for r in _join_rows()],
     )
     rows = [
         {**r, "adm2_name": "Alpha Uno" if r["adm3_code"] == "A0101" else None}
-        for r in _children()
+        for r in _input_rows()
     ]
     for r in rows:
         if r["adm2_name"] is None:
             code = r["adm3_code"][:3]
             r["adm2_name"] = next(n for _, _, c, n, _, _ in _PARENT_ROWS if c == code)
-    child = tmp_path / "names.parquet"
-    _write(child, rows)
+    src = tmp_path / "names.parquet"
+    _write(src, rows)
     out = tmp_path / "out.parquet"
-    join(child, parent, out)
+    join(src, join_file, out)
 
     cols, _ = _read(out)
     assert "adm2_name1" in cols
@@ -339,9 +340,9 @@ def test_parent_without_coarser_code_compares_names(tmp_path):
 
 
 def test_sibling_of_digit_ending_column_is_separated(tmp_path):
-    parent = tmp_path / "gadm2.parquet"
+    join_file = tmp_path / "gadm2.parquet"
     _write(
-        parent,
+        join_file,
         [
             {
                 "GID_1": a1c,
@@ -354,7 +355,7 @@ def test_sibling_of_digit_ending_column_is_separated(tmp_path):
         ],
     )
     rows = []
-    for r in _children():
+    for r in _input_rows():
         code = r["adm3_code"][:3]
         name = next(n for _, _, c, n, _, _ in _PARENT_ROWS if c == code)
         rows.append(
@@ -365,10 +366,10 @@ def test_sibling_of_digit_ending_column_is_separated(tmp_path):
                 "wkt": r["wkt"],
             }
         )
-    child = tmp_path / "gadm3.parquet"
-    _write(child, rows)
+    src = tmp_path / "gadm3.parquet"
+    _write(src, rows)
     out = tmp_path / "out.parquet"
-    join(child, parent, out, name_field="NAME_{n}", code_field="GID_{n}")
+    join(src, join_file, out, name_field="NAME_{n}", code_field="GID_{n}")
 
     with duckdb.connect() as conn:
         cols = [d[0] for d in conn.execute(f"SELECT * FROM '{out}'").description]
@@ -384,13 +385,13 @@ def test_sibling_of_digit_ending_column_is_separated(tmp_path):
     ]
 
 
-def test_shared_column_of_another_type_kept_side_by_side(parent_path, tmp_path):
+def test_shared_column_of_another_type_kept_side_by_side(join_path, tmp_path):
     code = 7
-    rows = [{**r, "adm2_code": code} for r in _children()]
-    child = tmp_path / "typed.parquet"
-    _write(child, rows)
+    rows = [{**r, "adm2_code": code} for r in _input_rows()]
+    src = tmp_path / "typed.parquet"
+    _write(src, rows)
     out = tmp_path / "out.parquet"
-    join(child, parent_path, out)
+    join(src, join_path, out)
 
     cols, result = _read(out)
     row = next(r for r in result if r[cols.index("adm3_code")] == "A0101")

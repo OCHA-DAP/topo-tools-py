@@ -40,5 +40,5 @@ child's column and adds the parent's as the next free sibling
 
 - `value-mismatch`: a differing name or code, settled in
   [review names](05-names/);
-- `no-parent`, `low-overlap`: a child outside or mostly outside its
+- `no-overlap`, `low-overlap`: a unit outside or mostly outside its
   parent, settled with the data provider before coding.

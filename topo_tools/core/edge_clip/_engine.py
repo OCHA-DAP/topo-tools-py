@@ -1,4 +1,4 @@
-"""Clips every row to its own parent_fid's geometry, isolated per distinct parent."""
+"""Clips every row to its own overlay_fid's geometry, isolated per overlay feature."""
 
 import contextlib
 import shutil
@@ -24,56 +24,56 @@ if TYPE_CHECKING:
 def main(  # noqa: PLR0913 (each param is a distinct required input)
     conn: DuckDBPyConnection,
     table_in: str,
-    parent_source: str,
+    overlay_source: str,
     table_out: str,
     tmp_dir: Path,
     *,
     threads: int | None = None,
     debug: bool = False,
 ) -> None:
-    """Clip every row of table_in to its own parent_fid's geometry.
+    """Clip every row of table_in to its own overlay_fid's geometry.
 
-    table_in MUST already carry a parent_fid column; an empty-intersection
-    child is dropped from table_out but kept in "{table_out}_dropped".
+    table_in MUST already carry a overlay_fid column; an empty-intersection
+    input feature is dropped from table_out but kept in "{table_out}_dropped".
     """
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{table_out}" AS
-        SELECT * EXCLUDE (parent_fid) FROM "{table_in}" WHERE FALSE
+        SELECT * EXCLUDE (overlay_fid) FROM "{table_in}" WHERE FALSE
     """)
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{table_out}_dropped" AS
         SELECT * FROM "{table_in}" WHERE FALSE
     """)
-    parent_fids = [
+    overlay_fids = [
         row[0]
         for row in conn.execute(
-            f'SELECT DISTINCT parent_fid FROM "{table_in}" ORDER BY parent_fid'
+            f'SELECT DISTINCT overlay_fid FROM "{table_in}" ORDER BY overlay_fid'
         ).fetchall()
     ]
 
-    for parent_fid in parent_fids:
-        group_dir = tmp_dir / f"{table_out}_p{parent_fid}"
-        # Always clear first: a stale group_dir from an earlier children
-        # file reusing this parent_fid under --debug would collide on create.
+    for overlay_fid in overlay_fids:
+        group_dir = tmp_dir / f"{table_out}_p{overlay_fid}"
+        # Always clear first: a stale group_dir from an earlier input
+        # file reusing this overlay_fid under --debug would collide on create.
         shutil.rmtree(group_dir, ignore_errors=True)
         group_dir.mkdir(parents=True, exist_ok=True)
 
         conn.execute(f"""--sql
             COPY (
-                SELECT * EXCLUDE (parent_fid) FROM "{table_in}"
-                WHERE parent_fid = {parent_fid}
-            ) TO '{group_dir / "child.parquet"}' (FORMAT PARQUET)
+                SELECT * EXCLUDE (overlay_fid) FROM "{table_in}"
+                WHERE overlay_fid = {overlay_fid}
+            ) TO '{group_dir / "input.parquet"}' (FORMAT PARQUET)
         """)
         conn.execute(f"""--sql
-            COPY (SELECT geom FROM {parent_source} WHERE fid = {parent_fid})
-            TO '{group_dir / "parent.parquet"}' (FORMAT PARQUET)
+            COPY (SELECT geom FROM {overlay_source} WHERE fid = {overlay_fid})
+            TO '{group_dir / "overlay.parquet"}' (FORMAT PARQUET)
         """)
 
         exitcode, err = spawn_worker(_clip_one_worker, (group_dir, threads, debug))
         output_path = group_dir / "output.parquet"
         if exitcode != 0 or err or not output_path.exists():
             msg = (
-                f"clip: subprocess for parent_fid={parent_fid} failed "
+                f"clip: subprocess for overlay_fid={overlay_fid} failed "
                 f"(exitcode={exitcode}, error={err}, see {group_dir} "
                 "for exported inputs)"
             )
@@ -85,7 +85,7 @@ def main(  # noqa: PLR0913 (each param is a distinct required input)
         """)
         conn.execute(f"""--sql
             INSERT INTO "{table_out}_dropped" BY NAME
-            SELECT *, {parent_fid} AS parent_fid
+            SELECT *, {overlay_fid} AS overlay_fid
             FROM read_parquet('{group_dir / "dropped.parquet"}')
         """)
 
@@ -110,13 +110,13 @@ def _clip_one_worker(
         worker_conn.execute(f"""--sql
                 CREATE TABLE clip_one AS
                 SELECT ST_SetCRS(geom, 'EPSG:4326') AS geom
-                FROM read_parquet('{group_dir / "parent.parquet"}')
+                FROM read_parquet('{group_dir / "overlay.parquet"}')
             """)
         worker_conn.execute(f"""--sql
-                CREATE TABLE clip_children AS
+                CREATE TABLE clip_inputs AS
                 SELECT * EXCLUDE (geom), ST_SetCRS(geom, 'EPSG:4326') AS geom,
                        {bbox_columns_sql("geom")}
-                FROM read_parquet('{group_dir / "child.parquet"}')
+                FROM read_parquet('{group_dir / "input.parquet"}')
             """)
         subdivide_boundary(worker_conn, "clip_one", "geom", "clip_btile_raw")
         # Bbox columns precomputed here, not called inline in the join below:
@@ -125,7 +125,7 @@ def _clip_one_worker(
                 CREATE TABLE clip_btile AS
                 SELECT geom, {bbox_columns_sql("geom")} FROM clip_btile_raw
             """)
-        # LEFT JOIN: a child whose bbox misses every tile still emits a row.
+        # LEFT JOIN: an input feature whose bbox misses every tile still emits a row.
         worker_conn.execute("""--sql
                 CREATE TABLE clip_result AS
                 SELECT c.* EXCLUDE (geom, xmin, xmax, ymin, ymax),
@@ -133,7 +133,7 @@ def _clip_one_worker(
                        ST_SetCRS(ST_Multi(ST_CollectionExtract(
                            ST_Union_Agg(ST_Intersection(c.geom, b.geom)), 3
                        ))::GEOMETRY, 'EPSG:4326') AS geom
-                FROM clip_children c
+                FROM clip_inputs c
                 LEFT JOIN clip_btile b
                   ON b.xmax >= c.xmin AND b.xmin <= c.xmax
                  AND b.ymax >= c.ymin AND b.ymin <= c.ymax

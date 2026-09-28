@@ -51,7 +51,7 @@ def _add_outcome_columns(conn: DuckDBPyConnection, name: str) -> None:
                  THEN ST_Contains(gu.geom, ST_PointOnSurface(i.geom))
                  ELSE TRUE
             END AS fixed,
-            NULL::BIGINT AS parent_fid, NULL::VARCHAR AS reason,
+            NULL::BIGINT AS overlay_fid, NULL::VARCHAR AS reason,
             NULL::VARCHAR AS source_file,
             i.geom
         FROM "{name}_02" i

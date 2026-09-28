@@ -1,4 +1,4 @@
-"""Assigns each child polygon to the parent it shares the largest area with."""
+"""Assigns each input feature to the overlay feature it shares the largest area with."""
 
 from logging import getLogger
 
@@ -15,18 +15,18 @@ def assign_many(  # noqa: PLR0913
     conn: DuckDBPyConnection,
     name: str,
     *,
-    parent_match_column: str | None = None,
-    child_match_column: str | None = None,
+    overlay_match_column: str | None = None,
+    input_match_column: str | None = None,
     carry_columns: list[str] | None = None,
-    child_columns: list[str] | None = None,
+    input_columns: list[str] | None = None,
 ) -> None:
-    """Assign each child to its plurality-overlap parent; drop and log the rest."""
+    """Assign each input feature to its plurality-overlap overlay; log the rest."""
     # Bbox columns precomputed here, not called inline in the join below:
     # DuckDB re-evaluates an inline envelope call per comparison, not once per row.
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_02_tmp1" AS
         WITH parts AS (
-            SELECT fid, UNNEST(ST_Dump(geom)).geom AS part_geom FROM "{name}_child_01"
+            SELECT fid, UNNEST(ST_Dump(geom)).geom AS part_geom FROM "{name}_input_01"
         )
         SELECT fid, part_geom, {bbox_columns_sql("part_geom")}
         FROM parts
@@ -34,17 +34,17 @@ def assign_many(  # noqa: PLR0913
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_02_tmp2" AS
         WITH parts AS (
-            SELECT fid, UNNEST(ST_Dump(geom)).geom AS part_geom FROM "{name}_parent_01"
+            SELECT fid, UNNEST(ST_Dump(geom)).geom AS part_geom FROM "{name}_overlay_01"
         )
         SELECT fid, part_geom, {bbox_columns_sql("part_geom")}
         FROM parts
     """)
 
-    # Shared area per (child, parent) fid pair, summed across all part-pairs;
+    # Shared area per (input, overlay) fid pair, summed across all part-pairs;
     # ranked in an equal-area CRS, transforming only the intersection geometry.
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_02_pairs" AS
-        SELECT c.fid AS child_fid, p.fid AS parent_fid,
+        SELECT c.fid AS input_fid, p.fid AS overlay_fid,
                SUM(ST_Area(ST_Transform(
                    ST_Intersection(c.part_geom, p.part_geom),
                    'EPSG:4326', '{EQUAL_AREA_CRS}'
@@ -59,52 +59,52 @@ def assign_many(  # noqa: PLR0913
         GROUP BY c.fid, p.fid
     """)
 
-    # Plurality pick per child, ties broken by lowest parent fid.
+    # Plurality pick per input feature, ties broken by lowest overlay fid.
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_02_tmp3" AS
-        SELECT child_fid, parent_fid FROM (
-            SELECT child_fid, parent_fid,
+        SELECT input_fid, overlay_fid FROM (
+            SELECT input_fid, overlay_fid,
                    ROW_NUMBER() OVER (
-                       PARTITION BY child_fid ORDER BY shared_area DESC, parent_fid ASC
+                       PARTITION BY input_fid ORDER BY shared_area DESC, overlay_fid ASC
                    ) AS rn
             FROM "{name}_02_pairs"
             WHERE shared_area > 0
         ) WHERE rn = 1
     """)
 
-    if parent_match_column and child_match_column:
-        # Code candidate per child, restricted to a parent it overlaps at all
-        # (guards against a stale code); ties broken by lowest parent fid.
+    if overlay_match_column and input_match_column:
+        # Code candidate per input feature, restricted to an overlay it overlaps at all
+        # (guards against a stale code); ties broken by lowest overlay fid.
         conn.execute(f"""--sql
             CREATE OR REPLACE TABLE "{name}_02_tmp4" AS
-            SELECT child_fid, parent_fid FROM (
-                SELECT j.child_fid, j.parent_fid,
+            SELECT input_fid, overlay_fid FROM (
+                SELECT j.input_fid, j.overlay_fid,
                        ROW_NUMBER() OVER (
-                           PARTITION BY j.child_fid ORDER BY j.parent_fid ASC
+                           PARTITION BY j.input_fid ORDER BY j.overlay_fid ASC
                        ) AS rn
                 FROM (
-                    SELECT c.fid AS child_fid, p.fid AS parent_fid
-                    FROM "{name}_child_01" c
-                    JOIN "{name}_parent_01" p
-                      ON c."{child_match_column}" = p."{parent_match_column}"
+                    SELECT c.fid AS input_fid, p.fid AS overlay_fid
+                    FROM "{name}_input_01" c
+                    JOIN "{name}_overlay_01" p
+                      ON c."{input_match_column}" = p."{overlay_match_column}"
                 ) j
                 JOIN "{name}_02_pairs" pr
-                  ON pr.child_fid = j.child_fid
-                 AND pr.parent_fid = j.parent_fid
+                  ON pr.input_fid = j.input_fid
+                 AND pr.overlay_fid = j.overlay_fid
                  AND pr.shared_area > 0
             ) WHERE rn = 1
         """)
         conn.execute(f"""--sql
             CREATE OR REPLACE TABLE "{name}_02_assign" AS
             SELECT
-                child_fid,
-                COALESCE(code.parent_fid, spatial.parent_fid) AS parent_fid,
-                CASE WHEN code.parent_fid IS NOT NULL THEN 'code'
+                input_fid,
+                COALESCE(code.overlay_fid, spatial.overlay_fid) AS overlay_fid,
+                CASE WHEN code.overlay_fid IS NOT NULL THEN 'code'
                      ELSE 'spatial_fallback' END AS assignment_method,
-                CASE WHEN code.parent_fid IS NOT NULL
-                     THEN code.parent_fid = spatial.parent_fid END AS spatial_agrees
+                CASE WHEN code.overlay_fid IS NOT NULL
+                     THEN code.overlay_fid = spatial.overlay_fid END AS spatial_agrees
             FROM "{name}_02_tmp4" code
-            FULL OUTER JOIN "{name}_02_tmp3" spatial USING (child_fid)
+            FULL OUTER JOIN "{name}_02_tmp3" spatial USING (input_fid)
         """)
         conn.execute(f'DROP TABLE IF EXISTS "{name}_02_tmp4"')
     else:
@@ -114,21 +114,21 @@ def assign_many(  # noqa: PLR0913
         """)
     conn.execute(f'DROP TABLE IF EXISTS "{name}_02_tmp3"')
 
-    _carry_forward_columns(conn, name, carry_columns, child_columns)
+    _carry_forward_columns(conn, name, carry_columns, input_columns)
 
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_02_unassigned" AS
-        SELECT fid AS child_fid, source_file, geom FROM "{name}_child_01"
-        WHERE fid NOT IN (SELECT child_fid FROM "{name}_02_assign")
+        SELECT fid AS input_fid, source_file, geom FROM "{name}_input_01"
+        WHERE fid NOT IN (SELECT input_fid FROM "{name}_02_assign")
     """)
 
     unassigned = conn.execute(
-        f'SELECT child_fid FROM "{name}_02_unassigned" ORDER BY child_fid'
+        f'SELECT input_fid FROM "{name}_02_unassigned" ORDER BY input_fid'
     ).fetchall()
     if unassigned:
         fids = [row[0] for row in unassigned]
         logger.warning(
-            "assign-many: dropping %d unmatched child fid(s) with no parent "
+            "assign-many: dropping %d unmatched input fid(s) with no overlay feature "
             "overlap: %s",
             len(fids),
             fids,

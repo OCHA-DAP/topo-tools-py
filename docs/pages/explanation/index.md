@@ -19,7 +19,7 @@ one-off decisions behind both.
 
     ---
 
-    Assign each child to a parent, majority vote or per-child plurality.
+    Assign each input feature to an overlay feature, majority vote or per-feature plurality.
 
     [:octicons-arrow-right-24: assign](assign)
 

@@ -1,1 +1,1 @@
-"""Schema-join tool: copies a parent layer's hierarchy columns onto each child."""
+"""Schema-join tool: copies a join layer's hierarchy columns onto each input feature."""

@@ -18,20 +18,20 @@ from topo_tools.cli.main import cli
 
 _LEVEL_1, _LEVEL_2 = 1, 2
 
-# One-file-one-parent: children 1+2 tile Parent A, winning the majority
-# vote, so child 3 (Parent B territory) and child 4 (unassignable) both drop.
-_CHILD_WKT = [
+# One-file-one-overlay: inputs 1+2 tile Overlay A, winning the majority
+# vote, so input 3 (Overlay B territory) and input 4 (unassignable) both drop.
+_INPUT_WKT = [
     (1, "POLYGON((-5 -5, 1.5 -5, 1.5 5, -5 5, -5 -5))"),
     (2, "POLYGON((1.5 -5, 8 -5, 8 5, 1.5 5, 1.5 -5))"),
     (3, "POLYGON((8 -5, 20 -5, 20 20, 8 20, 8 -5))"),
     (4, "POLYGON((100 100, 101 100, 101 101, 100 101, 100 100))"),
 ]
-_PARENT_WKT = [
+_OVERLAY_WKT = [
     (1, "POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))"),
     (2, "POLYGON((10 0, 13 0, 13 3, 10 3, 10 0))"),
 ]
 
-_PARENT_A_AREA = 9.0
+_OVERLAY_A_AREA = 9.0
 
 _STEPS = ["inputs", "assign", "clip", "stitch", "outputs"]
 
@@ -47,58 +47,58 @@ def _write_synthetic(path, wkt_rows):
 
 
 @pytest.fixture
-def synthetic_children(tmp_path):
-    """Write a small synthetic already-extended child-layer GeoParquet."""
+def synthetic_inputs(tmp_path):
+    """Write a small synthetic already-extended input feature-layer GeoParquet."""
     path = tmp_path / "children.parquet"
-    _write_synthetic(path, _CHILD_WKT)
+    _write_synthetic(path, _INPUT_WKT)
     return path
 
 
 @pytest.fixture
-def synthetic_parents(tmp_path):
-    """Write a small synthetic parent/clip-layer GeoParquet."""
+def synthetic_overlays(tmp_path):
+    """Write a small synthetic overlay-layer GeoParquet."""
     path = tmp_path / "parents.parquet"
-    _write_synthetic(path, _PARENT_WKT)
+    _write_synthetic(path, _OVERLAY_WKT)
     return path
 
 
 @pytest.fixture
-def synthetic_children_split(tmp_path):
-    """Write children 1 & 2 (the Parent A tiling pair) to separate files."""
+def synthetic_inputs_split(tmp_path):
+    """Write inputs 1 & 2 (the Overlay A tiling pair) to separate files."""
     path_a = tmp_path / "child_a.parquet"
     path_b = tmp_path / "child_b.parquet"
-    _write_synthetic(path_a, [_CHILD_WKT[0]])
-    _write_synthetic(path_b, [_CHILD_WKT[1]])
+    _write_synthetic(path_a, [_INPUT_WKT[0]])
+    _write_synthetic(path_b, [_INPUT_WKT[1]])
     return [path_a, path_b]
 
 
-# Child 2 straddles into Parent B with a bigger individual overlap there
+# Input 2 straddles into Overlay B with a bigger individual overlap there
 # (area 6 vs 4.5, its own plurality pick), but file_a's vote count still picks A.
-_MAJORITY_CHILD_A = (1, "POLYGON((-5 -5, 1.5 -5, 1.5 5, -5 5, -5 -5))")
-_MAJORITY_CHILD_STRADDLE = (2, "POLYGON((1.5 -5, 12 -5, 12 5, 1.5 5, 1.5 -5))")
-_MAJORITY_CHILD_B_ONLY = (3, "POLYGON((8 -5, 20 -5, 20 20, 8 20, 8 -5))")
+_MAJORITY_INPUT_A = (1, "POLYGON((-5 -5, 1.5 -5, 1.5 5, -5 5, -5 -5))")
+_MAJORITY_INPUT_STRADDLE = (2, "POLYGON((1.5 -5, 12 -5, 12 5, 1.5 5, 1.5 -5))")
+_MAJORITY_INPUT_B_ONLY = (3, "POLYGON((8 -5, 20 -5, 20 20, 8 20, 8 -5))")
 
 
 @pytest.fixture
-def synthetic_children_file_majority(tmp_path):
-    """file_a tiles Parent A, one child straddling B; file_b feeds Parent B alone."""
+def synthetic_inputs_file_majority(tmp_path):
+    """file_a tiles Overlay A, one input straddling B; file_b feeds Overlay B alone."""
     path_a = tmp_path / "file_a.parquet"
     path_b = tmp_path / "file_b.parquet"
-    _write_synthetic(path_a, [_MAJORITY_CHILD_A, _MAJORITY_CHILD_STRADDLE])
-    _write_synthetic(path_b, [_MAJORITY_CHILD_B_ONLY])
+    _write_synthetic(path_a, [_MAJORITY_INPUT_A, _MAJORITY_INPUT_STRADDLE])
+    _write_synthetic(path_b, [_MAJORITY_INPUT_B_ONLY])
     return [path_a, path_b]
 
 
 def test_cli_help():
     result = CliRunner().invoke(cli, ["edge-mosaic", "--help"])
     assert result.exit_code == 0
-    assert "Fit an already-extended children layer" in result.output
+    assert "Fit an already-extended input layer" in result.output
     assert "Examples:" in result.output
 
 
-def test_mosaic_full_run(synthetic_children, synthetic_parents, tmp_path):
+def test_mosaic_full_run(synthetic_inputs, synthetic_overlays, tmp_path):
     output_path = tmp_path / "out.parquet"
-    mosaic(synthetic_children, synthetic_parents, output_path, overwrite=True)
+    mosaic(synthetic_inputs, synthetic_overlays, output_path, overwrite=True)
 
     assert output_path.exists()
     with duckdb.connect() as conn:
@@ -112,39 +112,41 @@ def test_mosaic_full_run(synthetic_children, synthetic_parents, tmp_path):
     assert ids == [1, 2]
 
 
-def test_mosaic_drops_unassigned_and_warns(synthetic_parents, tmp_path, caplog):
-    """A whole file with no parent overlap at all is dropped and warned about."""
+def test_mosaic_drops_unassigned_and_warns(synthetic_overlays, tmp_path, caplog):
+    """A whole file with no overlay overlap at all is dropped and warned about."""
     file_far = tmp_path / "file_far.parquet"
     file_a = tmp_path / "file_a.parquet"
-    _write_synthetic(file_far, [_CHILD_WKT[3]])  # sole child, far from any parent
-    _write_synthetic(file_a, [_CHILD_WKT[0], _CHILD_WKT[1]])  # tiles Parent A
+    _write_synthetic(
+        file_far, [_INPUT_WKT[3]]
+    )  # sole input feature, far from any overlay feature
+    _write_synthetic(file_a, [_INPUT_WKT[0], _INPUT_WKT[1]])  # tiles Overlay A
 
     output_path = tmp_path / "out.parquet"
     with caplog.at_level(logging.WARNING):
-        mosaic([file_far, file_a], synthetic_parents, output_path, overwrite=True)
+        mosaic([file_far, file_a], synthetic_overlays, output_path, overwrite=True)
 
-    assert any("dropping 1 child fid(s)" in r.message for r in caplog.records)
+    assert any("dropping 1 input fid(s)" in r.message for r in caplog.records)
 
 
 def test_mosaic_issues_file_default_path(
-    synthetic_children, synthetic_parents, tmp_path
+    synthetic_inputs, synthetic_overlays, tmp_path
 ):
     output_path = tmp_path / "out.parquet"
-    mosaic(synthetic_children, synthetic_parents, output_path, overwrite=True)
+    mosaic(synthetic_inputs, synthetic_overlays, output_path, overwrite=True)
 
     expected_issues_path = output_path.with_stem(output_path.stem + "_issues")
     assert expected_issues_path.exists()
 
 
-def test_mosaic_issues_file_records_clip_empty_child(
-    synthetic_children, synthetic_parents, tmp_path
+def test_mosaic_issues_file_records_clip_empty_input(
+    synthetic_inputs, synthetic_overlays, tmp_path
 ):
-    """Children 3/4 are forced onto Parent A, then dropped as clip-empty."""
+    """Inputs 3/4 are forced onto Overlay A, then dropped as clip-empty."""
     output_path = tmp_path / "out.parquet"
     issues_path = tmp_path / "issues.parquet"
     mosaic(
-        synthetic_children,
-        synthetic_parents,
+        synthetic_inputs,
+        synthetic_overlays,
         output_path,
         issues_path,
         overwrite=True,
@@ -164,46 +166,46 @@ def test_mosaic_issues_file_records_clip_empty_child(
     for row in rows:
         parsed = dict(zip(cols, row, strict=True))
         assert parsed["kind"] == "clip-empty"
-        assert parsed["parent_fid"] == 1
+        assert parsed["overlay_fid"] == 1
         assert parsed["reason"] is not None
         assert parsed["geometry"] is not None
 
 
 def test_mosaic_issues_file_absent_when_nothing_dropped(tmp_path):
-    """Parent B's single-child case succeeds cleanly, so no issues file is written."""
-    children_path = tmp_path / "children_single.parquet"
-    parents_path = tmp_path / "parents_single.parquet"
-    _write_synthetic(children_path, [_CHILD_WKT[2]])  # fid 3 only
-    _write_synthetic(parents_path, [_PARENT_WKT[1]])  # Parent B only
+    """Overlay B's single-input case succeeds cleanly, so no issues file is written."""
+    input_path = tmp_path / "children_single.parquet"
+    overlays_path = tmp_path / "parents_single.parquet"
+    _write_synthetic(input_path, [_INPUT_WKT[2]])  # fid 3 only
+    _write_synthetic(overlays_path, [_OVERLAY_WKT[1]])  # Overlay B only
 
     output_path = tmp_path / "out.parquet"
     issues_path = tmp_path / "issues.parquet"
-    mosaic(children_path, parents_path, output_path, issues_path, overwrite=True)
+    mosaic(input_path, overlays_path, output_path, issues_path, overwrite=True)
 
     assert not issues_path.exists()
 
 
-# A parent with a real interior hole (e.g. Lesotho inside South Africa);
-# two already-extended children exactly tile the outer square, no self-gap.
-_ENCLAVE_PARENT_WKT = [
+# An overlay feature with a real interior hole (e.g. Lesotho inside South Africa);
+# two already-extended input features exactly tile the outer square, no self-gap.
+_ENCLAVE_OVERLAY_WKT = [
     (1, "POLYGON((0 0, 10 0, 10 10, 0 10, 0 0), (4 4, 6 4, 6 6, 4 6, 4 4))"),
 ]
-_ENCLAVE_CHILD_WKT = [
+_ENCLAVE_INPUT_WKT = [
     (1, "POLYGON((0 0, 5 0, 5 10, 0 10, 0 0))"),
     (2, "POLYGON((5 0, 10 0, 10 10, 5 10, 5 0))"),
 ]
 
 
-def test_mosaic_tolerates_parent_layer_enclave(tmp_path):
-    """A real hole in the parent's own shape must not raise, only be reported."""
-    children_path = tmp_path / "children_enclave.parquet"
-    parents_path = tmp_path / "parents_enclave.parquet"
-    _write_synthetic(children_path, _ENCLAVE_CHILD_WKT)
-    _write_synthetic(parents_path, _ENCLAVE_PARENT_WKT)
+def test_mosaic_tolerates_overlay_layer_enclave(tmp_path):
+    """A real hole in the overlay's own shape must not raise, only be reported."""
+    input_path = tmp_path / "children_enclave.parquet"
+    overlays_path = tmp_path / "parents_enclave.parquet"
+    _write_synthetic(input_path, _ENCLAVE_INPUT_WKT)
+    _write_synthetic(overlays_path, _ENCLAVE_OVERLAY_WKT)
 
     output_path = tmp_path / "out.parquet"
     issues_path = tmp_path / "issues.parquet"
-    mosaic(children_path, parents_path, output_path, issues_path, overwrite=True)
+    mosaic(input_path, overlays_path, output_path, issues_path, overwrite=True)
 
     assert output_path.exists()
     with duckdb.connect() as conn:
@@ -215,12 +217,12 @@ def test_mosaic_tolerates_parent_layer_enclave(tmp_path):
     assert gap_rows[0][0] > 0
 
 
-def test_mosaic_clip_bounds_output_to_parent(
-    synthetic_children, synthetic_parents, tmp_path
+def test_mosaic_clip_bounds_output_to_overlay(
+    synthetic_inputs, synthetic_overlays, tmp_path
 ):
-    """Oversized already-extended children clip down to the parent's true extent."""
+    """Oversized already-extended inputs clip down to the overlay's true extent."""
     output_path = tmp_path / "out.parquet"
-    mosaic(synthetic_children, synthetic_parents, output_path, overwrite=True)
+    mosaic(synthetic_inputs, synthetic_overlays, output_path, overwrite=True)
 
     with duckdb.connect() as conn:
         conn.execute("LOAD spatial")
@@ -228,36 +230,36 @@ def test_mosaic_clip_bounds_output_to_parent(
             SELECT ST_Area(ST_Union_Agg(geometry))
             FROM '{output_path}' WHERE id IN (1, 2)
         """).fetchone()[0]
-    assert area == pytest.approx(_PARENT_A_AREA, abs=1e-6)
+    assert area == pytest.approx(_OVERLAY_A_AREA, abs=1e-6)
 
 
 def test_mosaic_all_unassigned(tmp_path):
-    """All children unassigned: mosaic() must raise, not write an empty output."""
-    children_path = tmp_path / "children_far.parquet"
-    parents_path = tmp_path / "parents_near.parquet"
-    _write_synthetic(children_path, [_CHILD_WKT[3]])  # fid 4, far from any parent
-    _write_synthetic(parents_path, _PARENT_WKT)
+    """All input features unassigned: mosaic() must raise, not write an empty output."""
+    input_path = tmp_path / "children_far.parquet"
+    overlays_path = tmp_path / "parents_near.parquet"
+    _write_synthetic(input_path, [_INPUT_WKT[3]])  # fid 4, far from any overlay feature
+    _write_synthetic(overlays_path, _OVERLAY_WKT)
 
     output_path = tmp_path / "out.parquet"
-    with pytest.raises(RuntimeError, match="no child was assigned to any parent"):
-        mosaic(children_path, parents_path, output_path, overwrite=True)
+    with pytest.raises(RuntimeError, match="no input feature got an overlay"):
+        mosaic(input_path, overlays_path, output_path, overwrite=True)
 
 
-def test_mosaic_default_output_path(synthetic_children, synthetic_parents):
-    mosaic(synthetic_children, synthetic_parents, overwrite=True)
+def test_mosaic_default_output_path(synthetic_inputs, synthetic_overlays):
+    mosaic(synthetic_inputs, synthetic_overlays, overwrite=True)
 
-    expected = synthetic_children.with_stem(synthetic_children.stem + "_mosaicked")
+    expected = synthetic_inputs.with_stem(synthetic_inputs.stem + "_mosaicked")
     assert expected.exists()
 
 
-def test_cli_positional_args(synthetic_children, synthetic_parents, tmp_path):
+def test_cli_positional_args(synthetic_inputs, synthetic_overlays, tmp_path):
     output_path = tmp_path / "cli_out.parquet"
     result = CliRunner().invoke(
         cli,
         [
             "edge-mosaic",
-            str(synthetic_children),
-            str(synthetic_parents),
+            str(synthetic_inputs),
+            str(synthetic_overlays),
             str(output_path),
         ],
     )
@@ -265,15 +267,15 @@ def test_cli_positional_args(synthetic_children, synthetic_parents, tmp_path):
     assert output_path.exists()
 
 
-def test_cli_issues_file_option(synthetic_children, synthetic_parents, tmp_path):
+def test_cli_issues_file_option(synthetic_inputs, synthetic_overlays, tmp_path):
     output_path = tmp_path / "cli_out.parquet"
     issues_path = tmp_path / "cli_issues.parquet"
     result = CliRunner().invoke(
         cli,
         [
             "edge-mosaic",
-            str(synthetic_children),
-            str(synthetic_parents),
+            str(synthetic_inputs),
+            str(synthetic_overlays),
             str(output_path),
             "--issues-file",
             str(issues_path),
@@ -283,21 +285,21 @@ def test_cli_issues_file_option(synthetic_children, synthetic_parents, tmp_path)
     assert issues_path.exists()
 
 
-def test_cli_clip_file_required(synthetic_children):
-    result = CliRunner().invoke(cli, ["edge-mosaic", str(synthetic_children)])
+def test_cli_clip_file_required(synthetic_inputs):
+    result = CliRunner().invoke(cli, ["edge-mosaic", str(synthetic_inputs)])
     assert result.exit_code != 0
     assert "Missing argument" in result.output
 
 
-def test_cli_error_on_existing_output(synthetic_children, synthetic_parents, tmp_path):
+def test_cli_error_on_existing_output(synthetic_inputs, synthetic_overlays, tmp_path):
     output_path = tmp_path / "exists.parquet"
     output_path.touch()
     result = CliRunner().invoke(
         cli,
         [
             "edge-mosaic",
-            str(synthetic_children),
-            str(synthetic_parents),
+            str(synthetic_inputs),
+            str(synthetic_overlays),
             str(output_path),
             "--overwrite=false",
         ],
@@ -307,14 +309,14 @@ def test_cli_error_on_existing_output(synthetic_children, synthetic_parents, tmp
     assert "output already exists" in result.output
 
 
-def test_mosaic_steps(synthetic_children, synthetic_parents, tmp_path):
+def test_mosaic_steps(synthetic_inputs, synthetic_overlays, tmp_path):
     """Each pipeline stage runs standalone, reusing one tmp_dir's DuckDB file."""
     output_path = tmp_path / "steps_out.parquet"
     work_dir = tmp_path / "work"
     for step in _STEPS:
         mosaic(
-            synthetic_children,
-            synthetic_parents,
+            synthetic_inputs,
+            synthetic_overlays,
             output_path,
             tmp_dir=work_dir,
             step=step,
@@ -324,7 +326,7 @@ def test_mosaic_steps(synthetic_children, synthetic_parents, tmp_path):
 
 
 def test_mosaic_never_invokes_extend_pipeline(
-    synthetic_children, synthetic_parents, tmp_path, monkeypatch
+    synthetic_inputs, synthetic_overlays, tmp_path, monkeypatch
 ):
     """Regression guard: mosaic must never re-run extend's Voronoi pipeline."""
 
@@ -335,13 +337,13 @@ def test_mosaic_never_invokes_extend_pipeline(
     monkeypatch.setattr(attempt_module, "main", _boom)
 
     output_path = tmp_path / "out.parquet"
-    mosaic(synthetic_children, synthetic_parents, output_path, overwrite=True)
+    mosaic(synthetic_inputs, synthetic_overlays, output_path, overwrite=True)
     assert output_path.exists()
 
 
-def test_mosaic_multi_file_api(synthetic_children_split, synthetic_parents, tmp_path):
+def test_mosaic_multi_file_api(synthetic_inputs_split, synthetic_overlays, tmp_path):
     output_path = tmp_path / "out.parquet"
-    mosaic(synthetic_children_split, synthetic_parents, output_path, overwrite=True)
+    mosaic(synthetic_inputs_split, synthetic_overlays, output_path, overwrite=True)
 
     with duckdb.connect() as conn:
         conn.execute("LOAD spatial")
@@ -353,14 +355,14 @@ def test_mosaic_multi_file_api(synthetic_children_split, synthetic_parents, tmp_
     assert [r[0] for r in rows] == [1, 2]
 
 
-def test_mosaic_multi_file_column_order_is_deterministic(synthetic_parents, tmp_path):
+def test_mosaic_multi_file_column_order_is_deterministic(synthetic_overlays, tmp_path):
     """UNION ALL BY NAME must not let caller-supplied file order pick the schema."""
     deep_path = tmp_path / "deep.parquet"
     with duckdb.connect() as conn:
         conn.execute("INSTALL spatial; LOAD spatial;")
         conn.execute(f"""--sql
             CREATE TABLE deep AS SELECT * FROM (VALUES
-                (1, 'A1', 'B1', ST_GeomFromText('{_CHILD_WKT[0][1]}'))
+                (1, 'A1', 'B1', ST_GeomFromText('{_INPUT_WKT[0][1]}'))
             ) AS t(id, adm1_name, adm2_name, geom)
         """)
         conn.execute(f"COPY deep TO '{deep_path}'")
@@ -370,14 +372,14 @@ def test_mosaic_multi_file_column_order_is_deterministic(synthetic_parents, tmp_
         conn.execute("INSTALL spatial; LOAD spatial;")
         conn.execute(f"""--sql
             CREATE TABLE shallow AS SELECT * FROM (VALUES
-                (2, 'B2', ST_GeomFromText('{_CHILD_WKT[1][1]}'))
+                (2, 'B2', ST_GeomFromText('{_INPUT_WKT[1][1]}'))
             ) AS t(id, adm2_name, geom)
         """)
         conn.execute(f"COPY shallow TO '{shallow_path}'")
 
     def _columns(paths, tag):
         output_path = tmp_path / f"out_{tag}.parquet"
-        mosaic(list(paths), synthetic_parents, output_path, overwrite=True)
+        mosaic(list(paths), synthetic_overlays, output_path, overwrite=True)
         with duckdb.connect() as conn:
             conn.execute("LOAD spatial")
             return [
@@ -391,30 +393,28 @@ def test_mosaic_multi_file_column_order_is_deterministic(synthetic_parents, tmp_
 
 
 def test_mosaic_multi_file_requires_output_path(
-    synthetic_children_split, synthetic_parents
+    synthetic_inputs_split, synthetic_overlays
 ):
     with pytest.raises(ValueError, match="output_path is required"):
-        mosaic(synthetic_children_split, synthetic_parents)
+        mosaic(synthetic_inputs_split, synthetic_overlays)
 
 
-def test_mosaic_single_path_still_optional_output(
-    synthetic_children, synthetic_parents
-):
+def test_mosaic_single_path_still_optional_output(synthetic_inputs, synthetic_overlays):
     """Contrast case: a single (non-list) path still defaults output_path."""
-    mosaic(synthetic_children, synthetic_parents, overwrite=True)
-    assert synthetic_children.with_stem(synthetic_children.stem + "_mosaicked").exists()
+    mosaic(synthetic_inputs, synthetic_overlays, overwrite=True)
+    assert synthetic_inputs.with_stem(synthetic_inputs.stem + "_mosaicked").exists()
 
 
 def test_cli_glob_expansion(
-    synthetic_children_split,  # noqa: ARG001 (write side effect is the point)
-    synthetic_parents,
+    synthetic_inputs_split,  # noqa: ARG001 (write side effect is the point)
+    synthetic_overlays,
     tmp_path,
 ):
     output_path = tmp_path / "out.parquet"
     pattern = str(tmp_path / "child_*.parquet")
     result = CliRunner().invoke(
         cli,
-        ["edge-mosaic", pattern, str(synthetic_parents), str(output_path)],
+        ["edge-mosaic", pattern, str(synthetic_overlays), str(output_path)],
     )
     assert result.exit_code == 0, result.output
 
@@ -429,14 +429,14 @@ def test_cli_glob_expansion(
     assert ids == [1, 2]
 
 
-def test_mosaic_file_majority_vote_overrides_child_plurality(
-    synthetic_children_file_majority, synthetic_parents, tmp_path
+def test_mosaic_file_majority_vote_overrides_input_plurality(
+    synthetic_inputs_file_majority, synthetic_overlays, tmp_path
 ):
-    """A child whose plurality favors the wrong parent must follow its file majority."""
+    """An input whose plurality favors another overlay follows its file majority."""
     output_path = tmp_path / "out.parquet"
     mosaic(
-        synthetic_children_file_majority,
-        synthetic_parents,
+        synthetic_inputs_file_majority,
+        synthetic_overlays,
         output_path,
         overwrite=True,
     )
@@ -452,17 +452,17 @@ def test_mosaic_file_majority_vote_overrides_child_plurality(
 
 
 def test_cli_extra_input_flag_combines_with_glob(
-    synthetic_children_file_majority, synthetic_parents, tmp_path
+    synthetic_inputs_file_majority, synthetic_overlays, tmp_path
 ):
     """A glob-matched file plus a --input-flagged file both feed one combined run."""
-    file_a, file_b = synthetic_children_file_majority
+    file_a, file_b = synthetic_inputs_file_majority
     output_path = tmp_path / "out.parquet"
     result = CliRunner().invoke(
         cli,
         [
             "edge-mosaic",
             str(file_a),
-            str(synthetic_parents),
+            str(synthetic_overlays),
             str(output_path),
             "--input",
             str(file_b),
@@ -481,11 +481,16 @@ def test_cli_extra_input_flag_combines_with_glob(
     assert ids == [1, 2, 3]
 
 
-def test_cli_glob_no_matches(synthetic_parents, tmp_path):
+def test_cli_glob_no_matches(synthetic_overlays, tmp_path):
     pattern = str(tmp_path / "nomatch_*.parquet")
     result = CliRunner().invoke(
         cli,
-        ["edge-mosaic", pattern, str(synthetic_parents), str(tmp_path / "out.parquet")],
+        [
+            "edge-mosaic",
+            pattern,
+            str(synthetic_overlays),
+            str(tmp_path / "out.parquet"),
+        ],
     )
     assert result.exit_code != 0
     assert "no files matched" in result.output
@@ -505,8 +510,8 @@ def _write_with_code(path, rows):
         conn.execute(f"COPY synth TO '{path}'")
 
 
-def _write_parent_pcode_only(path, rows):
-    """rows: list of (pid, wkt, pcode); no `id` column to collide with a child's."""
+def _write_overlay_pcode_only(path, rows):
+    """rows: list of (pid, wkt, pcode); no `id` column to collide with an input's."""
     values = ", ".join(
         f"({pid}, ST_GeomFromText('{wkt}'), '{code}')" for pid, wkt, code in rows
     )
@@ -520,26 +525,26 @@ def _write_parent_pcode_only(path, rows):
 
 
 def test_match_overrides_spatial_and_reports_mismatch(tmp_path):
-    """A child's own file mostly overlaps parent A, but its code says B."""
-    parents_path = tmp_path / "parents.parquet"
+    """An input feature's own file mostly overlaps overlay A, but its code says B."""
+    overlays_path = tmp_path / "parents.parquet"
     _write_with_code(
-        parents_path,
+        overlays_path,
         [
             (1, "POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))", "P1"),
             (2, "POLYGON((10 0, 13 0, 13 3, 10 3, 10 0))", "P2"),
         ],
     )
-    children_path = tmp_path / "children.parquet"
+    input_path = tmp_path / "children.parquet"
     _write_with_code(
-        children_path,
+        input_path,
         [(1, "POLYGON((1 0, 10.5 0, 10.5 1, 1 1, 1 0))", "P2")],
     )
 
     output_path = tmp_path / "out.parquet"
     issues_path = tmp_path / "issues.parquet"
     mosaic(
-        children_path,
-        parents_path,
+        input_path,
+        overlays_path,
         output_path,
         issues_path,
         match_column="pcode",
@@ -557,28 +562,28 @@ def test_match_overrides_spatial_and_reports_mismatch(tmp_path):
             row[0]
             for row in conn.execute(f"SELECT kind FROM '{issues_path}'").fetchall()
         ]
-    # Clipped to parent B's sliver (x:10-10.5), not parent A's larger x:1-3.
+    # Clipped to overlay B's sliver (x:10-10.5), not overlay A's larger x:1-3.
     assert area == pytest.approx(0.5, abs=1e-6)
     assert kinds == ["code-mismatch"]
 
 
 def test_match_falls_back_when_code_unmatched(tmp_path):
-    parents_path = tmp_path / "parents.parquet"
+    overlays_path = tmp_path / "parents.parquet"
     _write_with_code(
-        parents_path,
+        overlays_path,
         [(1, "POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))", "P1")],
     )
-    children_path = tmp_path / "children.parquet"
+    input_path = tmp_path / "children.parquet"
     _write_with_code(
-        children_path,
+        input_path,
         [(1, "POLYGON((0.5 0.5, 1 0.5, 1 1, 0.5 1, 0.5 0.5))", "NOPE")],
     )
 
     output_path = tmp_path / "out.parquet"
     issues_path = tmp_path / "issues.parquet"
     mosaic(
-        children_path,
-        parents_path,
+        input_path,
+        overlays_path,
         output_path,
         issues_path,
         match_column="pcode",
@@ -599,23 +604,23 @@ def test_cli_match_help():
     result = CliRunner().invoke(cli, ["edge-mosaic", "--help"])
     assert result.exit_code == 0
     assert "--match-column" in result.output
-    assert "--parent-match-column" in result.output
-    assert "--child-match-column" in result.output
+    assert "--overlay-match-column" in result.output
+    assert "--input-match-column" in result.output
 
 
 def test_mosaic_merge_columns_populates_output(tmp_path):
-    parents_path = tmp_path / "parents.parquet"
-    _write_with_code(parents_path, [(1, "POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))", "P1")])
-    children_path = tmp_path / "children.parquet"
-    _write_synthetic(children_path, [_CHILD_WKT[0]])
+    overlays_path = tmp_path / "parents.parquet"
+    _write_with_code(overlays_path, [(1, "POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))", "P1")])
+    input_path = tmp_path / "children.parquet"
+    _write_synthetic(input_path, [_INPUT_WKT[0]])
 
     output_path = tmp_path / "out.parquet"
     mosaic(
-        children_path,
-        parents_path,
+        input_path,
+        overlays_path,
         output_path,
         merge=True,
-        parent_include=["pcode"],
+        overlay_include=["pcode"],
         overwrite=True,
     )
 
@@ -625,16 +630,16 @@ def test_mosaic_merge_columns_populates_output(tmp_path):
     assert pcode == "P1"
 
 
-def test_mosaic_merge_bare_carries_every_parent_column(tmp_path):
-    parents_path = tmp_path / "parents.parquet"
-    _write_parent_pcode_only(
-        parents_path, [(1, "POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))", "P1")]
+def test_mosaic_merge_bare_carries_every_overlay_column(tmp_path):
+    overlays_path = tmp_path / "parents.parquet"
+    _write_overlay_pcode_only(
+        overlays_path, [(1, "POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))", "P1")]
     )
-    children_path = tmp_path / "children.parquet"
-    _write_synthetic(children_path, [_CHILD_WKT[0]])
+    input_path = tmp_path / "children.parquet"
+    _write_synthetic(input_path, [_INPUT_WKT[0]])
 
     output_path = tmp_path / "out.parquet"
-    mosaic(children_path, parents_path, output_path, merge=True, overwrite=True)
+    mosaic(input_path, overlays_path, output_path, merge=True, overwrite=True)
 
     with duckdb.connect() as conn:
         conn.execute("LOAD spatial")
@@ -642,65 +647,65 @@ def test_mosaic_merge_bare_carries_every_parent_column(tmp_path):
     assert row == (1, 1, "P1")
 
 
-def test_mosaic_gap_fill_keeps_unmatched_parent(tmp_path):
-    """Parent B (fid 2) gets zero matched children, so it carries through unclipped."""
-    parents_path = tmp_path / "parents.parquet"
+def test_mosaic_gap_fill_keeps_unmatched_overlay(tmp_path):
+    """Overlay B (fid 2) gets zero matched inputs, so it carries through unclipped."""
+    overlays_path = tmp_path / "parents.parquet"
     _write_with_code(
-        parents_path,
+        overlays_path,
         [
             (1, "POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))", "P1"),
             (2, "POLYGON((10 0, 13 0, 13 3, 10 3, 10 0))", "P2"),
         ],
     )
-    children_path = tmp_path / "children.parquet"
-    _write_synthetic(children_path, _CHILD_WKT)
+    input_path = tmp_path / "children.parquet"
+    _write_synthetic(input_path, _INPUT_WKT)
 
     output_path = tmp_path / "out.parquet"
     issues_path = tmp_path / "issues.parquet"
     mosaic(
-        children_path,
-        parents_path,
+        input_path,
+        overlays_path,
         output_path,
         issues_path,
         merge=True,
-        parent_include=["pcode"],
+        overlay_include=["pcode"],
         overwrite=True,
     )
 
     with duckdb.connect() as conn:
         conn.execute("LOAD spatial")
         rows = conn.execute(
-            f"SELECT parent_fid, pcode FROM '{output_path}' WHERE parent_fid = 2"
+            f"SELECT overlay_fid, pcode FROM '{output_path}' WHERE overlay_fid = 2"
         ).fetchall()
         issue_rows = conn.execute(
-            f"SELECT kind, parent_fid FROM '{issues_path}' WHERE kind = 'gap-fill'"
+            f"SELECT kind, overlay_fid FROM '{issues_path}' WHERE kind = 'gap-fill'"
         ).fetchall()
     assert rows == [(2, "P2")]
     assert issue_rows == [("gap-fill", 2)]
 
 
-def test_mosaic_gap_fill_still_reports_clip_empty_children(tmp_path):
-    """Gap-fill rescues Parent B; children 3/4 still clip-empty against Parent A."""
-    parents_path = tmp_path / "parents.parquet"
+def test_mosaic_gap_fill_still_reports_clip_empty_inputs(tmp_path):
+    """Gap-fill rescues Overlay B; inputs 3/4 still clip-empty against Overlay A."""
+    overlays_path = tmp_path / "parents.parquet"
     _write_with_code(
-        parents_path,
+        overlays_path,
         [
             (1, "POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))", "P1"),
             (2, "POLYGON((10 0, 13 0, 13 3, 10 3, 10 0))", "P2"),
         ],
     )
-    children_path = tmp_path / "children.parquet"
-    _write_synthetic(children_path, _CHILD_WKT)
+    input_path = tmp_path / "children.parquet"
+    _write_synthetic(input_path, _INPUT_WKT)
 
     output_path = tmp_path / "out.parquet"
     issues_path = tmp_path / "issues.parquet"
     mosaic(
-        children_path,
-        parents_path,
+        input_path,
+        overlays_path,
         output_path,
         issues_path,
         merge=True,
-        parent_include=["pcode"],
+        overlay_include=["pcode"],
         overwrite=True,
     )
 
@@ -716,54 +721,54 @@ def test_mosaic_gap_fill_still_reports_clip_empty_children(tmp_path):
 
 
 def test_mosaic_gap_fill_merged_columns_populated(tmp_path):
-    """A gap-filled parent's carried columns hold its own real value, not NULL."""
-    parents_path = tmp_path / "parents.parquet"
+    """A gap-filled overlay's carried columns hold its own real value, not NULL."""
+    overlays_path = tmp_path / "parents.parquet"
     _write_with_code(
-        parents_path,
+        overlays_path,
         [
             (1, "POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))", "P1"),
             (2, "POLYGON((10 0, 13 0, 13 3, 10 3, 10 0))", "P2"),
         ],
     )
-    children_path = tmp_path / "children.parquet"
-    _write_synthetic(children_path, _CHILD_WKT)
+    input_path = tmp_path / "children.parquet"
+    _write_synthetic(input_path, _INPUT_WKT)
 
     output_path = tmp_path / "out.parquet"
     mosaic(
-        children_path,
-        parents_path,
+        input_path,
+        overlays_path,
         output_path,
         merge=True,
-        parent_include=["pcode"],
+        overlay_include=["pcode"],
         overwrite=True,
     )
 
     with duckdb.connect() as conn:
         conn.execute("LOAD spatial")
         pcode = conn.execute(
-            f"SELECT pcode FROM '{output_path}' WHERE parent_fid = 2"
+            f"SELECT pcode FROM '{output_path}' WHERE overlay_fid = 2"
         ).fetchone()[0]
     assert pcode == "P2"
 
 
 def test_cli_merge_gap_fill(tmp_path):
-    parents_path = tmp_path / "parents.parquet"
-    _write_parent_pcode_only(
-        parents_path,
+    overlays_path = tmp_path / "parents.parquet"
+    _write_overlay_pcode_only(
+        overlays_path,
         [
             (1, "POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))", "P1"),
             (2, "POLYGON((10 0, 13 0, 13 3, 10 3, 10 0))", "P2"),
         ],
     )
-    children_path = tmp_path / "children.parquet"
-    _write_synthetic(children_path, _CHILD_WKT)
+    input_path = tmp_path / "children.parquet"
+    _write_synthetic(input_path, _INPUT_WKT)
     output_path = tmp_path / "out.parquet"
     result = CliRunner().invoke(
         cli,
         [
             "edge-mosaic",
-            str(children_path),
-            str(parents_path),
+            str(input_path),
+            str(overlays_path),
             str(output_path),
             "--merge",
         ],
@@ -771,14 +776,14 @@ def test_cli_merge_gap_fill(tmp_path):
     assert result.exit_code == 0, result.output
     with duckdb.connect() as conn:
         conn.execute("LOAD spatial")
-        parent_fids = {
+        overlay_fids = {
             row[0]
             for row in conn.execute(
-                f"SELECT parent_fid FROM '{output_path}'"
+                f"SELECT overlay_fid FROM '{output_path}'"
             ).fetchall()
         }
-    gap_filled_parent_fid = 2
-    assert gap_filled_parent_fid in parent_fids
+    gap_filled_overlay_fid = 2
+    assert gap_filled_overlay_fid in overlay_fids
 
 
 def test_cli_merge_help():
@@ -787,21 +792,21 @@ def test_cli_merge_help():
     assert "--merge" in result.output
 
 
-def test_mosaic_child_exclude_drops_named_child_column(tmp_path):
-    parents_path = tmp_path / "parents.parquet"
-    _write_parent_pcode_only(
-        parents_path, [(1, "POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))", "P1")]
+def test_mosaic_input_exclude_drops_named_input_column(tmp_path):
+    overlays_path = tmp_path / "parents.parquet"
+    _write_overlay_pcode_only(
+        overlays_path, [(1, "POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))", "P1")]
     )
-    children_path = tmp_path / "children.parquet"
-    _write_synthetic(children_path, [_CHILD_WKT[0]])
+    input_path = tmp_path / "children.parquet"
+    _write_synthetic(input_path, [_INPUT_WKT[0]])
 
     output_path = tmp_path / "out.parquet"
     mosaic(
-        children_path,
-        parents_path,
+        input_path,
+        overlays_path,
         output_path,
         merge=True,
-        child_exclude=["id"],
+        input_exclude=["id"],
         overwrite=True,
     )
 
@@ -815,56 +820,56 @@ def test_mosaic_child_exclude_drops_named_child_column(tmp_path):
 
 
 def test_mosaic_narrowing_flag_without_merge_raises(tmp_path):
-    parents_path = tmp_path / "parents.parquet"
-    _write_with_code(parents_path, [(1, "POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))", "P1")])
-    children_path = tmp_path / "children.parquet"
-    _write_synthetic(children_path, [_CHILD_WKT[0]])
+    overlays_path = tmp_path / "parents.parquet"
+    _write_with_code(overlays_path, [(1, "POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))", "P1")])
+    input_path = tmp_path / "children.parquet"
+    _write_synthetic(input_path, [_INPUT_WKT[0]])
 
     with pytest.raises(ValueError, match="require merge"):
         mosaic(
-            children_path,
-            parents_path,
+            input_path,
+            overlays_path,
             tmp_path / "out.parquet",
-            parent_include=["pcode"],
+            overlay_include=["pcode"],
             overwrite=True,
         )
 
 
 def test_mosaic_prefer_mutually_exclusive_with_narrowing_flags(tmp_path):
-    parents_path = tmp_path / "parents.parquet"
-    _write_with_code(parents_path, [(1, "POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))", "P1")])
-    children_path = tmp_path / "children.parquet"
-    _write_synthetic(children_path, [_CHILD_WKT[0]])
+    overlays_path = tmp_path / "parents.parquet"
+    _write_with_code(overlays_path, [(1, "POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))", "P1")])
+    input_path = tmp_path / "children.parquet"
+    _write_synthetic(input_path, [_INPUT_WKT[0]])
 
     with pytest.raises(ValueError, match="mutually exclusive"):
         mosaic(
-            children_path,
-            parents_path,
+            input_path,
+            overlays_path,
             tmp_path / "out.parquet",
             merge=True,
-            prefer="parent",
-            parent_include=["pcode"],
+            prefer="overlay",
+            overlay_include=["pcode"],
             overwrite=True,
         )
 
 
-def test_mosaic_prefer_parent_resolves_real_collision(tmp_path):
+def test_mosaic_prefer_overlay_resolves_real_collision(tmp_path):
     """id/geom/pcode all overlap between the two layers; pcode is the real collision."""
-    parents_path = tmp_path / "parents.parquet"
-    _write_with_code(parents_path, [(1, "POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))", "P1")])
-    children_path = tmp_path / "children.parquet"
+    overlays_path = tmp_path / "parents.parquet"
+    _write_with_code(overlays_path, [(1, "POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))", "P1")])
+    input_path = tmp_path / "children.parquet"
     _write_with_code(
-        children_path,
+        input_path,
         [(1, "POLYGON((0.5 0.5, 1 0.5, 1 1, 0.5 1, 0.5 0.5))", "CHILDVAL")],
     )
 
     output_path = tmp_path / "out.parquet"
     mosaic(
-        children_path,
-        parents_path,
+        input_path,
+        overlays_path,
         output_path,
         merge=True,
-        prefer="parent",
+        prefer="overlay",
         overwrite=True,
     )
 
@@ -874,22 +879,22 @@ def test_mosaic_prefer_parent_resolves_real_collision(tmp_path):
     assert pcode == "P1"
 
 
-def test_mosaic_prefer_child_resolves_real_collision(tmp_path):
-    parents_path = tmp_path / "parents.parquet"
-    _write_with_code(parents_path, [(1, "POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))", "P1")])
-    children_path = tmp_path / "children.parquet"
+def test_mosaic_prefer_input_resolves_real_collision(tmp_path):
+    overlays_path = tmp_path / "parents.parquet"
+    _write_with_code(overlays_path, [(1, "POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))", "P1")])
+    input_path = tmp_path / "children.parquet"
     _write_with_code(
-        children_path,
+        input_path,
         [(1, "POLYGON((0.5 0.5, 1 0.5, 1 1, 0.5 1, 0.5 0.5))", "CHILDVAL")],
     )
 
     output_path = tmp_path / "out.parquet"
     mosaic(
-        children_path,
-        parents_path,
+        input_path,
+        overlays_path,
         output_path,
         merge=True,
-        prefer="child",
+        prefer="input",
         overwrite=True,
     )
 
@@ -901,8 +906,8 @@ def test_mosaic_prefer_child_resolves_real_collision(tmp_path):
 
 def test_mosaic_multi_file_zero_overlap_file_does_not_abort_batch(tmp_path):
     """A zero-overlap file in a 3+ file default-drop batch must not abort the run."""
-    parents_path = tmp_path / "parents.parquet"
-    _write_synthetic(parents_path, _PARENT_WKT)
+    overlays_path = tmp_path / "parents.parquet"
+    _write_synthetic(overlays_path, _OVERLAY_WKT)
     file_a = tmp_path / "file_a.parquet"
     file_b = tmp_path / "file_b.parquet"
     file_c = tmp_path / "file_c.parquet"
@@ -917,7 +922,11 @@ def test_mosaic_multi_file_zero_overlap_file_does_not_abort_batch(tmp_path):
     output_path = tmp_path / "out.parquet"
     issues_path = tmp_path / "issues.parquet"
     mosaic(
-        [file_a, file_b, file_c], parents_path, output_path, issues_path, overwrite=True
+        [file_a, file_b, file_c],
+        overlays_path,
+        output_path,
+        issues_path,
+        overwrite=True,
     )
 
     with duckdb.connect() as conn:
@@ -937,10 +946,10 @@ def test_mosaic_multi_file_zero_overlap_file_does_not_abort_batch(tmp_path):
 
 
 def test_mosaic_multi_file_code_join_fid_stays_unique(tmp_path):
-    """Per-file fid_offset keeps child_fid globally unique across a 3+ file batch."""
-    parents_path = tmp_path / "parents.parquet"
+    """Per-file fid_offset keeps input_fid globally unique across a 3+ file batch."""
+    overlays_path = tmp_path / "parents.parquet"
     _write_with_code(
-        parents_path,
+        overlays_path,
         [
             (1, "POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))", "P1"),
             (2, "POLYGON((10 0, 13 0, 13 3, 10 3, 10 0))", "P2"),
@@ -963,7 +972,7 @@ def test_mosaic_multi_file_code_join_fid_stays_unique(tmp_path):
     output_path = tmp_path / "out.parquet"
     mosaic(
         [file_a, file_b, file_c],
-        parents_path,
+        overlays_path,
         output_path,
         match_column="pcode",
         overwrite=True,
@@ -980,12 +989,12 @@ def test_mosaic_multi_file_code_join_fid_stays_unique(tmp_path):
 
 
 def test_mosaic_multi_file_step_rejected(
-    synthetic_children_split, synthetic_parents, tmp_path
+    synthetic_inputs_split, synthetic_overlays, tmp_path
 ):
     with pytest.raises(ValueError, match="step is not supported"):
         mosaic(
-            synthetic_children_split,
-            synthetic_parents,
+            synthetic_inputs_split,
+            synthetic_overlays,
             tmp_path / "out.parquet",
             step="assign",
             overwrite=True,
@@ -993,45 +1002,45 @@ def test_mosaic_multi_file_step_rejected(
 
 
 def test_match_and_mosaic_merge_give_identical_results(tmp_path):
-    """edge-match on raw children == edge-mosaic on their edge-extend()ed version.
+    """edge-match on raw input features == edge-mosaic on their edge-extend()ed version.
 
-    Same --merge parent-column carry and parent gap-fill outcome either way,
+    Same --merge overlay-column carry and overlay gap-fill outcome either way,
     proving the two tools' --merge behavior is a true superset relationship.
     """
-    parents_path = tmp_path / "parents.parquet"
+    overlays_path = tmp_path / "parents.parquet"
     _write_with_code(
-        parents_path,
+        overlays_path,
         [
             (1, "POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))", "P1"),
             (2, "POLYGON((10 0, 13 0, 13 3, 10 3, 10 0))", "P2"),
         ],
     )
-    raw_children_path = tmp_path / "children.parquet"
-    _write_synthetic(raw_children_path, [_CHILD_WKT[0]])  # only overlaps Parent A
+    raw_inputs_path = tmp_path / "children.parquet"
+    _write_synthetic(raw_inputs_path, [_INPUT_WKT[0]])  # only overlaps Overlay A
 
-    extended_children_path = tmp_path / "children_extended.parquet"
-    extend(raw_children_path, extended_children_path, overwrite=True)
+    extended_inputs_path = tmp_path / "children_extended.parquet"
+    extend(raw_inputs_path, extended_inputs_path, overwrite=True)
 
     match_out = tmp_path / "match_out.parquet"
     match(
-        raw_children_path,
-        parents_path,
+        raw_inputs_path,
+        overlays_path,
         match_out,
         merge=True,
-        parent_include=["pcode"],
+        overlay_include=["pcode"],
         overwrite=True,
     )
     mosaic_out = tmp_path / "mosaic_out.parquet"
     mosaic(
-        extended_children_path,
-        parents_path,
+        extended_inputs_path,
+        overlays_path,
         mosaic_out,
         merge=True,
-        parent_include=["pcode"],
+        overlay_include=["pcode"],
         overwrite=True,
     )
 
-    # A normally-clipped row's parent_fid is dropped by the shared clip
+    # A normally-clipped row's overlay_fid is dropped by the shared clip
     # engine (only a gap-fill row sets it explicitly), so compare on pcode.
     with duckdb.connect() as conn:
         conn.execute("LOAD spatial")
@@ -1070,28 +1079,28 @@ def _write_admin_synthetic(path, rows: list[dict]) -> None:
         conn.execute(f"COPY synth TO '{path}'")
 
 
-_ADMIN_CHILD_ROWS = [
+_ADMIN_INPUT_ROWS = [
     {
         "adm1_code": "AA",
         "adm1_name": "Country A",
         "adm2_code": "AA01",
         "adm2_name": "Prov1",
-        "wkt": _CHILD_WKT[0][1],
+        "wkt": _INPUT_WKT[0][1],
     },
     {
         "adm1_code": "AA",
         "adm1_name": "Country A",
         "adm2_code": None,
         "adm2_name": None,
-        "wkt": _CHILD_WKT[1][1],
+        "wkt": _INPUT_WKT[1][1],
     },
 ]
 
 
 @pytest.fixture
-def admin_children(tmp_path):
+def admin_inputs(tmp_path):
     path = tmp_path / "admin_children.parquet"
-    _write_admin_synthetic(path, _ADMIN_CHILD_ROWS)
+    _write_admin_synthetic(path, _ADMIN_INPUT_ROWS)
     return path
 
 
@@ -1104,20 +1113,18 @@ def _columns_and_rows(path):
 
 
 def test_fill_schema_off_by_default_leaves_output_unchanged(
-    admin_children, synthetic_parents, tmp_path
+    admin_inputs, synthetic_overlays, tmp_path
 ):
     output_path = tmp_path / "out.parquet"
-    mosaic(admin_children, synthetic_parents, output_path, overwrite=True)
+    mosaic(admin_inputs, synthetic_overlays, output_path, overwrite=True)
     cols, _ = _columns_and_rows(output_path)
     assert "adm_lvl" not in cols
 
 
-def test_fill_schema_stamps_depth_and_fills(
-    admin_children, synthetic_parents, tmp_path
-):
+def test_fill_schema_stamps_depth_and_fills(admin_inputs, synthetic_overlays, tmp_path):
     output_path = tmp_path / "out.parquet"
     mosaic(
-        admin_children, synthetic_parents, output_path, overwrite=True, fill_schema=True
+        admin_inputs, synthetic_overlays, output_path, overwrite=True, fill_schema=True
     )
     cols, rows = _columns_and_rows(output_path)
     assert "adm_lvl" in cols
@@ -1129,14 +1136,14 @@ def test_fill_schema_stamps_depth_and_fills(
     assert by_level[_LEVEL_1][name2] == "Country A"
 
 
-def test_cli_fill_schema_flag(admin_children, synthetic_parents, tmp_path):
+def test_cli_fill_schema_flag(admin_inputs, synthetic_overlays, tmp_path):
     output_path = tmp_path / "out.parquet"
     result = CliRunner().invoke(
         cli,
         [
             "edge-mosaic",
-            str(admin_children),
-            str(synthetic_parents),
+            str(admin_inputs),
+            str(synthetic_overlays),
             str(output_path),
             "--fill-schema",
         ],
@@ -1147,23 +1154,23 @@ def test_cli_fill_schema_flag(admin_children, synthetic_parents, tmp_path):
 
 
 def test_fill_schema_without_admin_columns_raises(
-    synthetic_children, synthetic_parents, tmp_path
+    synthetic_inputs, synthetic_overlays, tmp_path
 ):
     with pytest.raises(ValueError, match="no admin hierarchy level detected"):
         mosaic(
-            synthetic_children,
-            synthetic_parents,
+            synthetic_inputs,
+            synthetic_overlays,
             tmp_path / "out.parquet",
             overwrite=True,
             fill_schema=True,
         )
 
 
-def test_fill_depth_column_flag(admin_children, synthetic_parents, tmp_path):
+def test_fill_depth_column_flag(admin_inputs, synthetic_overlays, tmp_path):
     output_path = tmp_path / "out.parquet"
     mosaic(
-        admin_children,
-        synthetic_parents,
+        admin_inputs,
+        synthetic_overlays,
         output_path,
         overwrite=True,
         fill_schema=True,
@@ -1174,14 +1181,14 @@ def test_fill_depth_column_flag(admin_children, synthetic_parents, tmp_path):
     assert "adm_lvl" not in cols
 
 
-def test_depth_column_collision_raises(synthetic_parents, tmp_path):
-    rows = [{**row, "adm_lvl": 99} for row in _ADMIN_CHILD_ROWS]
+def test_depth_column_collision_raises(synthetic_overlays, tmp_path):
+    rows = [{**row, "adm_lvl": 99} for row in _ADMIN_INPUT_ROWS]
     path = tmp_path / "collide.parquet"
     _write_admin_synthetic(path, rows)
     with pytest.raises(ValueError, match=r"adm_lvl.*already exists"):
         mosaic(
             path,
-            synthetic_parents,
+            synthetic_overlays,
             tmp_path / "out.parquet",
             overwrite=True,
             fill_schema=True,
@@ -1189,12 +1196,12 @@ def test_depth_column_collision_raises(synthetic_parents, tmp_path):
 
 
 def test_name_field_code_field_require_fill_schema(
-    admin_children, synthetic_parents, tmp_path
+    admin_inputs, synthetic_overlays, tmp_path
 ):
     with pytest.raises(ValueError, match="require fill_schema"):
         mosaic(
-            admin_children,
-            synthetic_parents,
+            admin_inputs,
+            synthetic_overlays,
             tmp_path / "out.parquet",
             overwrite=True,
             name_field="adm{n}_name",
@@ -1202,16 +1209,16 @@ def test_name_field_code_field_require_fill_schema(
         )
 
 
-def test_fill_schema_multi_file(synthetic_parents, tmp_path):
+def test_fill_schema_multi_file(synthetic_overlays, tmp_path):
     """Second insertion point: _mosaic_multi_file()'s own outputs branch."""
     path_a = tmp_path / "child_a.parquet"
     path_b = tmp_path / "child_b.parquet"
-    _write_admin_synthetic(path_a, [_ADMIN_CHILD_ROWS[0]])
-    _write_admin_synthetic(path_b, [_ADMIN_CHILD_ROWS[1]])
+    _write_admin_synthetic(path_a, [_ADMIN_INPUT_ROWS[0]])
+    _write_admin_synthetic(path_b, [_ADMIN_INPUT_ROWS[1]])
     output_path = tmp_path / "out.parquet"
     mosaic(
         [path_a, path_b],
-        synthetic_parents,
+        synthetic_overlays,
         output_path,
         overwrite=True,
         fill_schema=True,

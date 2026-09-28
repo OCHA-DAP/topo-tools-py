@@ -13,6 +13,6 @@ primitive directly instead.
 - [edge-stitch](edge_stitch/): whole-table coverage-clean, the
   standalone primitive.
 - [edge-match](edge_match/): extend and clip a raw finer layer into a
-  coarser parent.
+  coarser overlay feature.
 - [edge-mosaic](edge_mosaic/): re-clip an already-extended layer into a
-  new parent, skipping extension.
+  new overlay feature, skipping extension.

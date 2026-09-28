@@ -60,47 +60,47 @@ _MERGE_OPTIONS = (
         envvar="MERGE",
         is_flag=True,
         help=(
-            "Carry parent columns onto every matched child and keep an "
-            "unmatched parent/child unclipped in the output instead of "
+            "Carry overlay columns onto every matched input feature and keep "
+            "an unmatched overlay or input feature unclipped in the output instead of "
             "dropping it. Narrow the carried columns with "
-            "--parent-include/--parent-exclude/--child-include/"
-            "--child-exclude; resolve a real name collision automatically "
+            "--overlay-include/--overlay-exclude/--input-include/"
+            "--input-exclude; resolve a real name collision automatically "
             "with --prefer."
         ),
     ),
     click.option(
-        "--parent-include",
-        envvar="PARENT_INCLUDE",
+        "--overlay-include",
+        envvar="OVERLAY_INCLUDE",
         default=None,
-        help="Comma-separated parent columns to carry (requires --merge).",
+        help="Comma-separated overlay columns to carry (requires --merge).",
     ),
     click.option(
-        "--parent-exclude",
-        envvar="PARENT_EXCLUDE",
+        "--overlay-exclude",
+        envvar="OVERLAY_EXCLUDE",
         default=None,
-        help="Comma-separated parent columns to omit (requires --merge).",
+        help="Comma-separated overlay columns to omit (requires --merge).",
     ),
     click.option(
-        "--child-include",
-        envvar="CHILD_INCLUDE",
+        "--input-include",
+        envvar="INPUT_INCLUDE",
         default=None,
-        help="Comma-separated child columns to keep (requires --merge).",
+        help="Comma-separated input columns to keep (requires --merge).",
     ),
     click.option(
-        "--child-exclude",
-        envvar="CHILD_EXCLUDE",
+        "--input-exclude",
+        envvar="INPUT_EXCLUDE",
         default=None,
-        help="Comma-separated child columns to drop (requires --merge).",
+        help="Comma-separated input columns to drop (requires --merge).",
     ),
     click.option(
         "--prefer",
         envvar="PREFER",
-        type=click.Choice(["parent", "child"]),
+        type=click.Choice(["overlay", "input"]),
         default=None,
         help=(
-            "Resolve a real parent/child column-name collision by keeping "
+            "Resolve a real overlay/input column-name collision by keeping "
             "this side's column (requires --merge; mutually exclusive with "
-            "the --parent-*/--child-* narrowing flags)."
+            "the --overlay-*/--input-* narrowing flags)."
         ),
     ),
 )
@@ -1354,7 +1354,7 @@ def code_update(  # noqa: PLR0913, PLR0917
 
 @cli.command(name="edge-match")
 @click.argument("input_file", envvar="INPUT_FILE")
-@click.argument("clip_file", envvar="CLIP_FILE")
+@click.argument("overlay_file", envvar="OVERLAY_FILE")
 @click.argument("output_file", envvar="OUTPUT_FILE", required=False, default=None)
 @click.option(
     "--input",
@@ -1362,7 +1362,7 @@ def code_update(  # noqa: PLR0913, PLR0917
     envvar="EXTRA_INPUTS",
     multiple=True,
     help=(
-        "Additional children file beyond INPUT_FILE, combined with it "
+        "Additional input file beyond INPUT_FILE, combined with it "
         "[may be repeated, and each value MAY be comma-separated]."
     ),
 )
@@ -1409,39 +1409,40 @@ def code_update(  # noqa: PLR0913, PLR0917
     help=(
         "Column name shared by both layers, used as an exact code join "
         "(e.g. a pcode) that wins over spatial overlap on disagreement. "
-        "Mutually exclusive with --parent-match-column/--child-match-column."
+        "Mutually exclusive with --overlay-match-column/--input-match-column."
     ),
 )
 @click.option(
-    "--parent-match-column",
-    envvar="PARENT_MATCH_COLUMN",
+    "--overlay-match-column",
+    envvar="OVERLAY_MATCH_COLUMN",
     default=None,
-    help="Parent-side code column, when it's named differently than the child's.",
+    help="Overlay-side code column, when it's named differently than the input's.",
 )
 @click.option(
-    "--child-match-column",
-    envvar="CHILD_MATCH_COLUMN",
+    "--input-match-column",
+    envvar="INPUT_MATCH_COLUMN",
     default=None,
-    help="Child-side code column, when it's named differently than the parent's.",
+    help="Input-side code column, when it's named differently than the overlay's.",
 )
 @_add_merge_options
 @click.option(
-    "--multi-parent",
-    envvar="MULTI_PARENT",
+    "--per-feature",
+    envvar="PER_FEATURE",
     is_flag=True,
     help=(
-        "Assign each child independently to whichever parent it overlaps "
-        "most (assign-many), instead of forcing the whole input file onto "
-        "one majority-vote parent (assign-one, the default). Use this when "
-        "children genuinely belong to different parents, e.g. a "
+        "Assign each input feature independently to whichever overlay feature "
+        "it overlaps most (assign-many), instead of forcing the whole input "
+        "file onto one majority-vote overlay feature (assign-one, the default). "
+        "Use this when input features genuinely belong to different overlay "
+        "features, e.g. a "
         "poorly-digitized admin4 layer fitting into many admin3 units. "
-        "Rejected when more than one children file resolves."
+        "Rejected when more than one input file resolves."
     ),
 )
 @_add_fill_options
 def edge_match(  # noqa: PLR0913, PLR0917
     input_file: str,
-    clip_file: str,
+    overlay_file: str,
     output_file: str | None,
     extra_inputs: tuple[str, ...],
     issues_file: str | None,
@@ -1451,21 +1452,21 @@ def edge_match(  # noqa: PLR0913, PLR0917
     tmp_dir: str | None,
     step: str | None,
     match_column: str | None,
-    parent_match_column: str | None,
-    child_match_column: str | None,
+    overlay_match_column: str | None,
+    input_match_column: str | None,
     merge: bool,  # noqa: FBT001
-    parent_include: str | None,
-    parent_exclude: str | None,
-    child_include: str | None,
-    child_exclude: str | None,
+    overlay_include: str | None,
+    overlay_exclude: str | None,
+    input_include: str | None,
+    input_exclude: str | None,
     prefer: str | None,
-    multi_parent: bool,  # noqa: FBT001
+    per_feature: bool,  # noqa: FBT001
     fill_schema: bool,  # noqa: FBT001
     name_field: str | None,
     code_field: str | None,
     depth_column: str,
 ) -> None:
-    """Match one or more children layers to parents by largest overlap.
+    """Match one or more input layers to an overlay layer by largest overlap.
 
     OUTPUT_FILE defaults to INPUT_FILE with a "_matched" suffix if omitted;
     it is required when INPUT_FILE is a glob matching more than one file, or
@@ -1477,12 +1478,12 @@ def edge_match(  # noqa: PLR0913, PLR0917
       topo-tools edge-match adm4.geojson adm0.geojson
 
     \b
-      # Fit admin3 into admin2 groups, each cleaned against its own parent
+      # Fit admin3 into admin2 groups, each cleaned against its own overlay feature
       topo-tools edge-match adm3.gpkg adm2.gpkg adm3_matched.gpkg
 
     \b
       # Combine several raw countries' admin1 layers, matched and extended
-      # together against one shared parent
+      # together against one shared overlay
       topo-tools edge-match sen_adm1.parquet world_adm0.geojson out.parquet \\
         --input gmb_adm1.parquet,gnb_adm1.parquet
 
@@ -1491,17 +1492,18 @@ def edge_match(  # noqa: PLR0913, PLR0917
       topo-tools edge-match adm3.gpkg adm2.gpkg --match-column pcode
 
     \b
-      # Copy just iso_3/adm0_name onto every matched child
-      topo-tools edge-match adm3.gpkg adm2.gpkg --merge --parent-include iso_3,adm0_name
+      # Copy just iso_3/adm0_name onto every matched input feature
+      topo-tools edge-match adm3.gpkg adm2.gpkg \\
+        --merge --overlay-include iso_3,adm0_name
 
     \b
-      # Keep the parent's version automatically on a name collision
-      topo-tools edge-match adm3.gpkg adm2.gpkg --merge --prefer parent
+      # Keep the overlay's version automatically on a name collision
+      topo-tools edge-match adm3.gpkg adm2.gpkg --merge --prefer overlay
 
     \b
-      # A poorly-digitized admin4 layer whose children legitimately
-      # scatter across many different admin3 parents
-      topo-tools edge-match adm4.gpkg adm3.gpkg --multi-parent
+      # A poorly-digitized admin4 layer whose features legitimately
+      # scatter across many different admin3 units
+      topo-tools edge-match adm4.gpkg adm3.gpkg --per-feature
     """
     logger.info("--debug=%s", debug)
     if any(ch in input_file for ch in "*?["):
@@ -1519,7 +1521,7 @@ def edge_match(  # noqa: PLR0913, PLR0917
     try:
         _edge_match(
             resolved_input,
-            clip_file,
+            overlay_file,
             Path(output_file) if output_file is not None else None,
             Path(issues_file) if issues_file is not None else None,
             threads=threads,
@@ -1528,15 +1530,15 @@ def edge_match(  # noqa: PLR0913, PLR0917
             debug=debug,
             step=step,
             match_column=match_column,
-            parent_match_column=parent_match_column,
-            child_match_column=child_match_column,
+            overlay_match_column=overlay_match_column,
+            input_match_column=input_match_column,
             merge=merge,
-            parent_include=_split_columns(parent_include),
-            parent_exclude=_split_columns(parent_exclude),
-            child_include=_split_columns(child_include),
-            child_exclude=_split_columns(child_exclude),
+            overlay_include=_split_columns(overlay_include),
+            overlay_exclude=_split_columns(overlay_exclude),
+            input_include=_split_columns(input_include),
+            input_exclude=_split_columns(input_exclude),
             prefer=prefer,
-            multi_parent=multi_parent,
+            per_feature=per_feature,
             fill_schema=fill_schema,
             name_field=name_field,
             code_field=code_field,
@@ -1548,7 +1550,7 @@ def edge_match(  # noqa: PLR0913, PLR0917
 
 @cli.command(name="edge-mosaic")
 @click.argument("input_file", envvar="INPUT_FILE")
-@click.argument("clip_file", envvar="CLIP_FILE")
+@click.argument("overlay_file", envvar="OVERLAY_FILE")
 @click.argument("output_file", envvar="OUTPUT_FILE", required=False, default=None)
 @click.option(
     "--input",
@@ -1556,7 +1558,7 @@ def edge_match(  # noqa: PLR0913, PLR0917
     envvar="EXTRA_INPUTS",
     multiple=True,
     help=(
-        "Additional children file beyond INPUT_FILE, combined with it "
+        "Additional input file beyond INPUT_FILE, combined with it "
         "[may be repeated, and each value MAY be comma-separated]."
     ),
 )
@@ -1603,26 +1605,26 @@ def edge_match(  # noqa: PLR0913, PLR0917
     help=(
         "Column name shared by both layers, used as an exact code join "
         "(e.g. a pcode) that wins over spatial overlap on disagreement. "
-        "Mutually exclusive with --parent-match-column/--child-match-column."
+        "Mutually exclusive with --overlay-match-column/--input-match-column."
     ),
 )
 @click.option(
-    "--parent-match-column",
-    envvar="PARENT_MATCH_COLUMN",
+    "--overlay-match-column",
+    envvar="OVERLAY_MATCH_COLUMN",
     default=None,
-    help="Parent-side code column, when it's named differently than the child's.",
+    help="Overlay-side code column, when it's named differently than the input's.",
 )
 @click.option(
-    "--child-match-column",
-    envvar="CHILD_MATCH_COLUMN",
+    "--input-match-column",
+    envvar="INPUT_MATCH_COLUMN",
     default=None,
-    help="Child-side code column, when it's named differently than the parent's.",
+    help="Input-side code column, when it's named differently than the overlay's.",
 )
 @_add_merge_options
 @_add_fill_options
 def edge_mosaic(  # noqa: PLR0913, PLR0917
     input_file: str,
-    clip_file: str,
+    overlay_file: str,
     output_file: str | None,
     extra_inputs: tuple[str, ...],
     issues_file: str | None,
@@ -1632,20 +1634,20 @@ def edge_mosaic(  # noqa: PLR0913, PLR0917
     tmp_dir: str | None,
     step: str | None,
     match_column: str | None,
-    parent_match_column: str | None,
-    child_match_column: str | None,
+    overlay_match_column: str | None,
+    input_match_column: str | None,
     merge: bool,  # noqa: FBT001
-    parent_include: str | None,
-    parent_exclude: str | None,
-    child_include: str | None,
-    child_exclude: str | None,
+    overlay_include: str | None,
+    overlay_exclude: str | None,
+    input_include: str | None,
+    input_exclude: str | None,
     prefer: str | None,
     fill_schema: bool,  # noqa: FBT001
     name_field: str | None,
     code_field: str | None,
     depth_column: str,
 ) -> None:
-    """Fit an already-extended children layer into a new parent/clip layer.
+    """Fit an already-extended input layer into a new overlay layer.
 
     OUTPUT_FILE defaults to INPUT_FILE with a "_mosaicked" suffix if omitted;
     it is required when INPUT_FILE is a glob matching more than one file, or
@@ -1672,14 +1674,14 @@ def edge_mosaic(  # noqa: PLR0913, PLR0917
       topo-tools edge-mosaic adm3_extended.parquet adm0_new.geojson --match-column pcode
 
     \b
-      # Keep a parent's own boundary when no children file covers it
+      # Keep an overlay feature's own boundary when no input file covers it
       topo-tools edge-mosaic "*/latest/adm4/extended.parquet" world_adm0.geojson \\
         out.parquet --merge
 
     \b
-      # Keep the parent's version automatically on a name collision
+      # Keep the overlay's version automatically on a name collision
       topo-tools edge-mosaic adm3_extended.parquet adm0_new.geojson \\
-        --merge --prefer parent
+        --merge --prefer overlay
     """
     logger.info("--debug=%s", debug)
     if any(ch in input_file for ch in "*?["):
@@ -1697,7 +1699,7 @@ def edge_mosaic(  # noqa: PLR0913, PLR0917
     try:
         _edge_mosaic(
             resolved_input,
-            clip_file,
+            overlay_file,
             Path(output_file) if output_file is not None else None,
             Path(issues_file) if issues_file is not None else None,
             threads=threads,
@@ -1706,13 +1708,13 @@ def edge_mosaic(  # noqa: PLR0913, PLR0917
             debug=debug,
             step=step,
             match_column=match_column,
-            parent_match_column=parent_match_column,
-            child_match_column=child_match_column,
+            overlay_match_column=overlay_match_column,
+            input_match_column=input_match_column,
             merge=merge,
-            parent_include=_split_columns(parent_include),
-            parent_exclude=_split_columns(parent_exclude),
-            child_include=_split_columns(child_include),
-            child_exclude=_split_columns(child_exclude),
+            overlay_include=_split_columns(overlay_include),
+            overlay_exclude=_split_columns(overlay_exclude),
+            input_include=_split_columns(input_include),
+            input_exclude=_split_columns(input_exclude),
             prefer=prefer,
             fill_schema=fill_schema,
             name_field=name_field,
@@ -1938,8 +1940,8 @@ def schema_fill(  # noqa: PLR0913, PLR0917
 
 
 @cli.command(name="schema-join")
-@click.argument("child_file", envvar="CHILD_FILE")
-@click.argument("parent_file", envvar="PARENT_FILE")
+@click.argument("input_file", envvar="INPUT_FILE")
+@click.argument("join_file", envvar="JOIN_FILE")
 @click.argument("output_file", envvar="OUTPUT_FILE", required=False, default=None)
 @click.option(
     "--issues-output",
@@ -1967,7 +1969,10 @@ def schema_fill(  # noqa: PLR0913, PLR0917
     type=float,
     default=MIN_OVERLAP_DEFAULT,
     show_default=True,
-    help="Flag a child whose best parent covers less than this share of its area.",
+    help=(
+        "Flag an input feature whose best join feature covers less than "
+        "this share of its area."
+    ),
 )
 @click.option(
     "--overwrite",
@@ -2000,8 +2005,8 @@ def schema_fill(  # noqa: PLR0913, PLR0917
     help="Run only one named stage.",
 )
 def schema_join(  # noqa: PLR0913, PLR0917
-    child_file: str,
-    parent_file: str,
+    input_file: str,
+    join_file: str,
     output_file: str | None,
     issues_output: str | None,
     name_field: str | None,
@@ -2013,15 +2018,15 @@ def schema_join(  # noqa: PLR0913, PLR0917
     tmp_dir: str | None,
     step: str | None,
 ) -> None:
-    """Copy each child's best-overlapping parent's hierarchy columns onto it.
+    """Copy each input feature's best-overlap join feature's hierarchy columns onto it.
 
     Geometry is never modified; conflicting values are kept side by side.
     """
     logger.info("--debug=%s", debug)
     try:
         _schema_join(
-            child_file,
-            parent_file,
+            input_file,
+            join_file,
             Path(output_file) if output_file is not None else None,
             issues_path=Path(issues_output) if issues_output is not None else None,
             name_field=name_field,
@@ -2188,14 +2193,14 @@ def schema_map(  # noqa: PLR0913, PLR0917
 
 @cli.command(name="edge-clip")
 @click.argument("input_file", envvar="INPUT_FILE")
-@click.argument("clip_file", envvar="CLIP_FILE")
+@click.argument("overlay_file", envvar="OVERLAY_FILE")
 @click.argument("output_file", envvar="OUTPUT_FILE", required=False, default=None)
 @click.option(
     "--issues-file",
     envvar="ISSUES_FILE",
     default=None,
     help=(
-        "Issues report path, only used with --match-column/--parent-match-column. "
+        "Issues report path, only used with --match-column/--overlay-match-column. "
         'Defaults to OUTPUT_FILE with an "_issues" suffix.'
     ),
 )
@@ -2242,20 +2247,20 @@ def schema_map(  # noqa: PLR0913, PLR0917
     help=(
         "Column name shared by both layers, used as an exact code join "
         "(e.g. a pcode) that wins over spatial overlap on disagreement. "
-        "Mutually exclusive with --parent-match-column/--child-match-column."
+        "Mutually exclusive with --overlay-match-column/--input-match-column."
     ),
 )
 @click.option(
-    "--parent-match-column",
-    envvar="PARENT_MATCH_COLUMN",
+    "--overlay-match-column",
+    envvar="OVERLAY_MATCH_COLUMN",
     default=None,
-    help="Parent-side code column, when it's named differently than the child's.",
+    help="Overlay-side code column, when it's named differently than the input's.",
 )
 @click.option(
-    "--child-match-column",
-    envvar="CHILD_MATCH_COLUMN",
+    "--input-match-column",
+    envvar="INPUT_MATCH_COLUMN",
     default=None,
-    help="Child-side code column, when it's named differently than the parent's.",
+    help="Input-side code column, when it's named differently than the overlay's.",
 )
 @click.option(
     "--carry-column",
@@ -2263,13 +2268,13 @@ def schema_map(  # noqa: PLR0913, PLR0917
     envvar="CARRY_COLUMNS",
     multiple=True,
     help=(
-        "Parent column to copy onto each matched child [may be repeated, "
+        "Overlay column to copy onto each matched input feature [may be repeated, "
         "and each value MAY be comma-separated]."
     ),
 )
 def edge_clip(  # noqa: PLR0913, PLR0917
     input_file: str,
-    clip_file: str,
+    overlay_file: str,
     output_file: str | None,
     issues_file: str | None,
     name: str | None,
@@ -2279,40 +2284,40 @@ def edge_clip(  # noqa: PLR0913, PLR0917
     tmp_dir: str | None,
     step: str | None,
     match_column: str | None,
-    parent_match_column: str | None,
-    child_match_column: str | None,
+    overlay_match_column: str | None,
+    input_match_column: str | None,
     carry_columns: tuple[str, ...],
 ) -> None:
-    """Assign each child to its parent, then clip it to that parent's geometry.
+    """Assign each input feature to an overlay feature, then clip it to that geometry.
 
-    INPUT_FILE and CLIP_FILE are both raw polygon layers; INPUT_FILE's
-    children are assigned to CLIP_FILE's parents internally (assign-one)
+    INPUT_FILE and OVERLAY_FILE are both raw polygon layers; INPUT_FILE's
+    features are assigned to OVERLAY_FILE's features internally (assign-one)
     before clipping. OUTPUT_FILE defaults to INPUT_FILE with a "_clipped"
     suffix if omitted.
 
     \b
     Examples:
-      # Clip a children layer against a parent/clip layer
-      topo-tools edge-clip children.parquet adm1.geojson
+      # Clip an input layer against an overlay layer
+      topo-tools edge-clip input.parquet adm1.geojson
 
     \b
       # Explicit output
-      topo-tools edge-clip children.parquet adm1.geojson clipped.parquet
+      topo-tools edge-clip input.parquet adm1.geojson clipped.parquet
 
     \b
       # Prefer an existing pcode join over spatial overlap where they disagree
-      topo-tools edge-clip children.parquet adm1.geojson --match-column pcode
+      topo-tools edge-clip input.parquet adm1.geojson --match-column pcode
 
     \b
-      # Copy parent columns onto every matched child
-      topo-tools edge-clip children.parquet adm1.geojson --carry-column iso_3,adm0_name
+      # Copy overlay columns onto every matched input feature
+      topo-tools edge-clip input.parquet adm1.geojson --carry-column iso_3,adm0_name
     """
     logger.info("--debug=%s", debug)
 
     try:
         _edge_clip(
             input_file,
-            clip_file,
+            overlay_file,
             Path(output_file) if output_file is not None else None,
             Path(issues_file) if issues_file is not None else None,
             name=name,
@@ -2322,8 +2327,8 @@ def edge_clip(  # noqa: PLR0913, PLR0917
             debug=debug,
             step=step,
             match_column=match_column,
-            parent_match_column=parent_match_column,
-            child_match_column=child_match_column,
+            overlay_match_column=overlay_match_column,
+            input_match_column=input_match_column,
             carry_columns=_split_commas(carry_columns) or None,
         )
     except (FileExistsError, RuntimeError, ValueError) as e:

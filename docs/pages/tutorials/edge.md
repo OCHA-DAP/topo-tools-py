@@ -3,14 +3,14 @@ status: draft
 title: "Edge"
 ---
 
-Fit a finer child layer (e.g. admin3) into a coarser parent/clip layer
+Fit a finer input layer (e.g. admin3) into a coarser overlay layer
 (e.g. admin0), with no gap or overhang at the edge, then re-fit it when
-the parent layer changes.
+the overlay layer changes.
 
-## Fit a raw layer to its parent
+## Fit a raw layer to an overlay layer
 
-`edge-match` extends each child outward with Voronoi diagrams, then clips
-it to its parent, in one call:
+`edge-match` extends each input feature outward with Voronoi diagrams, then clips
+it to its overlay feature, in one call:
 
     topo-tools edge-match adm3.gpkg adm0.gpkg adm3_matched.gpkg \
       --issues-file match_report.gpkg
@@ -18,9 +18,9 @@ it to its parent, in one call:
 Add `--fill-schema` to cascade admin-hierarchy columns down to each row's
 real depth before export.
 
-## Re-fit to a new parent
+## Re-fit to a new overlay layer
 
-When only the parent/clip layer changes, `edge-mosaic` re-clips an
+When only the overlay layer changes, `edge-mosaic` re-clips an
 already-fitted layer against it, skipping Voronoi extension entirely:
 
     topo-tools edge-mosaic adm3_matched.gpkg adm0_new.gpkg adm3_mosaicked.gpkg \
@@ -30,8 +30,8 @@ already-fitted layer against it, skipping Voronoi extension entirely:
 
 `edge-match` and `edge-mosaic` chain three primitives, each also
 runnable on its own for a narrower job: `edge-extend` (extend a layer
-outward with no parent to fit), `edge-clip` (assign each child to a
-parent and clip it), and `edge-stitch` (close seams in an already-tiled
+outward with no overlay to fit), `edge-clip` (assign each input feature to an
+overlay feature and clip it), and `edge-stitch` (close seams in an already-tiled
 layer).
 
 See the [`edge-match`](../reference/edge_match/),

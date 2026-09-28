@@ -1,9 +1,9 @@
-"""Public API: assign each child to its parent, then clip it to that geometry."""
+"""Public API: assign each input feature to an overlay feature, then clip it to it."""
 
 from logging import getLogger
 from pathlib import Path
 
-from topo_tools.core.assign import assign_one, load_children, load_parent
+from topo_tools.core.assign import assign_one, load_input, load_overlay
 from topo_tools.core.duckdb_utils import (
     maybe_export_debug_tables,
     pipeline_connection,
@@ -23,7 +23,7 @@ logger = getLogger(__name__)
 _STEP_ORDER = ["inputs", "assign", "clip", "outputs"]
 
 _STEP_TABLES = {
-    "inputs": ["{n}_child_01", "{n}_parent_01"],
+    "inputs": ["{n}_input_01", "{n}_overlay_01"],
     "assign": ["{n}_02_pairs", "{n}_02_assign", "{n}_02_unassigned"],
     "clip": ["{n}_03", "{n}_03_dropped"],
     "outputs": [],
@@ -31,8 +31,8 @@ _STEP_TABLES = {
 
 
 def clip(  # noqa: C901, PLR0912, PLR0913
-    children_path: str | Path,
-    parent_path: str | Path,
+    input_path: str | Path,
+    overlay_path: str | Path,
     output_path: str | Path | None = None,
     issues_path: str | Path | None = None,
     *,
@@ -43,32 +43,34 @@ def clip(  # noqa: C901, PLR0912, PLR0913
     debug: bool = False,
     step: str | None = None,
     match_column: str | None = None,
-    parent_match_column: str | None = None,
-    child_match_column: str | None = None,
+    overlay_match_column: str | None = None,
+    input_match_column: str | None = None,
     carry_columns: list[str] | None = None,
 ) -> None:
-    """Assign one children file to its parent via assign-one, then clip it to it."""
-    if match_column is not None and (parent_match_column or child_match_column):
-        msg = "match_column is mutually exclusive with parent/child_match_column"
+    """Assign one input file to its overlay feature via assign-one, then clip it."""
+    if match_column is not None and (overlay_match_column or input_match_column):
+        msg = (
+            "match_column is mutually exclusive with overlay feature/input_match_column"
+        )
         raise ValueError(msg)
-    if bool(parent_match_column) != bool(child_match_column):
-        msg = "parent_match_column and child_match_column must be given together"
+    if bool(overlay_match_column) != bool(input_match_column):
+        msg = "overlay_match_column and input_match_column must be given together"
         raise ValueError(msg)
     if match_column is not None:
-        parent_match_column = child_match_column = match_column
-    code_join = bool(parent_match_column and child_match_column)
+        overlay_match_column = input_match_column = match_column
+    code_join = bool(overlay_match_column and input_match_column)
 
     if step is not None and step not in _STEP_ORDER:
         msg = f"step must be one of {_STEP_ORDER}, got {step!r}"
         raise ValueError(msg)
 
-    children_path = resolve_input_path(children_path)
-    parent_path = resolve_input_path(parent_path)
+    input_path = resolve_input_path(input_path)
+    overlay_path = resolve_input_path(overlay_path)
 
     output_path = (
         Path(output_path)
         if output_path is not None
-        else default_output_path(children_path, "_clipped")
+        else default_output_path(input_path, "_clipped")
     )
     resolved_issues_path = (
         Path(issues_path)
@@ -77,14 +79,14 @@ def clip(  # noqa: C901, PLR0912, PLR0913
     )
 
     if name is None:
-        name = input_basename(children_path).replace(".", "_") + "_edge_clip"
+        name = input_basename(input_path).replace(".", "_") + "_edge_clip"
 
     if step in (None, "outputs"):
         check_overwrite(output_path, overwrite=overwrite)
         check_overwrite(resolved_issues_path, overwrite=overwrite)
 
-    dest_by_source = {str(children_path): output_path}
-    issues_dest_by_source = {str(children_path): resolved_issues_path}
+    dest_by_source = {str(input_path): output_path}
+    issues_dest_by_source = {str(input_path): resolved_issues_path}
 
     with (
         resolve_tmp_dir(tmp_dir, debug=debug) as tmp_dir_path,
@@ -99,14 +101,14 @@ def clip(  # noqa: C901, PLR0912, PLR0913
             if debug:
                 logger.info("=== %s ===", s)
             if s == "inputs":
-                load_children(conn, name, [children_path])
-                load_parent(conn, name, parent_path)
+                load_input(conn, name, [input_path])
+                load_overlay(conn, name, overlay_path)
             elif s == "assign":
                 assign_one(
                     conn,
                     name,
-                    parent_match_column=parent_match_column,
-                    child_match_column=child_match_column,
+                    overlay_match_column=overlay_match_column,
+                    input_match_column=input_match_column,
                     carry_columns=carry_columns,
                 )
             elif s == "clip":

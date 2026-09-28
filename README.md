@@ -17,13 +17,13 @@ Full documentation: <https://ocha-dap.github.io/topo-tools-py/>
 | --- | --- |
 | **schema-map** | map and apply a source to target schema crosswalk |
 | **schema-fill** | fill down admin-hierarchy columns |
-| **schema-join** | copy parent admin-hierarchy columns onto each child |
+| **schema-join** | copy a join layer's admin-hierarchy columns onto each input feature |
 | **topo-clean** | detect and fix gap/overlap defects |
 | **topo-detect** | detect gap/overlap defects |
-| **edge-match** | fit a child layer into a parent layer |
+| **edge-match** | fit an input layer into an overlay layer |
 | **edge-extend** | fill gaps with a Voronoi extension |
-| **edge-mosaic** | re-clip an extended child layer into a new parent |
-| **edge-clip** | clip a child layer to its parent |
+| **edge-mosaic** | re-clip an extended input layer into a new overlay layer |
+| **edge-clip** | clip an input layer to an overlay layer |
 | **edge-stitch** | close seams in a tiled layer |
 | **change** | classify changes between two polygon layer versions |
 | **package** | dissolve, label, and line-ify a layer in one call |

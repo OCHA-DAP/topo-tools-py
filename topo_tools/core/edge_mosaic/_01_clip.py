@@ -1,4 +1,4 @@
-"""Clips each assigned child to its own parent, one subprocess per parent fid."""
+"""Clips each assigned input feature to its overlay feature, one subprocess per fid."""
 
 from pathlib import Path
 
@@ -15,29 +15,29 @@ def main(  # noqa: PLR0913
     threads: int | None = None,
     debug: bool = False,
     carry_columns: list[str] | None = None,
-    child_columns: list[str] | None = None,
+    input_columns: list[str] | None = None,
     passthrough: bool = False,
     result_table: str | None = None,
     raise_if_empty: bool = True,
 ) -> None:
-    """Clip every assigned child to its parent's geometry, isolated per parent fid."""
+    """Clip each assigned input feature to its overlay, isolated per overlay fid."""
     result_table = result_table or f"{name}_03"
     carry_sql = "".join(f', a."{c}" AS "{c}"' for c in (carry_columns or []))
-    child_select_sql = (
-        ", ".join(f'c."{c}"' for c in child_columns)
-        if child_columns is not None
+    input_select_sql = (
+        ", ".join(f'c."{c}"' for c in input_columns)
+        if input_columns is not None
         else "c.*"
     )
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_02_clip_in" AS
-        SELECT {child_select_sql}, a.parent_fid{carry_sql}
-        FROM "{name}_child_01" c
-        JOIN "{name}_02_assign" a ON a.child_fid = c.fid
+        SELECT {input_select_sql}, a.overlay_fid{carry_sql}
+        FROM "{name}_input_01" c
+        JOIN "{name}_02_assign" a ON a.input_fid = c.fid
     """)
     clip_main(
         conn,
         f"{name}_02_clip_in",
-        f'"{name}_parent_01"',
+        f'"{name}_overlay_01"',
         result_table,
         tmp_dir,
         threads=threads,
@@ -51,12 +51,12 @@ def main(  # noqa: PLR0913
             CREATE OR REPLACE TABLE "{result_table}" AS
             SELECT * FROM "{result_table}"
             UNION ALL BY NAME
-            SELECT {child_select_sql} FROM "{name}_child_01" c
-            WHERE c.fid IN (SELECT child_fid FROM "{name}_02_unassigned")
+            SELECT {input_select_sql} FROM "{name}_input_01" c
+            WHERE c.fid IN (SELECT input_fid FROM "{name}_02_unassigned")
         """)
 
     if raise_if_empty:
         count = conn.execute(f'SELECT COUNT(*) FROM "{result_table}"').fetchone()[0]
         if count == 0:
-            msg = f"mosaic: no child was assigned to any parent for {name}"
+            msg = f"mosaic: no input feature got an overlay for {name}"
             raise RuntimeError(msg)

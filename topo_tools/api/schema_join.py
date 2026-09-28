@@ -1,4 +1,4 @@
-"""Public API: copy a parent layer's hierarchy columns onto each overlapping child."""
+"""Public API: copy a join layer's hierarchy columns onto each input feature."""
 
 from logging import getLogger
 from pathlib import Path
@@ -26,7 +26,7 @@ logger = getLogger(__name__)
 _STEP_ORDER = ["inputs", "assign", "join", "outputs"]
 
 _STEP_TABLES = {
-    "inputs": ["{n}_child_01", "{n}_parent_01"],
+    "inputs": ["{n}_input_01", "{n}_overlay_01"],
     "assign": ["{n}_02_assign", "{n}_02_pairs", "{n}_02_share"],
     "join": ["{n}_03", "{n}_03_mismatch"],
     "outputs": ["{n}_04"],
@@ -34,8 +34,8 @@ _STEP_TABLES = {
 
 
 def join(  # noqa: PLR0913
-    child_path: str | Path,
-    parent_path: str | Path,
+    input_path: str | Path,
+    join_path: str | Path,
     output_path: str | Path | None = None,
     *,
     issues_path: str | Path | None = None,
@@ -48,7 +48,7 @@ def join(  # noqa: PLR0913
     debug: bool = False,
     step: str | None = None,
 ) -> None:
-    """Copy each child's plurality-overlap parent's hierarchy columns onto it.
+    """Copy each input feature's best-overlap join feature's hierarchy columns onto it.
 
     Omitting name_field/code_field triggers structural auto-detection.
     """
@@ -59,13 +59,13 @@ def join(  # noqa: PLR0913
         msg = f"min_overlap must be in (0, 1], got {min_overlap!r}"
         raise ValueError(msg)
 
-    child_path = resolve_input_path(child_path)
-    parent_path = resolve_input_path(parent_path)
+    input_path = resolve_input_path(input_path)
+    join_path = resolve_input_path(join_path)
     schema = resolve_explicit_target_schema(name_field, code_field)
     output_path = (
         Path(output_path)
         if output_path is not None
-        else default_output_path(child_path, "_join")
+        else default_output_path(input_path, "_join")
     )
     issues_path = (
         Path(issues_path)
@@ -75,7 +75,7 @@ def join(  # noqa: PLR0913
     check_overwrite(output_path, overwrite=overwrite)
     check_overwrite(issues_path, overwrite=overwrite)
 
-    name = input_basename(child_path).replace(".", "_") + "_schema_join"
+    name = input_basename(input_path).replace(".", "_") + "_schema_join"
 
     with (
         resolve_tmp_dir(tmp_dir, debug=debug) as tmp_dir_path,
@@ -90,7 +90,7 @@ def join(  # noqa: PLR0913
             if debug:
                 logger.info("=== %s ===", s)
             if s == "inputs":
-                inputs.main(conn, name, child_path, parent_path)
+                inputs.main(conn, name, input_path, join_path)
             elif s == "assign":
                 assign_stage.main(conn, name)
             elif s == "join":

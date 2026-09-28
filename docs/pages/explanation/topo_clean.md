@@ -267,7 +267,7 @@ columns, all *measured outcomes* of the fix, not the defect as originally
 detected: `fixed BOOLEAN`, `unit_a_area_change_m2 DOUBLE`,
 `unit_b_area_change_m2 DOUBLE`, `filled_area_m2 DOUBLE`. `filled_area_m2`
 is populated only for gap rows; `unit_a`/`unit_b_area_change_m2` only for
-overlap rows. `parent_fid`, `reason`, and `source_file` are always null
+overlap rows. `overlay_fid`, `reason`, and `source_file` are always null
 for `topo-clean`: they exist only so the schema matches `edge-match`/`edge-mosaic`/
 `edge-stitch`'s own issues tables column-for-column (see
 `docs/reference/shared.md`, "Issues report schema"), not because `topo-clean`

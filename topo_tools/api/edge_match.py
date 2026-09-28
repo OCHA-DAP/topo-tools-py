@@ -1,4 +1,4 @@
-"""Public API: match child polygons to parent boundaries, then extend to fill gaps."""
+"""Public API: match input polygons to overlay boundaries, then extend to fill gaps."""
 
 from logging import getLogger
 from pathlib import Path
@@ -9,10 +9,10 @@ from topo_tools.api._schema_fill_compose import apply_optional_fill, validate_fi
 from topo_tools.core.assign import (
     assign_many,
     assign_one,
-    child_bbox_extent,
-    fill_unmatched_parents,
-    load_parent,
-    prepare_parent_tiles,
+    fill_unmatched_overlays,
+    input_bbox_extent,
+    load_overlay,
+    prepare_overlay_tiles,
     resolve_merge_columns,
     validate_merge_flags,
 )
@@ -39,10 +39,10 @@ logger = getLogger(__name__)
 _STEP_ORDER = ["inputs", "assign", "groups", "clip", "stitch", "outputs"]
 
 _STEP_TABLES = {
-    "inputs": ["{n}_child_01", "{n}_parent_01", "{n}_parent_full"],
+    "inputs": ["{n}_input_01", "{n}_overlay_01", "{n}_overlay_full"],
     "assign": ["{n}_02_pairs", "{n}_02_assign", "{n}_02_unassigned"],
     # "groups" is absent: group ids aren't known ahead of time (dynamic
-    # "{n}_g{parent_fid}" names), so it falls through to the default below.
+    # "{n}_g{overlay_fid}" names), so it falls through to the default below.
     "clip": ["{n}_04", "{n}_04_dropped", "{n}_02_gap_fill"],
     "stitch": ["{n}_05"],
     "outputs": [],
@@ -51,7 +51,7 @@ _STEP_TABLES = {
 
 def match(  # noqa: C901, PLR0912, PLR0913, PLR0915
     input_paths: str | Path | list[str | Path],
-    clip_path: str | Path,
+    overlay_path: str | Path,
     output_path: str | Path | None = None,
     issues_path: str | Path | None = None,
     *,
@@ -61,39 +61,41 @@ def match(  # noqa: C901, PLR0912, PLR0913, PLR0915
     debug: bool = False,
     step: str | None = None,
     match_column: str | None = None,
-    parent_match_column: str | None = None,
-    child_match_column: str | None = None,
+    overlay_match_column: str | None = None,
+    input_match_column: str | None = None,
     merge: bool = False,
-    parent_include: list[str] | None = None,
-    parent_exclude: list[str] | None = None,
-    child_include: list[str] | None = None,
-    child_exclude: list[str] | None = None,
+    overlay_include: list[str] | None = None,
+    overlay_exclude: list[str] | None = None,
+    input_include: list[str] | None = None,
+    input_exclude: list[str] | None = None,
     prefer: str | None = None,
-    multi_parent: bool = False,
+    per_feature: bool = False,
     fill_schema: bool = False,
     name_field: str | None = None,
     code_field: str | None = None,
     depth_column: str = "adm_lvl",
 ) -> None:
-    """Match one or more children layers to their best-overlapping parent."""
-    if match_column is not None and (parent_match_column or child_match_column):
-        msg = "match_column is mutually exclusive with parent/child_match_column"
+    """Match one or more input layers to their best-overlapping overlay feature."""
+    if match_column is not None and (overlay_match_column or input_match_column):
+        msg = (
+            "match_column is mutually exclusive with overlay feature/input_match_column"
+        )
         raise ValueError(msg)
-    if bool(parent_match_column) != bool(child_match_column):
-        msg = "parent_match_column and child_match_column must be given together"
+    if bool(overlay_match_column) != bool(input_match_column):
+        msg = "overlay_match_column and input_match_column must be given together"
         raise ValueError(msg)
     if match_column is not None:
-        parent_match_column = child_match_column = match_column
+        overlay_match_column = input_match_column = match_column
 
     if step is not None and step not in _STEP_ORDER:
         msg = f"step must be one of {_STEP_ORDER}, got {step!r}"
         raise ValueError(msg)
     validate_merge_flags(
         merge=merge,
-        parent_include=parent_include,
-        parent_exclude=parent_exclude,
-        child_include=child_include,
-        child_exclude=child_exclude,
+        overlay_include=overlay_include,
+        overlay_exclude=overlay_exclude,
+        input_include=input_include,
+        input_exclude=input_exclude,
         prefer=prefer,
     )
     validate_fill_flags(
@@ -111,11 +113,11 @@ def match(  # noqa: C901, PLR0912, PLR0913, PLR0915
     if single_path is None and step is not None:
         msg = "step is not supported when multiple input_paths are given"
         raise ValueError(msg)
-    if single_path is None and multi_parent:
-        msg = "multi_parent is not supported when multiple input_paths are given"
+    if single_path is None and per_feature:
+        msg = "per_feature is not supported when multiple input_paths are given"
         raise ValueError(msg)
 
-    clip_path = resolve_input_path(clip_path)
+    overlay_path = resolve_input_path(overlay_path)
     if output_path is not None:
         output_path = Path(output_path)
     elif single_path is not None:
@@ -151,19 +153,19 @@ def match(  # noqa: C901, PLR0912, PLR0913, PLR0915
                 conn,
                 name,
                 paths,
-                clip_path,
+                overlay_path,
                 output_path,
                 issues_path,
                 tmp_dir_path,
                 threads=threads,
                 debug=debug,
-                parent_match_column=parent_match_column,
-                child_match_column=child_match_column,
+                overlay_match_column=overlay_match_column,
+                input_match_column=input_match_column,
                 merge=merge,
-                parent_include=parent_include,
-                parent_exclude=parent_exclude,
-                child_include=child_include,
-                child_exclude=child_exclude,
+                overlay_include=overlay_include,
+                overlay_exclude=overlay_exclude,
+                input_include=input_include,
+                input_exclude=input_exclude,
                 prefer=prefer,
                 fill_schema=fill_schema,
                 name_field=name_field,
@@ -171,8 +173,8 @@ def match(  # noqa: C901, PLR0912, PLR0913, PLR0915
                 depth_column=depth_column,
             )
         else:
-            resolved_parent_columns: list[str] | None = None
-            resolved_child_columns: list[str] | None = None
+            resolved_overlay_columns: list[str] | None = None
+            resolved_input_columns: list[str] | None = None
             merge_resolved = False
             for s in _STEP_ORDER:
                 if step and step != s:
@@ -180,47 +182,47 @@ def match(  # noqa: C901, PLR0912, PLR0913, PLR0915
                 if debug:
                     logger.info("=== %s ===", s)
                 if s == "inputs":
-                    inputs.main(conn, name, single_path, clip_path)
+                    inputs.main(conn, name, single_path, overlay_path)
                     if passthrough:
                         conn.execute(f"""--sql
-                            CREATE OR REPLACE TABLE "{name}_parent_full" AS
-                            SELECT * FROM "{name}_parent_01"
+                            CREATE OR REPLACE TABLE "{name}_overlay_full" AS
+                            SELECT * FROM "{name}_overlay_01"
                         """)
                 elif s == "assign":
                     if not merge_resolved:
-                        resolved_parent_columns, resolved_child_columns = (
+                        resolved_overlay_columns, resolved_input_columns = (
                             resolve_merge_columns(
                                 conn,
                                 name,
                                 merge=merge,
-                                parent_include=parent_include,
-                                parent_exclude=parent_exclude,
-                                child_include=child_include,
-                                child_exclude=child_exclude,
+                                overlay_include=overlay_include,
+                                overlay_exclude=overlay_exclude,
+                                input_include=input_include,
+                                input_exclude=input_exclude,
                                 prefer=prefer,
                             )
                         )
                         merge_resolved = True
-                    assign_fn = assign_many if multi_parent else assign_one
+                    assign_fn = assign_many if per_feature else assign_one
                     assign_fn(
                         conn,
                         name,
-                        parent_match_column=parent_match_column,
-                        child_match_column=child_match_column,
-                        carry_columns=resolved_parent_columns,
-                        child_columns=resolved_child_columns,
+                        overlay_match_column=overlay_match_column,
+                        input_match_column=input_match_column,
+                        carry_columns=resolved_overlay_columns,
+                        input_columns=resolved_input_columns,
                     )
                 elif s == "groups":
                     if not merge_resolved:
-                        resolved_parent_columns, resolved_child_columns = (
+                        resolved_overlay_columns, resolved_input_columns = (
                             resolve_merge_columns(
                                 conn,
                                 name,
                                 merge=merge,
-                                parent_include=parent_include,
-                                parent_exclude=parent_exclude,
-                                child_include=child_include,
-                                child_exclude=child_exclude,
+                                overlay_include=overlay_include,
+                                overlay_exclude=overlay_exclude,
+                                input_include=input_include,
+                                input_exclude=input_exclude,
                                 prefer=prefer,
                             )
                         )
@@ -231,21 +233,21 @@ def match(  # noqa: C901, PLR0912, PLR0913, PLR0915
                         tmp_dir_path,
                         threads=threads,
                         debug=debug,
-                        carry_columns=resolved_parent_columns,
-                        child_columns=resolved_child_columns,
+                        carry_columns=resolved_overlay_columns,
+                        input_columns=resolved_input_columns,
                         passthrough=passthrough,
                     )
                 elif s == "clip":
                     if not merge_resolved:
-                        resolved_parent_columns, resolved_child_columns = (
+                        resolved_overlay_columns, resolved_input_columns = (
                             resolve_merge_columns(
                                 conn,
                                 name,
                                 merge=merge,
-                                parent_include=parent_include,
-                                parent_exclude=parent_exclude,
-                                child_include=child_include,
-                                child_exclude=child_exclude,
+                                overlay_include=overlay_include,
+                                overlay_exclude=overlay_exclude,
+                                input_include=input_include,
+                                input_exclude=input_exclude,
                                 prefer=prefer,
                             )
                         )
@@ -259,12 +261,12 @@ def match(  # noqa: C901, PLR0912, PLR0913, PLR0915
                         passthrough=passthrough,
                     )
                     if passthrough:
-                        fill_unmatched_parents(
+                        fill_unmatched_overlays(
                             conn,
                             name,
-                            carry_columns=resolved_parent_columns,
+                            carry_columns=resolved_overlay_columns,
                             result_table=f"{name}_04",
-                            parent_snapshot_table=f"{name}_parent_full",
+                            overlay_snapshot_table=f"{name}_overlay_full",
                         )
                 elif s == "stitch":
                     stitch.main(conn, name, debug=debug)
@@ -284,7 +286,7 @@ def match(  # noqa: C901, PLR0912, PLR0913, PLR0915
                         name,
                         output_path,
                         issues_path,
-                        code_join=bool(parent_match_column and child_match_column),
+                        code_join=bool(overlay_match_column and input_match_column),
                         passthrough=passthrough,
                         fill_gaps=passthrough,
                         debug=debug,
@@ -321,115 +323,115 @@ def _match_multi_file(  # noqa: PLR0913, PLR0917
     conn: DuckDBPyConnection,
     name: str,
     paths: list[Path],
-    clip_path: Path | str,
+    overlay_path: Path | str,
     output_path: Path,
     issues_path: Path,
     tmp_dir_path: Path,
     *,
     threads: int | None,
     debug: bool,
-    parent_match_column: str | None,
-    child_match_column: str | None,
+    overlay_match_column: str | None,
+    input_match_column: str | None,
     merge: bool,
-    parent_include: list[str] | None,
-    parent_exclude: list[str] | None,
-    child_include: list[str] | None,
-    child_exclude: list[str] | None,
+    overlay_include: list[str] | None,
+    overlay_exclude: list[str] | None,
+    input_include: list[str] | None,
+    input_exclude: list[str] | None,
     prefer: str | None,
     fill_schema: bool,
     name_field: str | None,
     code_field: str | None,
     depth_column: str,
 ) -> None:
-    """Load/assign one children file at a time, sharing one already-loaded parent.
+    """Load/assign one input file at a time, sharing one already-loaded overlay layer.
 
     Groups/clip/stitch/outputs run once over the fully accumulated result
-    afterward, so cross-file children sharing a parent_fid extend together.
+    afterward, so cross-file input features sharing a overlay_fid extend together.
     """
-    load_parent(conn, name, clip_path)
+    load_overlay(conn, name, overlay_path)
     conn.execute(f"""--sql
-        CREATE TABLE "{name}_parent_full" AS SELECT * FROM "{name}_parent_01"
+        CREATE TABLE "{name}_overlay_full" AS SELECT * FROM "{name}_overlay_01"
     """)
     paths = sort_paths_by_column_count_desc(conn, paths)
 
     combined_bbox: tuple[float, float, float, float] | None = None
-    resolved_parent_columns: list[str] | None = None
-    resolved_child_columns: list[str] | None = None
-    for i, child_path in enumerate(paths):
-        inputs.load_and_clean_child(conn, name, child_path)
+    resolved_overlay_columns: list[str] | None = None
+    resolved_input_columns: list[str] | None = None
+    for i, file_path in enumerate(paths):
+        inputs.load_and_clean_input(conn, name, file_path)
         if i == 0:
-            resolved_parent_columns, resolved_child_columns = resolve_merge_columns(
+            resolved_overlay_columns, resolved_input_columns = resolve_merge_columns(
                 conn,
                 name,
                 merge=merge,
-                parent_include=parent_include,
-                parent_exclude=parent_exclude,
-                child_include=child_include,
-                child_exclude=child_exclude,
+                overlay_include=overlay_include,
+                overlay_exclude=overlay_exclude,
+                input_include=input_include,
+                input_exclude=input_exclude,
                 prefer=prefer,
             )
-        bbox = child_bbox_extent(conn, name)
+        bbox = input_bbox_extent(conn, name)
         if bbox is not None:
             combined_bbox = (
                 bbox if combined_bbox is None else _union_bbox(combined_bbox, bbox)
             )
-        conn.execute(f'DROP TABLE IF EXISTS "{name}_child_01"')
-    prepare_parent_tiles(conn, name, child_bbox=combined_bbox)
+        conn.execute(f'DROP TABLE IF EXISTS "{name}_input_01"')
+    prepare_overlay_tiles(conn, name, input_bbox=combined_bbox)
 
     passthrough = merge
 
-    acc_child = f"{name}_child_01_acc"
+    acc_input = f"{name}_input_01_acc"
     acc_assign = f"{name}_02_assign_acc"
     acc_unassigned = f"{name}_02_unassigned_acc"
-    for tbl in (acc_child, acc_assign, acc_unassigned):
+    for tbl in (acc_input, acc_assign, acc_unassigned):
         conn.execute(f'DROP TABLE IF EXISTS "{tbl}"')
 
     fid_offset = 0
-    for i, child_path in enumerate(paths):
+    for i, file_path in enumerate(paths):
         conn.execute(f"""--sql
-            CREATE OR REPLACE TABLE "{name}_parent_01" AS
-            SELECT * FROM "{name}_parent_full"
+            CREATE OR REPLACE TABLE "{name}_overlay_01" AS
+            SELECT * FROM "{name}_overlay_full"
         """)
-        inputs.load_and_clean_child(conn, name, child_path)
-        conn.execute(f'UPDATE "{name}_child_01" SET fid = fid + {fid_offset}')
+        inputs.load_and_clean_input(conn, name, file_path)
+        conn.execute(f'UPDATE "{name}_input_01" SET fid = fid + {fid_offset}')
         assign_one(
             conn,
             name,
             use_cached_tiles=True,
-            parent_match_column=parent_match_column,
-            child_match_column=child_match_column,
-            carry_columns=resolved_parent_columns,
-            child_columns=resolved_child_columns,
+            overlay_match_column=overlay_match_column,
+            input_match_column=input_match_column,
+            carry_columns=resolved_overlay_columns,
+            input_columns=resolved_input_columns,
         )
 
         seeded = i > 0
-        _fold(conn, acc_child, f"{name}_child_01", seeded=seeded)
+        _fold(conn, acc_input, f"{name}_input_01", seeded=seeded)
         _fold(conn, acc_assign, f"{name}_02_assign", seeded=seeded)
         _fold(conn, acc_unassigned, f"{name}_02_unassigned", seeded=seeded)
 
-        new_max = conn.execute(f'SELECT MAX(fid) FROM "{name}_child_01"').fetchone()[0]
+        new_max = conn.execute(f'SELECT MAX(fid) FROM "{name}_input_01"').fetchone()[0]
         fid_offset = new_max if new_max is not None else fid_offset
 
     for acc, canonical in (
-        (acc_child, f"{name}_child_01"),
+        (acc_input, f"{name}_input_01"),
         (acc_assign, f"{name}_02_assign"),
         (acc_unassigned, f"{name}_02_unassigned"),
     ):
         conn.execute(f'DROP TABLE IF EXISTS "{canonical}"')
         conn.execute(f'ALTER TABLE "{acc}" RENAME TO "{canonical}"')
 
-    # groups/clip need every matched parent fid, not just the last file's
-    # narrowed set (assign_one narrows {name}_parent_01 every iteration).
+    # groups/clip need every matched overlay fid, not just the last file's
+    # narrowed set (assign_one narrows {name}_overlay_01 every iteration).
     conn.execute(f"""--sql
-        CREATE OR REPLACE TABLE "{name}_parent_01" AS
-        SELECT * FROM "{name}_parent_full"
+        CREATE OR REPLACE TABLE "{name}_overlay_01" AS
+        SELECT * FROM "{name}_overlay_full"
     """)
     if not debug:
-        conn.execute(f'DROP TABLE IF EXISTS "{name}_parent_full"')
+        conn.execute(f'DROP TABLE IF EXISTS "{name}_overlay_full"')
 
     if not debug:
-        conn.execute(f'DROP TABLE IF EXISTS "{name}_02_parent_parts"')
-        conn.execute(f'DROP TABLE IF EXISTS "{name}_02_parent_tiles"')
+        conn.execute(f'DROP TABLE IF EXISTS "{name}_02_overlay_parts"')
+        conn.execute(f'DROP TABLE IF EXISTS "{name}_02_overlay_tiles"')
 
     groups.main(
         conn,
@@ -437,22 +439,22 @@ def _match_multi_file(  # noqa: PLR0913, PLR0917
         tmp_dir_path,
         threads=threads,
         debug=debug,
-        carry_columns=resolved_parent_columns,
-        child_columns=resolved_child_columns,
+        carry_columns=resolved_overlay_columns,
+        input_columns=resolved_input_columns,
         passthrough=passthrough,
     )
     clip.main(
         conn, name, tmp_dir_path, threads=threads, debug=debug, passthrough=passthrough
     )
     if passthrough:
-        # _parent_01 was restored to full above, identical to _parent_full,
+        # _overlay_01 was restored to full above, identical to _overlay_full,
         # and clip only reads it, so it's still safe to reuse here.
-        fill_unmatched_parents(
+        fill_unmatched_overlays(
             conn,
             name,
-            carry_columns=resolved_parent_columns,
+            carry_columns=resolved_overlay_columns,
             result_table=f"{name}_04",
-            parent_snapshot_table=f"{name}_parent_01",
+            overlay_snapshot_table=f"{name}_overlay_01",
         )
     stitch.main(conn, name, debug=debug)
     apply_optional_fill(
@@ -470,7 +472,7 @@ def _match_multi_file(  # noqa: PLR0913, PLR0917
         name,
         output_path,
         issues_path,
-        code_join=bool(parent_match_column and child_match_column),
+        code_join=bool(overlay_match_column and input_match_column),
         passthrough=passthrough,
         fill_gaps=passthrough,
         debug=debug,

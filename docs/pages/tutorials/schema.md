@@ -5,7 +5,7 @@ title: "Schema"
 
 Crosswalk a source file's columns onto a target admin-hierarchy schema
 (`adm{n}_name`/`adm{n}_code` by default), copy missing ancestor columns
-from a parent layer, then fill the hierarchy down to each row's real
+from a join layer, then fill the hierarchy down to each row's real
 depth.
 
 ## Map and rename columns
@@ -23,10 +23,10 @@ reorder columns), then re-apply it without re-running the mapping:
 Add `--map-only` to write just the crosswalk, for review before anything
 is renamed.
 
-## Copy ancestor columns from a parent layer
+## Copy ancestor columns from a join layer
 
 A layer missing an ancestor level's columns entirely gets them from the
-parent layer it overlaps most. Chain levels coarsest-first:
+join feature it overlaps most. Chain levels coarsest-first:
 
     topo-tools schema-join admin2.parquet admin1.parquet admin2_join.parquet
     topo-tools schema-join admin3.parquet admin2_join.parquet admin3_join.parquet

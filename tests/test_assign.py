@@ -6,38 +6,39 @@ import pytest
 from topo_tools.core.assign import (
     assign_many,
     assign_one,
-    child_bbox_extent,
-    fill_unmatched_parents,
-    prepare_parent_tiles,
+    fill_unmatched_overlays,
+    input_bbox_extent,
+    prepare_overlay_tiles,
     resolve_column_selection,
 )
 
-# Two disjoint parents, far enough apart that a child spans the empty gap
+# Two disjoint overlays, far enough apart that an input spans the empty gap
 # between them without touching anything else.
-_PARENT_WKT = [
+_OVERLAY_WKT = [
     (1, "POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))", "P1"),
     (2, "POLYGON((10 0, 13 0, 13 3, 10 3, 10 0))", "P2"),
 ]
 
 
-def _connect_with_parents():
+def _connect_with_overlays():
     conn = duckdb.connect()
     conn.execute("INSTALL spatial; LOAD spatial;")
     values = ", ".join(
-        f"({fid}, ST_GeomFromText('{wkt}'), '{code}')" for fid, wkt, code in _PARENT_WKT
+        f"({fid}, ST_GeomFromText('{wkt}'), '{code}')"
+        for fid, wkt, code in _OVERLAY_WKT
     )
     conn.execute(f"""--sql
-        CREATE TABLE t_parent_01 AS
+        CREATE TABLE t_overlay_01 AS
         SELECT * FROM (VALUES {values}) AS v(fid, geom, pcode)
     """)
     return conn
 
 
 def test_assign_many_default_schema_unchanged():
-    """No match columns: `_02_assign` stays exactly (child_fid, parent_fid)."""
-    conn = _connect_with_parents()
+    """No match columns: `_02_assign` stays exactly (input_fid, overlay_fid)."""
+    conn = _connect_with_overlays()
     conn.execute("""--sql
-        CREATE TABLE t_child_01 AS SELECT * FROM (VALUES
+        CREATE TABLE t_input_01 AS SELECT * FROM (VALUES
             (1, ST_GeomFromText(
                 'POLYGON((0.5 0.5, 1 0.5, 1 1, 0.5 1, 0.5 0.5))'
             ), 'fileA')
@@ -45,14 +46,14 @@ def test_assign_many_default_schema_unchanged():
     """)
     assign_many(conn, "t")
     cols = [d[0] for d in conn.execute('SELECT * FROM "t_02_assign"').description]
-    assert cols == ["child_fid", "parent_fid"]
+    assert cols == ["input_fid", "overlay_fid"]
 
 
 def test_assign_many_code_join_precedence_and_fallback():
     """Code wins on disagreement, falls back to spatial when unmatched/unrelated."""
-    conn = _connect_with_parents()
+    conn = _connect_with_overlays()
     conn.execute("""--sql
-        CREATE TABLE t_child_01 AS SELECT * FROM (VALUES
+        CREATE TABLE t_input_01 AS SELECT * FROM (VALUES
             -- agrees: entirely inside P1, code also says P1
             (1, ST_GeomFromText(
                 'POLYGON((0.5 0.5, 1 0.5, 1 1, 0.5 1, 0.5 0.5))'
@@ -73,16 +74,16 @@ def test_assign_many_code_join_precedence_and_fallback():
         ) AS v(fid, geom, pcode)
     """)
     conn.execute("""--sql
-        ALTER TABLE t_child_01 ADD COLUMN source_file VARCHAR DEFAULT 'fileA'
+        ALTER TABLE t_input_01 ADD COLUMN source_file VARCHAR DEFAULT 'fileA'
     """)
 
-    assign_many(conn, "t", parent_match_column="pcode", child_match_column="pcode")
+    assign_many(conn, "t", overlay_match_column="pcode", input_match_column="pcode")
 
     rows = {
         row[0]: row[1:]
         for row in conn.execute("""--sql
-            SELECT child_fid, parent_fid, assignment_method, spatial_agrees
-            FROM "t_02_assign" ORDER BY child_fid
+            SELECT input_fid, overlay_fid, assignment_method, spatial_agrees
+            FROM "t_02_assign" ORDER BY input_fid
         """).fetchall()
     }
     assert rows[1] == (1, "code", True)
@@ -94,11 +95,11 @@ def test_assign_many_code_join_precedence_and_fallback():
     assert unassigned == 0
 
 
-def test_assign_many_carry_columns_populates_parent_attributes():
-    """carry_columns copies named parent columns onto every matched child row."""
-    conn = _connect_with_parents()
+def test_assign_many_carry_columns_populates_overlay_attributes():
+    """carry_columns copies named overlay columns onto every matched input row."""
+    conn = _connect_with_overlays()
     conn.execute("""--sql
-        CREATE TABLE t_child_01 AS SELECT * FROM (VALUES
+        CREATE TABLE t_input_01 AS SELECT * FROM (VALUES
             (1, ST_GeomFromText(
                 'POLYGON((0.5 0.5, 1 0.5, 1 1, 0.5 1, 0.5 0.5))'
             ), 'fileA')
@@ -106,38 +107,38 @@ def test_assign_many_carry_columns_populates_parent_attributes():
     """)
     assign_many(conn, "t", carry_columns=["pcode"])
     row = conn.execute("""--sql
-        SELECT child_fid, parent_fid, pcode FROM "t_02_assign"
+        SELECT input_fid, overlay_fid, pcode FROM "t_02_assign"
     """).fetchone()
     assert row == (1, 1, "P1")
 
 
-def test_child_bbox_extent_combines_child_rows():
-    """Returns the combined (xmin, ymin, xmax, ymax) across every child row."""
+def test_input_bbox_extent_combines_input_rows():
+    """Returns the combined (xmin, ymin, xmax, ymax) across every input feature row."""
     conn = duckdb.connect()
     conn.execute("INSTALL spatial; LOAD spatial;")
     conn.execute("""--sql
-        CREATE TABLE t_child_01 AS SELECT * FROM (VALUES
+        CREATE TABLE t_input_01 AS SELECT * FROM (VALUES
             (1, ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))')),
             (2, ST_GeomFromText('POLYGON((5 5, 6 5, 6 6, 5 6, 5 5))'))
         ) AS v(fid, geom)
     """)
-    assert child_bbox_extent(conn, "t") == (0.0, 0.0, 6.0, 6.0)
+    assert input_bbox_extent(conn, "t") == (0.0, 0.0, 6.0, 6.0)
 
 
-def test_child_bbox_extent_none_when_empty():
+def test_input_bbox_extent_none_when_empty():
     """Returns None rather than a row of NULLs for a table with zero rows."""
     conn = duckdb.connect()
     conn.execute("INSTALL spatial; LOAD spatial;")
-    conn.execute("CREATE TABLE t_child_01 (fid BIGINT, geom GEOMETRY)")
-    assert child_bbox_extent(conn, "t") is None
+    conn.execute("CREATE TABLE t_input_01 (fid BIGINT, geom GEOMETRY)")
+    assert input_bbox_extent(conn, "t") is None
 
 
-def test_prepare_parent_tiles_child_bbox_filters_distant_parts():
-    """A child_bbox drops parent parts whose bbox can't overlap it."""
+def test_prepare_overlay_tiles_input_bbox_filters_distant_parts():
+    """A input_bbox drops overlay parts whose bbox can't overlap it."""
     conn = duckdb.connect()
     conn.execute("INSTALL spatial; LOAD spatial;")
     conn.execute("""--sql
-        CREATE TABLE t_parent_01 AS SELECT * FROM (VALUES
+        CREATE TABLE t_overlay_01 AS SELECT * FROM (VALUES
             (1, ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))')),
             (2, ST_GeomFromText(
                 'POLYGON((100 100, 101 100, 101 101, 100 101, 100 100))'
@@ -148,24 +149,26 @@ def test_prepare_parent_tiles_child_bbox_filters_distant_parts():
         ) AS v(fid, geom)
     """)
 
-    prepare_parent_tiles(conn, "t", child_bbox=(0.0, 0.0, 1.0, 1.0))
+    prepare_overlay_tiles(conn, "t", input_bbox=(0.0, 0.0, 1.0, 1.0))
     filtered_fids = {
-        row[0] for row in conn.execute('SELECT fid FROM "t_02_parent_parts"').fetchall()
+        row[0]
+        for row in conn.execute('SELECT fid FROM "t_02_overlay_parts"').fetchall()
     }
     assert filtered_fids == {1}
 
-    prepare_parent_tiles(conn, "t")
+    prepare_overlay_tiles(conn, "t")
     all_fids = {
-        row[0] for row in conn.execute('SELECT fid FROM "t_02_parent_parts"').fetchall()
+        row[0]
+        for row in conn.execute('SELECT fid FROM "t_02_overlay_parts"').fetchall()
     }
     assert all_fids == {1, 2, 3}
 
 
-def test_assign_one_carry_columns_populates_parent_attributes():
-    """carry_columns copies named parent columns onto every matched child row."""
-    conn = _connect_with_parents()
+def test_assign_one_carry_columns_populates_overlay_attributes():
+    """carry_columns copies named overlay columns onto every matched input row."""
+    conn = _connect_with_overlays()
     conn.execute("""--sql
-        CREATE TABLE t_child_01 AS SELECT * FROM (VALUES
+        CREATE TABLE t_input_01 AS SELECT * FROM (VALUES
             (10, ST_GeomFromText(
                 'POLYGON((0.5 0.5, 1 0.5, 1 1, 0.5 1, 0.5 0.5))'
             ), 'fileA')
@@ -173,40 +176,40 @@ def test_assign_one_carry_columns_populates_parent_attributes():
     """)
     assign_one(conn, "t", carry_columns=["pcode"])
     row = conn.execute("""--sql
-        SELECT child_fid, parent_fid, pcode FROM "t_02_assign"
+        SELECT input_fid, overlay_fid, pcode FROM "t_02_assign"
     """).fetchone()
     assert row == (10, 1, "P1")
 
 
 def test_assign_carry_columns_collision_raises():
     """A carry_columns name reserved by `_02_assign` itself raises ValueError."""
-    conn = _connect_with_parents()
+    conn = _connect_with_overlays()
     conn.execute("""--sql
-        CREATE TABLE t_child_01 AS SELECT * FROM (VALUES
+        CREATE TABLE t_input_01 AS SELECT * FROM (VALUES
             (1, ST_GeomFromText('POLYGON((0.5 0.5, 1 0.5, 1 1, 0.5 1, 0.5 0.5))'))
         ) AS v(fid, geom)
     """)
     with pytest.raises(ValueError, match="reserved assign column"):
-        assign_many(conn, "t", carry_columns=["parent_fid"])
+        assign_many(conn, "t", carry_columns=["overlay_fid"])
 
 
-def test_assign_carry_columns_child_schema_collision_raises():
-    """A carry_columns name already present on the child layer raises ValueError."""
-    conn = _connect_with_parents()
+def test_assign_carry_columns_input_schema_collision_raises():
+    """A carry_columns name already present on the input layer raises ValueError."""
+    conn = _connect_with_overlays()
     conn.execute("""--sql
-        CREATE TABLE t_child_01 AS SELECT * FROM (VALUES
+        CREATE TABLE t_input_01 AS SELECT * FROM (VALUES
             (1, ST_GeomFromText('POLYGON((0.5 0.5, 1 0.5, 1 1, 0.5 1, 0.5 0.5))'), 'X')
         ) AS v(fid, geom, pcode)
     """)
-    with pytest.raises(ValueError, match="child layer's own column"):
+    with pytest.raises(ValueError, match="input layer's own column"):
         assign_many(conn, "t", carry_columns=["pcode"])
 
 
 def test_assign_one_code_join_precedence_and_fallback():
-    """Same precedence/fallback rules, applied per source_file, one parent each."""
-    conn = _connect_with_parents()
+    """Same precedence/fallback rules, applied per source_file, one overlay each."""
+    conn = _connect_with_overlays()
     conn.execute("""--sql
-        CREATE TABLE t_child_01 AS SELECT * FROM (VALUES
+        CREATE TABLE t_input_01 AS SELECT * FROM (VALUES
             -- fileA: both children mostly overlap P1 but code agrees on P2,
             -- which they both also overlap, so the whole file moves to P2
             (10, ST_GeomFromText(
@@ -222,13 +225,13 @@ def test_assign_one_code_join_precedence_and_fallback():
         ) AS v(fid, geom, pcode, source_file)
     """)
 
-    assign_one(conn, "t", parent_match_column="pcode", child_match_column="pcode")
+    assign_one(conn, "t", overlay_match_column="pcode", input_match_column="pcode")
 
     rows = {
         row[0]: row[1:]
         for row in conn.execute("""--sql
-            SELECT child_fid, parent_fid, assignment_method, spatial_agrees
-            FROM "t_02_assign" ORDER BY child_fid
+            SELECT input_fid, overlay_fid, assignment_method, spatial_agrees
+            FROM "t_02_assign" ORDER BY input_fid
         """).fetchall()
     }
     assert rows[10] == (2, "code", False)
@@ -240,18 +243,18 @@ def test_assign_one_code_join_precedence_and_fallback():
 
 
 def test_resolve_column_selection_default_returns_all_but_always_exclude():
-    conn = _connect_with_parents()
+    conn = _connect_with_overlays()
     selected = resolve_column_selection(
-        conn, "t_parent_01", include=None, exclude=None, always_exclude=("fid", "geom")
+        conn, "t_overlay_01", include=None, exclude=None, always_exclude=("fid", "geom")
     )
     assert selected == ["pcode"]
 
 
 def test_resolve_column_selection_include_gains_always_include():
-    conn = _connect_with_parents()
+    conn = _connect_with_overlays()
     selected = resolve_column_selection(
         conn,
-        "t_parent_01",
+        "t_overlay_01",
         include=["pcode"],
         exclude=None,
         always_include=("fid", "geom"),
@@ -260,63 +263,63 @@ def test_resolve_column_selection_include_gains_always_include():
 
 
 def test_resolve_column_selection_exclude_drops_columns():
-    conn = _connect_with_parents()
+    conn = _connect_with_overlays()
     selected = resolve_column_selection(
-        conn, "t_parent_01", include=None, exclude=["pcode"]
+        conn, "t_overlay_01", include=None, exclude=["pcode"]
     )
     assert set(selected) == {"fid", "geom"}
 
 
 def test_resolve_column_selection_exclude_collides_with_always_include_raises():
-    conn = _connect_with_parents()
+    conn = _connect_with_overlays()
     with pytest.raises(ValueError, match="always-included column"):
         resolve_column_selection(
             conn,
-            "t_parent_01",
+            "t_overlay_01",
             include=None,
             exclude=["fid"],
             always_include=("fid",),
         )
 
 
-def test_fill_unmatched_parents_appends_zero_child_parent():
-    """A parent with no matched children carries through via its own geometry."""
-    conn = _connect_with_parents()
+def test_fill_unmatched_overlays_appends_zero_input_overlay():
+    """An overlay with no matched inputs carries through via its own geometry."""
+    conn = _connect_with_overlays()
     conn.execute("""--sql
-        CREATE TABLE t_02_assign AS SELECT 10 AS child_fid, 1 AS parent_fid
+        CREATE TABLE t_02_assign AS SELECT 10 AS input_fid, 1 AS overlay_fid
     """)
     conn.execute("""--sql
         CREATE TABLE t_result AS
-        SELECT 1 AS parent_fid,
+        SELECT 1 AS overlay_fid,
                ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))') AS geom
     """)
-    fill_unmatched_parents(
+    fill_unmatched_overlays(
         conn,
         "t",
         carry_columns=["pcode"],
         result_table="t_result",
-        parent_snapshot_table="t_parent_01",
+        overlay_snapshot_table="t_overlay_01",
     )
-    parent_fids = {
-        row[0] for row in conn.execute('SELECT parent_fid FROM "t_result"').fetchall()
+    overlay_fids = {
+        row[0] for row in conn.execute('SELECT overlay_fid FROM "t_result"').fetchall()
     }
-    assert parent_fids == {1, 2}
+    assert overlay_fids == {1, 2}
     pcode = conn.execute(
-        'SELECT pcode FROM "t_result" WHERE parent_fid = 2'
+        'SELECT pcode FROM "t_result" WHERE overlay_fid = 2'
     ).fetchone()[0]
     assert pcode == "P2"
 
 
-def test_carry_forward_columns_no_false_positive_when_child_columns_narrowed():
-    """A carried column already excluded from child_columns doesn't collide."""
-    conn = _connect_with_parents()
+def test_carry_forward_columns_no_false_positive_when_input_columns_narrowed():
+    """A carried column already excluded from input_columns doesn't collide."""
+    conn = _connect_with_overlays()
     conn.execute("""--sql
-        CREATE TABLE t_child_01 AS SELECT * FROM (VALUES
+        CREATE TABLE t_input_01 AS SELECT * FROM (VALUES
             (10, ST_GeomFromText(
                 'POLYGON((0.5 0.5, 1 0.5, 1 1, 0.5 1, 0.5 0.5))'
             ), 'fileA', 'stale')
         ) AS v(fid, geom, source_file, pcode)
     """)
-    assign_one(conn, "t", carry_columns=["pcode"], child_columns=["fid", "geom"])
-    row = conn.execute('SELECT child_fid, pcode FROM "t_02_assign"').fetchone()
+    assign_one(conn, "t", carry_columns=["pcode"], input_columns=["fid", "geom"])
+    row = conn.execute('SELECT input_fid, pcode FROM "t_02_assign"').fetchone()
     assert row == (10, "P1")

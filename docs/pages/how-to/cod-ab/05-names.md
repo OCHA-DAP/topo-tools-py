@@ -32,14 +32,14 @@ investigation, generally covering:
 
 - **Parent-name conflicts from `schema-join`**: each `value-mismatch` row
   in stage 1's issues file is a child whose own `adm{N}_name` differs
-  from its parent layer's, which `schema-join` added as `adm{N}_name{k}`.
+  from its join layer's, which `schema-join` added as `adm{N}_name{k}`.
   Pick one spelling per parent unit and write it to `adm{N}_name` on
   every child under it. Drop that `schema-join` sibling only once no row
   still differs from `adm{N}_name`. Keep any `adm{N}_name{k}` mapped from
   the source in stage 1, since it's an alternate name, not a conflict.
 
 Record every finding in an issues file (reusing the shared schema:
-`key`, `kind`, `reason`, `unit_a`, `unit_b`, `parent_fid`, `geom`, every
+`key`, `kind`, `reason`, `unit_a`, `unit_b`, `join_fid`, `geom`, every
 other column null), `kind` one of `duplicate-name`, `near-duplicate-name`,
 `blank-name`, `encoding-artifact`, `name-drift`. Unlike every other tool's
 issues file, write this one even when it has zero rows: it's the only

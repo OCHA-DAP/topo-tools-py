@@ -1,4 +1,4 @@
-"""Exports each children file's own clipped subset, no coverage hard gate."""
+"""Exports each input file's own clipped subset, no coverage hard gate."""
 
 from pathlib import Path
 
@@ -17,13 +17,13 @@ def main(  # noqa: PLR0913
     code_join: bool = False,
     debug: bool = False,
 ) -> None:
-    """Export each children file's own clipped rows and per-file issues report.
+    """Export each input file's own clipped rows and per-file issues report.
 
     clip-empty rows always included; code-mismatch/code-fallback when code_join.
     """
     count = conn.execute(f'SELECT COUNT(*) FROM "{name}_03"').fetchone()[0]
     if count == 0:
-        msg = f"clip: no child survived clipping for {name}"
+        msg = f"clip: no input feature survived clipping for {name}"
         raise RuntimeError(msg)
 
     present = {
@@ -34,14 +34,14 @@ def main(  # noqa: PLR0913
     }
     missing = [src for src in dest_by_source if src not in present]
     if missing:
-        msg = f"clip: no child survived clipping for: {missing}"
+        msg = f"clip: no input feature survived clipping for: {missing}"
         raise RuntimeError(msg)
 
     issue_parts = [
         f"""
         SELECT 'clip-empty-' || fid AS key, 'clip-empty' AS kind,
-               fid AS unit_a, NULL::BIGINT AS unit_b, parent_fid,
-               'clip intersection with its assigned parent was empty' AS reason,
+               fid AS unit_a, NULL::BIGINT AS unit_b, overlay_fid,
+               'clip intersection with its overlay feature was empty' AS reason,
                NULL::DOUBLE AS area_m2, NULL::DOUBLE AS max_width_m,
                NULL::DOUBLE AS thinness_ratio,
                NULL::DOUBLE AS unit_a_area_change_m2,
@@ -81,8 +81,8 @@ def main(  # noqa: PLR0913
         conn.execute(f'DROP VIEW IF EXISTS "{name}_03_one"')
         conn.execute(f'DROP VIEW IF EXISTS "{name}_02_issues_one"')
         conn.execute(f'DROP TABLE IF EXISTS "{name}_02_issues"')
-        conn.execute(f'DROP TABLE IF EXISTS "{name}_child_01"')
-        conn.execute(f'DROP TABLE IF EXISTS "{name}_parent_01"')
+        conn.execute(f'DROP TABLE IF EXISTS "{name}_input_01"')
+        conn.execute(f'DROP TABLE IF EXISTS "{name}_overlay_01"')
         conn.execute(f'DROP TABLE IF EXISTS "{name}_02_pairs"')
         conn.execute(f'DROP TABLE IF EXISTS "{name}_02_assign"')
         conn.execute(f'DROP TABLE IF EXISTS "{name}_02_unassigned"')

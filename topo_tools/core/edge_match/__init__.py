@@ -1,1 +1,1 @@
-"""Match tool: fits child polygons into parent boundaries by largest overlap."""
+"""Match tool: fits input polygons into overlay boundaries by largest overlap."""
