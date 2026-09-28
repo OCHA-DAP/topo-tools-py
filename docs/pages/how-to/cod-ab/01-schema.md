@@ -22,7 +22,8 @@ by mistake, such as a reference number mapped as a second code
 (`adm2_code1`). Blank out its `target_column`. Map extra name columns (a
 translation or alternate spelling) to the next free `adm2_name1`,
 `adm2_name2`, and never use a target outside the `adm{n}_code`/`adm{n}_name`
-families. Then apply it:
+families. Output columns follow the crosswalk's row order, so move rows to
+rearrange them. Then apply it:
 
     topo-tools schema-refactor admin2.parquet admin2_crosswalk.csv admin2_mapped.parquet
 

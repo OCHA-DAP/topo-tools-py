@@ -308,7 +308,7 @@ def test_refactor_steps(apply_input, full_crosswalk, tmp_path):
     assert out.exists()
 
 
-def test_writes_canonical_column_and_row_order(tmp_path):
+def test_columns_follow_crosswalk_rows_and_rows_sort_by_code(tmp_path):
     src = tmp_path / "admin2.parquet"
     _write_table(
         src,
@@ -338,7 +338,7 @@ def test_writes_canonical_column_and_row_order(tmp_path):
         rows = result.fetchall()
         first = conn.execute(f"DESCRIBE SELECT * FROM '{out}'").fetchone()[0]
     assert first == "geometry"
-    assert columns == ["adm2_name", "adm2_name1", "adm2_code", "adm1_name", "adm1_code"]
+    assert columns == ["adm1_code", "adm2_name", "adm2_code", "adm1_name", "adm2_name1"]
     assert [r[2] for r in rows] == ["XY01001", "XY01002", "XY02001"]
 
 
@@ -354,3 +354,21 @@ def test_warns_when_no_code_template_column(
 ):
     refactor(apply_input, full_crosswalk, tmp_path / "out.parquet")
     assert "no 'adm{n}_code' target column" in caplog.text
+
+
+def test_warns_when_numbered_sibling_precedes_its_base(apply_input, tmp_path, caplog):
+    crosswalk = _write_crosswalk(
+        tmp_path / "crosswalk.csv",
+        [
+            {"source_column": "Name_Old", "target_column": "adm1_name1"},
+            {"source_column": "Code_Old", "target_column": "adm1_name"},
+            {"source_column": "Extra", "target_column": None},
+        ],
+    )
+    out = tmp_path / "out.parquet"
+    refactor(apply_input, crosswalk, out)
+
+    with duckdb.connect() as conn:
+        columns = [d[0] for d in conn.execute(f"SELECT * FROM '{out}'").description]
+    assert columns == ["geometry", "adm1_name1", "adm1_name"]
+    assert "numbered siblings of ['adm1_name'] are out of order" in caplog.text

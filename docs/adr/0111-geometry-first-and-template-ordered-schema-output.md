@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted.
+Accepted. Superseded by ADR-0115 (column order for `schema-refactor` only;
+geometry first and the row sort stand).
 
 ## Context
 

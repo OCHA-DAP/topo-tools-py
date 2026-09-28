@@ -86,6 +86,7 @@ def refactor(  # noqa: PLR0913
                     name,
                     name_field or DEFAULT_NAME_FIELD,
                     code_field or DEFAULT_CODE_FIELD,
+                    row_order=True,
                 )
             elif s == "outputs":
                 outputs.main(conn, name, output_path, debug=debug)
