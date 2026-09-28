@@ -38,11 +38,11 @@ has its own `adm_lvl` column, pass `--depth-column` set to something else
 `IDN` at 81,693 rows, `PHL` at 42,019, both large enough for a real
 mid-scale stress test without the full global run's cost).
 
-## Picking a parent/clip layer (`edge-match` / `edge-mosaic`)
+## Picking an overlay layer (`edge-match` / `edge-mosaic`)
 
 Use `/Users/computer/GitHub/fieldmaps/adm0-generator/outputs/adm0/osm/intl/adm0_polygons.parquet`
-as the global admin0 parent/clip layer; it's outside the portolan catalog
-so it's safe to pass directly as `CLIP_FILE`. Also available at
+as the global admin0 overlay layer; it's outside the portolan catalog
+so it's safe to pass directly as `OVERLAY_FILE`. Also available at
 `https://data.fieldmaps.io/adm0/osm/intl/adm0_polygons.parquet` for anyone
 without local repo access.
 

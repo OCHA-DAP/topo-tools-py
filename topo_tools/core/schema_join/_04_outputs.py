@@ -16,37 +16,39 @@ _ISSUE_COLUMNS = """
 
 
 def _build_issues(conn: DuckDBPyConnection, name: str, min_overlap: float) -> None:
-    """Build `{name}_04`: no-parent, low-overlap, and value-mismatch rows."""
+    """Build `{name}_04`: no-overlap, low-overlap, and value-mismatch rows."""
     source_file = short_source_file_sql("c.source_file")
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_04" AS
-        SELECT 'no-parent-' || o.out_fid AS key, 'no-parent' AS kind,
-               o.out_fid AS unit_a, NULL::BIGINT AS parent_fid,
-               'child overlaps no parent; parent columns left NULL' AS reason,
+        SELECT 'no-overlap-' || o.out_fid AS key, 'no-overlap' AS kind,
+               o.out_fid AS unit_a, NULL::BIGINT AS join_fid,
+               'input feature overlaps no join feature; join columns left NULL'
+               AS reason,
                NULL::DOUBLE AS area_m2, {_ISSUE_COLUMNS},
                {source_file} AS source_file, c.geom
-        FROM "{name}_child_01" c
+        FROM "{name}_input_01" c
         JOIN "{name}_03" o ON o.fid = c.fid
-        WHERE c.fid NOT IN (SELECT child_fid FROM "{name}_02_assign")
+        WHERE c.fid NOT IN (SELECT input_fid FROM "{name}_02_assign")
         UNION ALL BY NAME
         SELECT 'low-overlap-' || o.out_fid AS key, 'low-overlap' AS kind,
-               o.out_fid AS unit_a, s.parent_fid,
-               printf('best parent covers %.2f of child', s.overlap_share) AS reason,
-               s.child_area - s.shared_area AS area_m2, {_ISSUE_COLUMNS},
+               o.out_fid AS unit_a, s.overlay_fid AS join_fid,
+               printf('best join feature covers %.2f of input feature', s.overlap_share)
+               AS reason,
+               s.input_area - s.shared_area AS area_m2, {_ISSUE_COLUMNS},
                {source_file} AS source_file, c.geom
         FROM "{name}_02_share" s
-        JOIN "{name}_child_01" c ON c.fid = s.child_fid
+        JOIN "{name}_input_01" c ON c.fid = s.input_fid
         JOIN "{name}_03" o ON o.fid = c.fid
         WHERE s.overlap_share < {min_overlap}
         UNION ALL BY NAME
         SELECT 'value-mismatch-' || o.out_fid || '-' || m.column_name AS key,
-               'value-mismatch' AS kind, o.out_fid AS unit_a, m.parent_fid,
-               printf('%s: child ''%s'' vs parent ''%s''',
-                      m.column_name, m.child_value, m.parent_value) AS reason,
+               'value-mismatch' AS kind, o.out_fid AS unit_a, m.overlay_fid AS join_fid,
+               printf('%s: input ''%s'' vs join ''%s''',
+                      m.column_name, m.input_value, m.join_value) AS reason,
                NULL::DOUBLE AS area_m2, {_ISSUE_COLUMNS},
                {source_file} AS source_file, c.geom
         FROM "{name}_03_mismatch" m
-        JOIN "{name}_child_01" c ON c.fid = m.child_fid
+        JOIN "{name}_input_01" c ON c.fid = m.input_fid
         JOIN "{name}_03" o ON o.fid = c.fid
         ORDER BY unit_a, kind
     """)
@@ -76,8 +78,8 @@ def main(  # noqa: PLR0913
     if not debug:
         conn.execute(f'DROP VIEW IF EXISTS "{name}_03_export"')
         for t in (
-            "child_01",
-            "parent_01",
+            "input_01",
+            "overlay_01",
             "02_pairs",
             "02_assign",
             "02_unassigned",

@@ -1,4 +1,4 @@
-"""Grid-tiles an oversized parent boundary before intersecting against it."""
+"""Grid-tiles an oversized overlay boundary before intersecting against it."""
 
 import math
 
@@ -13,10 +13,10 @@ from topo_tools.core.constants import (
 
 
 def _adaptive_cell_size(vertex_count: int, width: float, height: float) -> float:
-    """Solve a tile size from this parent's own vertex density, not a fixed constant.
+    """Solve a tile size from this overlay's vertex density, not a fixed constant.
 
     Calibrated so South Africa's real worst case (281k vertices, ADR-0016) lands
-    at ~1 degree; sparser or simpler parents get coarser cells, denser ones finer.
+    at ~1 degree; sparser or simpler overlays get coarser cells, denser ones finer.
     """
     bbox_area = max(width, 1e-9) * max(height, 1e-9)
     cell = math.sqrt(CLIP_TILE_TARGET_VERTICES * bbox_area / vertex_count)

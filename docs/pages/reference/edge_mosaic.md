@@ -9,14 +9,14 @@ tools.
 
 ## Inputs
 
-- `edge-mosaic` MUST load the child layer and the parent/clip layer raw,
+- `edge-mosaic` MUST load the input layer and the overlay layer raw,
   unlike `edge-extend`'s own inputs stage: neither is coverage-checked or
-  -cleaned before assign/clip. The child layer is expected to already be a
+  -cleaned before assign/clip. The input layer is expected to already be a
   finished `edge_extend()` output, but `edge-mosaic` does not verify this (see
   `docs/explanation/edge_mosaic.md`).
-- Unlike every other tool here, the child role MAY span multiple files
+- Unlike every other tool here, the input role MAY span multiple files
   (e.g. one `edge_extend()` output per country), combined internally. The
-  parent/clip layer MUST remain a single file.
+  overlay layer MUST remain a single file.
 - The main output MUST NOT carry a `source_file` column; it is an
   internal working column only, used by `assign-one`'s per-file grouping
   (see `docs/explanation/assign.md`), not exported. The issues report MAY
@@ -24,50 +24,50 @@ tools.
   (e.g. `sen/adm2.parquet`), never the full input path (see
   `docs/adr/0087`).
 
-## Assigning children to parents
+## Assigning input features to overlay features
 
-- `edge-mosaic` MUST assign every child from one input file to a single parent
-  polygon, shared by the whole file: a file's children are one group
+- `edge-mosaic` MUST assign every input feature from one input file to a single overlay feature
+  polygon, shared by the whole file: a file's input features are one group
   (e.g. one country's admin2 units), not independently routed to whichever
-  parent each one individually overlaps most.
-- The file's parent MUST be whichever parent the largest number of that
-  file's children intersect (a majority vote by count of intersecting
-  children, not summed overlap area), so a handful of border-overshooting
-  children cannot misassign a file whose other children overwhelmingly
-  point to their true parent.
-- A tie between two candidate parents MUST be broken by the lower parent id.
-- Once a file has a winning parent, every child in that file MUST be
-  assigned to it unconditionally, including a child with zero individual
-  overlap with the winner; such a child is not dropped at assign time (see
-  `docs/explanation/assign.md`). A whole file with no child overlapping
-  any parent at all MUST be dropped, not treated as fatal, and
-  `edge-mosaic` MUST log a warning naming its children, unless `merge`
+  overlay feature each one individually overlaps most.
+- The file's overlay feature MUST be whichever overlay feature the largest number of that
+  file's input features intersect (a majority vote by count of intersecting
+  input features, not summed overlap area), so a handful of border-overshooting
+  input features cannot misassign a file whose other input features overwhelmingly
+  point to their true overlay feature.
+- A tie between two candidate overlay features MUST be broken by the lower overlay feature id.
+- Once a file has a winning overlay feature, every input feature in that file MUST be
+  assigned to it unconditionally, including an input feature with zero individual
+  overlap with the winner; such an input feature is not dropped at assign time (see
+  `docs/explanation/assign.md`). A whole file with no input feature overlapping
+  any overlay feature at all MUST be dropped, not treated as fatal, and
+  `edge-mosaic` MUST log a warning naming its input features, unless `merge`
   is set (see Configuration), in which case that file's own
   already-extended geometry is instead kept unclipped in the output.
-- A parent matched by zero children MUST be dropped, unless `merge`
-  is set (see Configuration), in which case that parent's own geometry
+- An overlay feature matched by zero input features MUST be dropped, unless `merge`
+  is set (see Configuration), in which case that overlay feature's own geometry
   and attributes are kept unclipped in the output instead. Either case
   MUST also be recorded in the issues report described under Outputs.
 
 ## Clipping
 
-- `edge-mosaic` MUST NOT re-run Voronoi extension on any child; the child
+- `edge-mosaic` MUST NOT re-run Voronoi extension on any input feature; the input feature
   layer is assumed already extended.
-- `edge-mosaic` MUST clip each assigned child to its own assigned parent's
-  geometry via `ST_Intersection`, one distinct assigned parent fid at a
+- `edge-mosaic` MUST clip each assigned input feature to its own assigned overlay feature's
+  geometry via `ST_Intersection`, one distinct assigned overlay fid at a
   time, each in its own spawned OS subprocess (see
   `docs/explanation/edge_mosaic.md`).
-- Within one parent fid's subprocess, `edge-mosaic` MUST grid-subdivide that
-  parent's boundary into small tiles before intersecting once its vertex
+- Within one overlay fid's subprocess, `edge-mosaic` MUST grid-subdivide that
+  overlay feature's boundary into small tiles before intersecting once its vertex
   count exceeds an adaptive threshold, sizing the tile grid from that
-  parent's own vertex density, and MUST join children to tiles via bbox
+  overlay feature's own vertex density, and MUST join input features to tiles via bbox
   comparison, never `ST_Intersects`.
-- A child whose clipped result is empty MUST be dropped from the output,
+- An input feature whose clipped result is empty MUST be dropped from the output,
   not treated as fatal, and MUST be recorded in the issues report as a
   `kind='clip-empty'` row (see Outputs).
-- `edge-mosaic` MUST raise if zero children were ever assigned to any parent,
-  unless `merge` gap-filled at least one parent or kept at least one
-  unmatched child file as passthrough (see Configuration).
+- `edge-mosaic` MUST raise if zero input features were ever assigned to any overlay feature,
+  unless `merge` gap-filled at least one overlay feature or kept at least one
+  unmatched input file as passthrough (see Configuration).
 
 ## Stitching
 
@@ -84,26 +84,26 @@ tools.
   export (see `docs/adr/0035`).
 - `edge-mosaic` MUST export the final merged layer.
 - `edge-mosaic` MUST also export an issues report alongside it, using the
-  shared schema in `docs/reference/shared.md`, listing every child dropped
-  for an empty clip intersection, every unassigned/passthrough child file,
-  every gap-filled/passthrough parent (when `merge` is set), and every
+  shared schema in `docs/reference/shared.md`, listing every input feature dropped
+  for an empty clip intersection, every unassigned/passthrough input file,
+  every gap-filled/passthrough overlay feature (when `merge` is set), and every
   leftover gap wider than `SNAP_TOLERANCE`, so a human can audit what
   didn't make it into the output or what may need review.
-- Without `merge`, a whole unmatched child file MUST appear as an
-  `unassigned` row: `unit_a` MUST hold the child's own fid and
+- Without `merge`, a whole unmatched input file MUST appear as an
+  `unassigned` row: `unit_a` MUST hold the input feature's own fid and
   `source_file` MUST record its origin file as a parent-directory-plus-
-  filename (not the full path); parent id and reason fields MUST be null.
-  With `merge` set, that file's children MUST instead appear as
+  filename (not the full path); overlay feature id and reason fields MUST be null.
+  With `merge` set, that file's input features MUST instead appear as
   `passthrough` rows (same `unit_a`/`source_file` shape, `reason` null),
   and MUST NOT also appear as `unassigned`. For a `clip-empty` row,
-  `unit_a` MUST hold the child's fid, `parent_fid` MUST hold its assigned
-  parent's fid, `source_file` MUST record its origin file the same
+  `unit_a` MUST hold the input feature's fid, `overlay_fid` MUST hold its assigned
+  overlay feature's fid, `source_file` MUST record its origin file the same
   shortened way, and `reason` MUST explain that the clip intersection
-  came back empty. For a `gap-fill` row (`merge` set only), `parent_fid`
-  MUST hold the gap-filled parent's fid and `reason` MUST explain that the
-  parent had no matched children and was kept unclipped in the output;
-  `unit_a` and `source_file` MUST be null, since the row is the parent
-  itself, not a child. For a `gap` row, `area_m2`, `max_width_m`, and
+  came back empty. For a `gap-fill` row (`merge` set only), `overlay_fid`
+  MUST hold the gap-filled overlay feature's fid and `reason` MUST explain that the
+  overlay feature had no matched input features and was kept unclipped in the output;
+  `unit_a` and `source_file` MUST be null, since the row is the overlay feature
+  itself, not an input feature. For a `gap` row, `area_m2`, `max_width_m`, and
   `thinness_ratio` MUST be populated instead. A field that doesn't apply
   to a row's kind MUST be null.
 - `edge-mosaic` MUST produce the issues report only when it has at least one
@@ -112,12 +112,12 @@ tools.
 
 ## Configuration (`api.edge_mosaic.mosaic()` / CLI)
 
-- `edge-mosaic` MUST accept one or more child files and exactly one parent/clip
+- `edge-mosaic` MUST accept one or more input files and exactly one overlay
   file per call. The CLI additionally accepts `--input` (repeatable and
   comma-separable) alongside the glob-capable `INPUT_FILE` positional, both
   usable together, matching `edge-clip`'s own `--input` idiom.
-- With a single child file, the output path MUST default to that input
-  path with a `_mosaicked` suffix. With multiple child files, `output_path`
+- With a single input file, the output path MUST default to that input
+  path with a `_mosaicked` suffix. With multiple input files, `output_path`
   MUST be given explicitly. The issues-report path MUST default to the
   output path with an `_issues` suffix.
 - `edge-mosaic` MUST raise `FileExistsError` if either output path already
@@ -126,38 +126,38 @@ tools.
   `outputs`; any other value MUST raise `ValueError`. `step` MUST be `None`
   whenever more than one `input_paths` file is given; any other value MUST
   raise `ValueError` (see `docs/adr/0079`).
-- `edge-mosaic` MAY accept `match_column`/`parent_match_column`/`child_match_column`
+- `edge-mosaic` MAY accept `match_column`/`overlay_match_column`/`input_match_column`
   to override spatial assignment with an exact code join (see
   `docs/reference/shared.md`, `docs/explanation/assign.md`).
 - `edge-mosaic` MAY accept `merge: bool = False` (CLI: `--merge`, a plain
-  boolean flag): `False` (default) copies no parent columns and drops
-  both a zero-children parent and a whole unmatched child file; `True`
-  copies every parent column (excluding `fid`/`geom`) onto every matched
-  child, keeps a zero-children parent's own geometry unclipped in the
-  output (`kind='gap-fill'`), and keeps a whole unmatched child file's own
+  boolean flag): `False` (default) copies no overlay columns and drops
+  both an unmatched overlay feature and a whole unmatched input file; `True`
+  copies every overlay column (excluding `fid`/`geom`) onto every matched
+  input feature, keeps an unmatched overlay feature's own geometry unclipped in the
+  output (`kind='gap-fill'`), and keeps a whole unmatched input file's own
   geometry unclipped in the output (`kind='passthrough'`). There is no
   way to enable one behavior without the other.
 - With `merge` set, `edge-mosaic` MAY additionally accept
-  `parent_include`/`parent_exclude` (CLI: `--parent-include`/
-  `--parent-exclude`, each a comma-separated column list) to narrow which
-  parent columns get copied onto matched children (default: every parent
-  column except `fid`/`geom`), and `child_include`/`child_exclude` (CLI:
-  `--child-include`/`--child-exclude`) to narrow which of the child's own
-  columns survive in the output (default: every child column;
+  `overlay_include`/`overlay_exclude` (CLI: `--overlay-include`/
+  `--overlay-exclude`, each a comma-separated column list) to narrow which
+  overlay columns get copied onto matched input features (default: every overlay
+  column except `fid`/`geom`), and `input_include`/`input_exclude` (CLI:
+  `--input-include`/`--input-exclude`) to narrow which of the input layer's own
+  columns survive in the output (default: every input column;
   `fid`/`geom`/`source_file` are always force-kept regardless). Each pair
-  is mutually exclusive with itself; a parent-side flag MAY be combined
-  with a child-side flag. All four MUST raise `ValueError` if given
+  is mutually exclusive with itself; an overlay-side flag MAY be combined
+  with an input-side flag. All four MUST raise `ValueError` if given
   without `merge`.
 - With `merge` set, `edge-mosaic` MAY additionally accept `prefer:
-  "parent" | "child" | None = None` (CLI: `--prefer`) to auto-resolve a
-  real parent/child column-name collision: `"parent"` keeps the parent's
-  column and drops the child's, `"child"` does the reverse. Omitting
+  "overlay" | "input" | None = None` (CLI: `--prefer`) to auto-resolve a
+  real overlay/input column-name collision: `"overlay"` keeps the overlay layer's
+  column and drops the input layer's, `"input"` does the reverse. Omitting
   `prefer` (the default) preserves raising `ValueError` on a real
   collision. `prefer` MUST raise `ValueError` if given without `merge`,
-  or combined with any of `parent_include`/`parent_exclude`/
-  `child_include`/`child_exclude` (see `docs/reference/shared.md`,
+  or combined with any of `overlay_include`/`overlay_exclude`/
+  `input_include`/`input_exclude` (see `docs/reference/shared.md`,
   `docs/adr/0077`, `docs/adr/0079`, `docs/adr/0083`, `docs/adr/0088`;
-  supersedes the child-orphan passthrough of `docs/adr/0078`).
+  supersedes the input-orphan passthrough of `docs/adr/0078`).
 - `edge-mosaic` MAY opt into cascading admin-hierarchy columns via
   `fill_schema`/`--fill-schema`, right after stitching and before export
   (both the single-file step loop and the multi-file combine path).
@@ -168,13 +168,13 @@ tools.
   `edge-mosaic` MUST raise `ValueError` if `depth_column` already names an
   existing column when `fill_schema` is set. `fill_schema` is independent
   of `merge`: it fills a per-row schema-depth gap left by the input data
-  itself, while `merge`'s own gap-fill (`fill_unmatched_parents()`, see
-  `docs/adr/0083`) fills a per-parent geometry-coverage gap left by the
+  itself, while `merge`'s own gap-fill (`fill_unmatched_overlays()`, see
+  `docs/adr/0083`) fills a per-overlay geometry-coverage gap left by the
   mosaic; the two compose freely (see `docs/adr/0095`).
 
 ## Examples
 
-### Example 1: re-clip a pre-extended layer against a new parent boundary, explicit output
+### Example 1: re-clip a pre-extended layer against a new overlay boundary, explicit output
 
     topo-tools edge-mosaic adm3_extended.parquet adm0_new.geojson adm3_mosaicked.parquet
 
@@ -183,7 +183,7 @@ tools.
     topo-tools edge-mosaic adm3_extended.parquet adm0_new.geojson adm3_mosaicked.parquet \
       --issues-file mosaic_report.parquet
 
-### Example 3: combine multiple pre-extended children files, then re-clip
+### Example 3: combine multiple pre-extended input files, then re-clip
 
 `--input` MAY be repeated and/or comma-separated.
 

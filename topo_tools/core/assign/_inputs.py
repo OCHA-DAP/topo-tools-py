@@ -1,4 +1,4 @@
-"""Loads the (possibly multi-file) child layer and the parent/clip layer, both raw."""
+"""Loads the (possibly multi-file) input layer and the overlay layer, both raw."""
 
 from pathlib import Path
 
@@ -7,10 +7,10 @@ from duckdb import DuckDBPyConnection
 from topo_tools.core.io import read_and_reproject, reproject_select_sql
 
 
-def load_children(
+def load_input(
     conn: DuckDBPyConnection, name: str, input_paths: list[Path | str]
 ) -> None:
-    """Load/combine the (possibly multi-file) children, uncleaned.
+    """Load/combine the (possibly multi-file) input features, uncleaned.
 
     Each part is tagged with its own full path as `source_file` (basename
     alone can't distinguish same-named files across directories).
@@ -20,12 +20,12 @@ def load_children(
         for path in input_paths
     )
     conn.execute(f"""--sql
-        CREATE OR REPLACE TABLE "{name}_child_01" AS
+        CREATE OR REPLACE TABLE "{name}_input_01" AS
         SELECT * EXCLUDE (fid), row_number() OVER () AS fid
         FROM ({union_sql})
     """)
 
 
-def load_parent(conn: DuckDBPyConnection, name: str, clip_path: Path | str) -> None:
-    """Load the parent/clip layer, uncleaned."""
-    read_and_reproject(conn, f"{name}_parent", clip_path)
+def load_overlay(conn: DuckDBPyConnection, name: str, overlay_path: Path | str) -> None:
+    """Load the overlay layer, uncleaned."""
+    read_and_reproject(conn, f"{name}_overlay", overlay_path)

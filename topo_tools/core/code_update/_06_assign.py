@@ -88,7 +88,7 @@ def main(  # noqa: C901, PLR0913, PLR0915
         else {}
     )
     child_to_parent_fid = (
-        _fetch_dict(conn, f"{name}_reparent_{n}_02_assign", "child_fid", "parent_fid")
+        _fetch_dict(conn, f"{name}_reparent_{n}_02_assign", "input_fid", "overlay_fid")
         if prev_level is not None
         else {}
     )

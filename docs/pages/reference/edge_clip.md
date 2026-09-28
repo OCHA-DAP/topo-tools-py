@@ -8,44 +8,44 @@ See `docs/reference/README.md` for the MUST/SHOULD/MAY convention, and
 
 ## Inputs
 
-- `edge-clip` MUST load the children layer and the parent/clip layer raw,
+- `edge-clip` MUST load the input layer and the overlay layer raw,
   neither coverage-checked nor -cleaned.
-- `edge-clip` MUST NOT require or read a `parent_fid` column on the children
+- `edge-clip` MUST NOT require or read an `overlay_fid` column on the input features
   layer.
-- `edge-clip` MUST accept exactly one children file and exactly one
-  parent/clip file per call, a strict 1:1 primitive (see `docs/adr/0080`);
-  batching many children files against one shared parent load is
+- `edge-clip` MUST accept exactly one input file and exactly one
+  overlay file per call, a strict 1:1 primitive (see `docs/adr/0080`);
+  batching many input files against one shared overlay load is
   `edge-mosaic`'s job (see `docs/reference/edge_mosaic.md`).
 - The output row MUST carry a `source_file` column recording the path of
-  the children file it came from.
+  the input file it came from.
 
 ## Assignment
 
-- `edge-clip` MUST internally assign every child to exactly one parent before
+- `edge-clip` MUST internally assign every input feature to exactly one overlay feature before
   clipping, via `assign-one`'s file-wide majority-vote strategy (see
-  `docs/explanation/assign.md`): every child is forced onto the one parent
+  `docs/explanation/assign.md`): every input feature is forced onto the one overlay feature
   that wins a majority vote by count, unconditionally, not evaluated per
-  child. A child with zero individual overlap with the winner is not
+  input feature. An input feature with zero individual overlap with the winner is not
   dropped at this stage; it still gets clipped against the winner and MAY
   drop later if that clip result is empty (see Clipping).
-- A whole children file with no overlap against any parent at all MUST be
-  dropped, not clipped against the wrong parent.
+- A whole input file with no overlap against any overlay feature at all MUST be
+  dropped, not clipped against the wrong overlay feature.
 
 ## Clipping
 
-- `edge-clip` MUST clip each row to its own `parent_fid`'s geometry via
-  `ST_Intersection`, one distinct `parent_fid` at a time, each in its own
+- `edge-clip` MUST clip each row to its own `overlay_fid`'s geometry via
+  `ST_Intersection`, one distinct `overlay_fid` at a time, each in its own
   spawned OS subprocess.
-- Within one `parent_fid`'s subprocess, `edge-clip` MUST grid-subdivide that
-  parent's boundary into small tiles before intersecting once its vertex
+- Within one `overlay_fid`'s subprocess, `edge-clip` MUST grid-subdivide that
+  overlay feature's boundary into small tiles before intersecting once its vertex
   count exceeds an adaptive threshold, sizing the tile grid from that
-  parent's own vertex density, and MUST join children to tiles via bbox
+  overlay feature's own vertex density, and MUST join input features to tiles via bbox
   comparison, never `ST_Intersects`.
-- A child whose clipped result is empty MUST be dropped from the output,
+- An input feature whose clipped result is empty MUST be dropped from the output,
   not treated as fatal, and MUST be recorded in the issues report as a
   `kind='clip-empty'` row (see Outputs).
-- `edge-clip` MUST raise immediately on the first `parent_fid` whose subprocess
-  fails, aborting the whole run rather than skipping just that `parent_fid`.
+- `edge-clip` MUST raise immediately on the first `overlay_fid` whose subprocess
+  fails, aborting the whole run rather than skipping just that `overlay_fid`.
 
 ## Outputs
 
@@ -70,22 +70,22 @@ See `docs/reference/README.md` for the MUST/SHOULD/MAY convention, and
   exists and overwriting wasn't requested.
 - `step`, if given, MUST be one of `inputs`, `assign`, `edge-clip`, `outputs`;
   any other value MUST raise `ValueError`.
-- `edge-clip` MAY accept `match_column`/`parent_match_column`/`child_match_column`
+- `edge-clip` MAY accept `match_column`/`overlay_match_column`/`input_match_column`
   to override spatial assignment with an exact code join (see
   `docs/reference/shared.md`, `docs/explanation/assign.md`), adding
   `code-mismatch`/`code-fallback` rows to the issues report alongside any
   `clip-empty` rows.
 - `edge-clip` MAY accept `carry_columns` (CLI: `--carry-column`) to copy
-  named parent columns onto every matched child (see
+  named overlay columns onto every matched input feature (see
   `docs/reference/shared.md`, `docs/adr/0077`).
 
 ## Examples
 
-### Example 1: clip a children layer against a parent/clip layer, explicit output
+### Example 1: clip an input layer against an overlay layer, explicit output
 
-    topo-tools edge-clip children.parquet adm1.geojson clipped.parquet
+    topo-tools edge-clip input.parquet adm1.geojson clipped.parquet
 
 ### Example 2: custom issues report path
 
-    topo-tools edge-clip children.parquet adm1.geojson clipped.parquet \
+    topo-tools edge-clip input.parquet adm1.geojson clipped.parquet \
       --issues-file clip_report.parquet

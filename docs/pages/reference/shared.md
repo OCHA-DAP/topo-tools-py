@@ -77,7 +77,7 @@ instead of repeating them.
   siblings in numeric order. Every other column follows in input order.
   `schema-map` applying a crosswalk via `--csv` follows its row order instead
   (see `docs/reference/schema_map.md`).
-- A numbered sibling of a column (a second same-level name, or a parent's
+- A numbered sibling of a column (a second same-level name, or a join layer's
   differing value in `schema-join`) MUST be named by appending an integer
   starting at 1, separated by `_` when the column ends in a digit
   (`adm2_name` → `adm2_name1`, `GID_2` → `GID_2_1`), so a sibling never
@@ -86,7 +86,7 @@ instead of repeating them.
   by value (text codes as text), NULLs last, ties in input order.
 - With no code-template column, rows MUST keep their input order, and the
   tool MUST log a warning. `schema-map` then keeps crosswalk-row column
-  order, and `schema-join` keeps the child's input column order.
+  order, and `schema-join` keeps the input layer's column order.
 
 ## CSV outputs
 
@@ -128,7 +128,7 @@ tool-specific settings (see the tool's own file for those):
 - `step`: if given, MUST run only the one named stage; any value outside
   that tool's own stage names MUST raise `ValueError`.
 
-A read-role file argument (children, parent/clip, old/new) MAY be an
+A read-role file argument (input, overlay, join, old/new) MAY be an
 `http://`/`https://` URL to a `.parquet` file, resolved via
 `core.io.resolve_input_path()`/`input_basename()` (see `docs/adr/0043`);
 behavior for a non-parquet remote URL is unverified. An output-role
@@ -142,11 +142,11 @@ CLI maps flags/env vars onto those same kwargs 1:1.
 ## Hard gates at each tool's output stage
 
 - `edge-extend` MUST raise if its final output has any overlap or any gap of any
-  size: it has no parent/clip layer, so any gap is unambiguously a defect
+  size: it has no overlay layer, so any gap is unambiguously a defect
   in its own coverage (see `docs/adr/0035`).
 - `edge-match` and `edge-mosaic` MUST raise if their final output has any overlap, or
   any gap at or below `SNAP_TOLERANCE`. A wider gap MUST NOT raise: it may
-  be a legitimate hole in the parent/clip layer's own shape (e.g. one
+  be a legitimate hole in the overlay layer's own shape (e.g. one
   country fully enclosing another), not a coverage defect (see
   `docs/adr/0035`). Any such gap MUST still be logged as a warning and
   recorded in the issues report described in each tool's own file.
@@ -159,10 +159,10 @@ CLI maps flags/env vars onto those same kwargs 1:1.
   or below `SNAP_TOLERANCE` (see `docs/adr/0038`). It MUST NOT raise over
   a wider gap, but MUST log a warning and record it in the issues report
   described in `docs/reference/edge_stitch.md`.
-- `edge-clip` performs no topology hard gate at all: it clips a child to its
-  assigned parent's geometry one `parent_fid` at a time and does not
+- `edge-clip` performs no topology hard gate at all: it clips an input feature to its
+  assigned overlay feature's geometry one `overlay_fid` at a time and does not
   itself validate whole-layer coverage. It MAY still produce an issues
-  report (a `clip-empty` row for any child whose clip result was empty,
+  report (a `clip-empty` row for any input feature whose clip result was empty,
   plus `code-mismatch`/`code-fallback` rows when a match column is
   supplied, see below).
 - `change` performs no topology hard gate at all; it is a read-only
@@ -175,14 +175,14 @@ CLI maps flags/env vars onto those same kwargs 1:1.
 `topo-clean`, `edge-match`, `edge-mosaic`, `edge-clip`, and `edge-stitch` each MAY
 produce an issues report alongside their main output, sharing one column
 schema: `key`, `kind`, `area_m2`, `max_width_m`, `thinness_ratio`,
-`unit_a`, `unit_b`, `parent_fid`, `reason`, `unit_a_area_change_m2`,
+`unit_a`, `unit_b`, `overlay_fid`, `reason`, `unit_a_area_change_m2`,
 `unit_b_area_change_m2`, `filled_area_m2`, `fixed`, `source_file`, `geom`.
 A tool MUST leave any column inapplicable to a given row's `kind` as null.
 `unit_a` MUST record whichever single fid is primarily associated with the
-row, for any kind that has one (a dropped child, one side of an overlap,
+row, for any kind that has one (a dropped input feature, one side of an overlap,
 etc.); `unit_b` MUST be used only where a second fid is meaningfully
 involved (e.g. the other side of an overlap). `edge-match` MUST populate
-`source_file` with the row's originating child file, shortened to its
+`source_file` with the row's originating input file, shortened to its
 parent directory plus filename (never the full input path), for every
 kind that has one (`unassigned`, `dropped_group`, `clip-empty`,
 `passthrough`), null only for `gap` (see `docs/adr/0084`,
@@ -190,23 +190,23 @@ kind that has one (`unassigned`, `dropped_group`, `clip-empty`,
 
 None of `edge-match`/`edge-mosaic`/`edge-clip`/`edge-stitch`'s *main*
 output carries a `source_file` column at all, even though every one of
-them tags it internally on the child table: it exists only to let
-`assign-one` group a file's children for its per-file majority vote (see
+them tags it internally on the input table: it exists only to let
+`assign-one` group a file's input features for its per-file majority vote (see
 `docs/explanation/assign.md`), not as a user-facing column, and each
 tool's outputs stage strips it before export (see `docs/adr/0087`).
 `topo-clean`'s issues report keeps a `source_file` column for schema
-compatibility, always null (it's a single-layer tool with no per-child
+compatibility, always null (it's a single-layer tool with no per-feature
 origin file).
 
 `edge-match`, `edge-mosaic`, and `edge-clip` all share a `kind='clip-empty'`
-row for any child whose clip intersection with its assigned parent came
-back empty (see `docs/adr/0082`): `unit_a` MUST hold the child's fid,
-`parent_fid` its assigned parent's fid, `reason` MUST explain the
+row for any input feature whose clip intersection with its assigned overlay feature came
+back empty (see `docs/adr/0082`): `unit_a` MUST hold the input feature's fid,
+`overlay_fid` its assigned overlay feature's fid, `reason` MUST explain the
 intersection was empty. `edge-mosaic` and `edge-match` both additionally
 have a `kind='gap-fill'` row (see `docs/reference/edge_mosaic.md`,
-`docs/reference/edge_match.md`) for a parent matched by zero children,
-kept unclipped in the output when `merge` is set: `parent_fid` MUST hold
-the gap-filled parent's fid, `unit_a` and `source_file` MUST be null (see
+`docs/reference/edge_match.md`) for an overlay feature matched by zero input features,
+kept unclipped in the output when `merge` is set: `overlay_fid` MUST hold
+the gap-filled overlay feature's fid, `unit_a` and `source_file` MUST be null (see
 `docs/adr/0083`, `docs/adr/0088`).
 
 A tool MUST NOT write an issues file at all when the run produced zero
@@ -216,25 +216,25 @@ previous run, it MUST be deleted rather than left in place.
 ## Code-based assignment override
 
 `edge-match`, `edge-mosaic`, and standalone `edge-clip` all MAY accept a `match_column`
-name (same column on both layers) or a `parent_match_column`/
-`child_match_column` pair (different names), mutually exclusive with each
+name (same column on both layers) or an `overlay_match_column`/
+`input_match_column` pair (different names), mutually exclusive with each
 other; supplying only one of the pair MUST raise `ValueError`. When given,
 `core/assign`'s exact code join wins over the
 default spatial-overlap assignment wherever a code match exists, even when
 it disagrees with the spatial result, and falls back to the spatial result
-when a child's (or, for `assign-one`, a file's) code has no
-overlapping-parent match at all (see `docs/adr/0045`,
+when an input feature's (or, for `assign-one`, a file's) code has no
+overlapping-overlay match at all (see `docs/adr/0045`,
 `docs/explanation/assign.md`). Both outcomes MUST be recorded as issues
 rows, reusing the schema above:
 
 - `kind='code-mismatch'`: the code match won but disagreed with the spatial
-  result. `unit_a` MUST hold the child's own fid, `parent_fid` the code
-  match's parent.
+  result. `unit_a` MUST hold the input feature's own fid, `overlay_fid` the code
+  match's overlay feature.
 - `kind='code-fallback'`: no code match existed; the spatial result was
-  used instead. `unit_a` and `parent_fid` MUST be populated the same way.
+  used instead. `unit_a` and `overlay_fid` MUST be populated the same way.
 
 This gives standalone `edge-clip` its only issues-report capability: it produces
-one only when `match_column`/`parent_match_column`/`child_match_column` is
+one only when `match_column`/`overlay_match_column`/`input_match_column` is
 supplied and it yields at least one row (see `docs/reference/edge_clip.md`).
 
 ## Hierarchical code format and retention
@@ -275,14 +275,14 @@ its supporting functions:
   `old_code`'s own final (tail) component onto `new_parent_code`,
   unchanged otherwise.
 
-## Parent-column carry-forward
+## Overlay-column carry-forward
 
 `edge-match`, `edge-mosaic`, and standalone `edge-clip` all MAY copy named
-parent-layer columns onto every matched child. Names are always
+overlay-layer columns onto every matched input feature. Names are always
 caller-specified, never inferred from either layer's schema (see
 `docs/adr/0077`). A name colliding with `core.assign`'s own reserved
-columns (`child_fid`, `parent_fid`, `assignment_method`, `spatial_agrees`)
-MUST raise `ValueError`; a name colliding with the child layer's own
+columns (`input_fid`, `overlay_fid`, `assignment_method`, `spatial_agrees`)
+MUST raise `ValueError`; a name colliding with the input layer's own
 schema MUST also raise `ValueError` (an explicit pre-check, not left to
 the SQL layer to reject on its own, see `docs/adr/0077`).
 
@@ -294,31 +294,31 @@ primitive, see `docs/reference/edge_clip.md`).
 `edge-mosaic` and `edge-match` both expose this as a plain boolean
 `merge: bool = False` (CLI: `--merge`), coupled with two passthrough
 mechanisms rather than independent of them: `False` (omitted) turns both
-off; `True` carries every parent column (excluding `fid`/`geom`) onto
-every matched child, keeps a parent matched by zero children unclipped in
+off; `True` carries every overlay column (excluding `fid`/`geom`) onto
+every matched input feature, keeps an overlay feature matched by zero input features unclipped in
 the output using its own geometry (`kind='gap-fill'`), and keeps a whole
-unmatched child file unclipped in the output using its own geometry
-(`kind='passthrough'`). `parent_include`/`parent_exclude`/
-`child_include`/`child_exclude` (CLI: `--parent-include`/
-`--parent-exclude`/`--child-include`/`--child-exclude`) narrow which
-parent/child columns survive; `prefer` (CLI: `--prefer [parent|child]`)
-auto-resolves a real parent/child column-name collision instead of
+unmatched input file unclipped in the output using its own geometry
+(`kind='passthrough'`). `overlay_include`/`overlay_exclude`/
+`input_include`/`input_exclude` (CLI: `--overlay-include`/
+`--overlay-exclude`/`--input-include`/`--input-exclude`) narrow which
+overlay/input columns survive; `prefer` (CLI: `--prefer [overlay|input]`)
+auto-resolves a real overlay/input column-name collision instead of
 raising. All five require `merge`; the four narrowing flags are each
 mutually exclusive with their own pair, and mutually exclusive with
-`prefer` (see `docs/adr/0079`, `docs/adr/0083`, `docs/adr/0088`). A child
-that never matched any parent (dropped as `unassigned`) never gains
-carried columns through a join; a gap-filled parent's own row carries
-them directly, since the row is the parent itself, not a joined child
+`prefer` (see `docs/adr/0079`, `docs/adr/0083`, `docs/adr/0088`). An input feature
+that never matched any overlay feature (dropped as `unassigned`) never gains
+carried columns through a join; a gap-filled overlay feature's own row carries
+them directly, since the row is the overlay feature itself, not a joined input feature
 (see `docs/reference/edge_mosaic.md`).
 
-The two tools' child-passthrough implementations differ, since their
+The two tools' input passthrough implementations differ, since their
 pipelines do: `edge-mosaic`'s passthrough geometry is already a finished,
 validated `edge_extend()` output, unioned in directly. `edge-match`'s
-passthrough groups every zero-overlap child (whole file under
-`assign-one`, individual child under `--multi-parent`'s `assign-many`,
+passthrough groups every zero-overlap input feature (whole file under
+`assign-one`, individual input feature under `--per-feature`'s `assign-many`,
 see `docs/explanation/assign.md`) into one orphan group of its own and
-extends it fresh, alone, with zero neighboring-parent context and no
+extends it fresh, alone, with zero neighboring-overlay context and no
 majority/plurality vote to catch a bad extension, a materially weaker
-safety profile than `edge-mosaic`'s (see `docs/adr/0081`). Parent
+safety profile than `edge-mosaic`'s (see `docs/adr/0081`). Overlay
 gap-fill has no such asymmetry: both tools call the same shared
-`core.assign.fill_unmatched_parents()` helper (see `docs/adr/0088`).
+`core.assign.fill_unmatched_overlays()` helper (see `docs/adr/0088`).

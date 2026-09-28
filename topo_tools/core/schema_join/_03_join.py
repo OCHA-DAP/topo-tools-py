@@ -1,4 +1,4 @@
-"""Copies the matched parent's hierarchy columns onto each child, geometry untouched."""
+"""Copies the matched join feature's hierarchy columns onto each input feature."""
 
 from logging import getLogger
 
@@ -29,7 +29,7 @@ def _columns(conn: DuckDBPyConnection, table: str) -> list[str]:
     return list(_column_types(conn, table))
 
 
-def parent_hierarchy_columns(
+def join_hierarchy_columns(
     conn: DuckDBPyConnection, table: str, schema: TargetSchema | None
 ) -> list[str]:
     """Every admin-hierarchy column in table, in its own column order."""
@@ -58,30 +58,30 @@ def _next_free_name(column: str, taken: set[str]) -> str:
 
 def main(conn: DuckDBPyConnection, name: str, schema: TargetSchema | None) -> None:
     """Build `{name}_03` (joined output) and `{name}_03_mismatch` (differing values)."""
-    parent_table = f"{name}_parent_01"
-    child_types = _column_types(conn, f"{name}_child_01")
-    parent_types = _column_types(conn, parent_table)
-    child_columns = list(child_types)
-    taken = set(child_columns) | set(parent_types)
+    join_table = f"{name}_overlay_01"
+    input_types = _column_types(conn, f"{name}_input_01")
+    join_types = _column_types(conn, join_table)
+    input_columns = list(input_types)
+    taken = set(input_columns) | set(join_types)
 
     exprs = {
         c: f"c.{quote_identifier(c)}"
-        for c in child_columns
+        for c in input_columns
         if c not in {"fid", "geom", "source_file"}
     }
     mismatch_parts = []
-    for column in parent_hierarchy_columns(conn, parent_table, schema):
+    for column in join_hierarchy_columns(conn, join_table, schema):
         col = quote_identifier(column)
-        if column not in child_columns:
+        if column not in input_columns:
             exprs[column] = f"p.{col}"
             continue
         # Mismatched types compare as text so an unrelated cast can't fail.
-        cast = "" if child_types[column] == parent_types[column] else "::VARCHAR"
+        cast = "" if input_types[column] == join_types[column] else "::VARCHAR"
         distinct = f"c.{col}{cast} IS DISTINCT FROM p.{col}{cast}"
         differs = conn.execute(f"""--sql
-            SELECT COUNT(*) FROM "{name}_child_01" c
-            JOIN "{name}_02_assign" a ON a.child_fid = c.fid
-            JOIN "{parent_table}" p ON p.fid = a.parent_fid
+            SELECT COUNT(*) FROM "{name}_input_01" c
+            JOIN "{name}_02_assign" a ON a.input_fid = c.fid
+            JOIN "{join_table}" p ON p.fid = a.overlay_fid
             WHERE {distinct}
         """).fetchone()[0]
         if not differs:
@@ -89,20 +89,20 @@ def main(conn: DuckDBPyConnection, name: str, schema: TargetSchema | None) -> No
         sibling = _next_free_name(column, taken)
         taken.add(sibling)
         logger.warning(
-            "schema-join: %d child row(s) differ from the parent on %r; "
-            "adding the parent's values as %r",
+            "schema-join: %d input row(s) differ from the join layer on %r; "
+            "adding the join layer's values as %r",
             differs,
             column,
             sibling,
         )
         exprs[sibling] = f"p.{col}"
         mismatch_parts.append(f"""
-            SELECT c.fid AS child_fid, a.parent_fid, '{column.replace("'", "''")}'
+            SELECT c.fid AS input_fid, a.overlay_fid, '{column.replace("'", "''")}'
                        AS column_name,
-                   c.{col}::VARCHAR AS child_value, p.{col}::VARCHAR AS parent_value
-            FROM "{name}_child_01" c
-            JOIN "{name}_02_assign" a ON a.child_fid = c.fid
-            JOIN "{parent_table}" p ON p.fid = a.parent_fid
+                   c.{col}::VARCHAR AS input_value, p.{col}::VARCHAR AS join_value
+            FROM "{name}_input_01" c
+            JOIN "{name}_02_assign" a ON a.input_fid = c.fid
+            JOIN "{join_table}" p ON p.fid = a.overlay_fid
             WHERE c.{col} IS NOT NULL AND p.{col} IS NOT NULL
               AND {distinct}
         """)
@@ -124,15 +124,15 @@ def main(conn: DuckDBPyConnection, name: str, schema: TargetSchema | None) -> No
         CREATE OR REPLACE TABLE "{name}_03" AS
         SELECT c.fid, row_number() OVER (ORDER BY {order}c.fid) AS out_fid,
                c.geom{select}, c.source_file
-        FROM "{name}_child_01" c
-        LEFT JOIN "{name}_02_assign" a ON a.child_fid = c.fid
-        LEFT JOIN "{parent_table}" p ON p.fid = a.parent_fid
+        FROM "{name}_input_01" c
+        LEFT JOIN "{name}_02_assign" a ON a.input_fid = c.fid
+        LEFT JOIN "{join_table}" p ON p.fid = a.overlay_fid
         ORDER BY out_fid
     """)
     empty = (
-        "SELECT NULL::BIGINT AS child_fid, NULL::BIGINT AS parent_fid, "
-        "NULL::VARCHAR AS column_name, NULL::VARCHAR AS child_value, "
-        "NULL::VARCHAR AS parent_value WHERE FALSE"
+        "SELECT NULL::BIGINT AS input_fid, NULL::BIGINT AS overlay_fid, "
+        "NULL::VARCHAR AS column_name, NULL::VARCHAR AS input_value, "
+        "NULL::VARCHAR AS join_value WHERE FALSE"
     )
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_03_mismatch" AS

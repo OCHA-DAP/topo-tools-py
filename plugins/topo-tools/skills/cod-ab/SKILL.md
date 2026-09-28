@@ -121,7 +121,7 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
    normalizes every supplied level into
    `01_schema/{iso3}_admin{n}.parquet` (one file per level, updated in
    place by each step, never a suffixed copy). Only the base continues past
-   stage 1. The others are `schema-join`'s parent layers. Skip
+   stage 1. The others are `schema-join`'s join layers. Skip
    this step when resuming past stage 1.
 
 ## Stages

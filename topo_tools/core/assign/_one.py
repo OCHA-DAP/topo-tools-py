@@ -1,4 +1,4 @@
-"""Assigns each (already-extended) child to the parent it shares the most area with."""
+"""Assigns each input file to the overlay feature its features overlap most."""
 
 from logging import getLogger
 
@@ -11,35 +11,35 @@ from topo_tools.core.edge_clip import subdivide_boundary
 logger = getLogger(__name__)
 
 
-def child_bbox_extent(
+def input_bbox_extent(
     conn: DuckDBPyConnection, name: str
 ) -> tuple[float, float, float, float] | None:
-    """Return the combined bbox of every row in `{name}_child_01`, or None if empty."""
+    """Return the combined bbox of every row in `{name}_input_01`, or None if empty."""
     row = conn.execute(f"""--sql
         SELECT MIN(xmin), MIN(ymin), MAX(xmax), MAX(ymax)
-        FROM (SELECT {bbox_columns_sql("geom")} FROM "{name}_child_01")
+        FROM (SELECT {bbox_columns_sql("geom")} FROM "{name}_input_01")
     """).fetchone()
     return None if row[0] is None else (row[0], row[1], row[2], row[3])
 
 
-def prepare_parent_tiles(
+def prepare_overlay_tiles(
     conn: DuckDBPyConnection,
     name: str,
     *,
-    child_bbox: tuple[float, float, float, float] | None = None,
+    input_bbox: tuple[float, float, float, float] | None = None,
 ) -> None:
-    """Precompute the parent's tile decomposition, skipping parts outside child_bbox."""
+    """Precompute the overlay tile decomposition, skipping parts outside input_bbox."""
     bbox_where = ""
-    if child_bbox is not None:
-        cxmin, cymin, cxmax, cymax = child_bbox
+    if input_bbox is not None:
+        cxmin, cymin, cxmax, cymax = input_bbox
         bbox_where = f"""
             WHERE xmax >= {cxmin} AND xmin <= {cxmax}
               AND ymax >= {cymin} AND ymin <= {cymax}
         """
     conn.execute(f"""--sql
-        CREATE OR REPLACE TABLE "{name}_02_parent_parts" AS
+        CREATE OR REPLACE TABLE "{name}_02_overlay_parts" AS
         WITH parts AS (
-            SELECT fid, UNNEST(ST_Dump(geom)).geom AS part_geom FROM "{name}_parent_01"
+            SELECT fid, UNNEST(ST_Dump(geom)).geom AS part_geom FROM "{name}_overlay_01"
         ),
         bboxed AS (
             SELECT fid, part_geom,
@@ -52,33 +52,33 @@ def prepare_parent_tiles(
     """)
 
     conn.execute(f"""--sql
-        CREATE OR REPLACE TABLE "{name}_02_parent_tiles" (
-            parent_fid BIGINT, geom GEOMETRY,
+        CREATE OR REPLACE TABLE "{name}_02_overlay_tiles" (
+            overlay_fid BIGINT, geom GEOMETRY,
             xmin DOUBLE, xmax DOUBLE, ymin DOUBLE, ymax DOUBLE
         )
     """)
     heavy_parts = conn.execute(f"""--sql
-        SELECT part_id, fid FROM "{name}_02_parent_parts"
+        SELECT part_id, fid FROM "{name}_02_overlay_parts"
         WHERE n_points >= {CLIP_TILE_MIN_VERTICES}
     """).fetchall()
     if heavy_parts:
         logger.info(
-            "assign-one: tiling %d heavy parent part(s) (>= %d vertices)",
+            "assign-one: tiling %d heavy overlay part(s) (>= %d vertices)",
             len(heavy_parts),
             CLIP_TILE_MIN_VERTICES,
         )
-    for part_id, parent_fid in heavy_parts:
+    for part_id, overlay_fid in heavy_parts:
         conn.execute(f"""--sql
             CREATE OR REPLACE TABLE "{name}_02_heavy_src" AS
-            SELECT part_geom AS geom FROM "{name}_02_parent_parts"
+            SELECT part_geom AS geom FROM "{name}_02_overlay_parts"
             WHERE part_id = {part_id}
         """)
         subdivide_boundary(
             conn, f"{name}_02_heavy_src", "geom", f"{name}_02_heavy_tiles_raw"
         )
         conn.execute(f"""--sql
-            INSERT INTO "{name}_02_parent_tiles" BY NAME
-            SELECT {parent_fid} AS parent_fid, geom, {bbox_columns_sql("geom")}
+            INSERT INTO "{name}_02_overlay_tiles" BY NAME
+            SELECT {overlay_fid} AS overlay_fid, geom, {bbox_columns_sql("geom")}
             FROM "{name}_02_heavy_tiles_raw"
         """)
     conn.execute(f'DROP TABLE IF EXISTS "{name}_02_heavy_src"')
@@ -88,33 +88,33 @@ def prepare_parent_tiles(
 def _build_pairs(
     conn: DuckDBPyConnection, name: str, *, use_cached_tiles: bool = False
 ) -> None:
-    """Bbox-prefiltered overlap-area join, tiling any oversized parent part first.
+    """Bbox-prefiltered overlap-area join, tiling any oversized overlay part first.
 
-    use_cached_tiles=True reuses a prior prepare_parent_tiles() call's tiles
+    use_cached_tiles=True reuses a prior prepare_overlay_tiles() call's tiles
     instead of rebuilding them.
     """
     if not use_cached_tiles:
-        prepare_parent_tiles(conn, name, child_bbox=child_bbox_extent(conn, name))
+        prepare_overlay_tiles(conn, name, input_bbox=input_bbox_extent(conn, name))
 
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_02_tmp1" AS
         WITH parts AS (
-            SELECT fid, UNNEST(ST_Dump(geom)).geom AS part_geom FROM "{name}_child_01"
+            SELECT fid, UNNEST(ST_Dump(geom)).geom AS part_geom FROM "{name}_input_01"
         )
         SELECT fid, part_geom, {bbox_columns_sql("part_geom")}
         FROM parts
     """)
 
-    # Parent parts below the tiling threshold: exact intersection directly.
+    # Overlay parts below the tiling threshold: exact intersection directly.
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_02_pairs_raw" AS
-        SELECT c.fid AS child_fid, p.fid AS parent_fid,
+        SELECT c.fid AS input_fid, p.fid AS overlay_fid,
                SUM(ST_Area(ST_Transform(
                    ST_Intersection(c.part_geom, p.part_geom),
                    'EPSG:4326', '{EQUAL_AREA_CRS}'
                ))) AS shared_area
         FROM "{name}_02_tmp1" c
-        JOIN "{name}_02_parent_parts" p
+        JOIN "{name}_02_overlay_parts" p
           ON p.xmax >= c.xmin AND p.xmin <= c.xmax
          AND p.ymax >= c.ymin AND p.ymin <= c.ymax
          AND ST_Intersects(c.part_geom, p.part_geom)
@@ -122,40 +122,40 @@ def _build_pairs(
         GROUP BY c.fid, p.fid
     """)
 
-    # Oversized parent parts: children joined to the precomputed tile set at
-    # once, tiles already tagged with their own parent_fid.
+    # Oversized overlay parts: input features joined to the precomputed tile set at
+    # once, tiles already tagged with their own overlay_fid.
     conn.execute(f"""--sql
         INSERT INTO "{name}_02_pairs_raw"
-        SELECT c.fid AS child_fid, t.parent_fid AS parent_fid,
+        SELECT c.fid AS input_fid, t.overlay_fid AS overlay_fid,
                SUM(ST_Area(ST_Transform(
                    ST_Intersection(c.part_geom, t.geom),
                    'EPSG:4326', '{EQUAL_AREA_CRS}'
                ))) AS shared_area
         FROM "{name}_02_tmp1" c
-        JOIN "{name}_02_parent_tiles" t
+        JOIN "{name}_02_overlay_tiles" t
           ON t.xmax >= c.xmin AND t.xmin <= c.xmax
          AND t.ymax >= c.ymin AND t.ymin <= c.ymax
          AND ST_Intersects(c.part_geom, t.geom)
-        GROUP BY c.fid, t.parent_fid
+        GROUP BY c.fid, t.overlay_fid
     """)
 
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_02_pairs" AS
-        SELECT child_fid, parent_fid, SUM(shared_area) AS shared_area
+        SELECT input_fid, overlay_fid, SUM(shared_area) AS shared_area
         FROM "{name}_02_pairs_raw"
-        GROUP BY child_fid, parent_fid
+        GROUP BY input_fid, overlay_fid
     """)
 
     drop_tables = ["_02_tmp1", "_02_pairs_raw"]
     if not use_cached_tiles:
-        drop_tables += ["_02_parent_parts", "_02_parent_tiles"]
+        drop_tables += ["_02_overlay_parts", "_02_overlay_tiles"]
     for tbl in drop_tables:
         conn.execute(f'DROP TABLE IF EXISTS "{name}{tbl}"')
 
 
 _RESERVED_ASSIGN_COLUMNS = {
-    "child_fid",
-    "parent_fid",
+    "input_fid",
+    "overlay_fid",
     "assignment_method",
     "spatial_agrees",
 }
@@ -165,9 +165,9 @@ def _carry_forward_columns(
     conn: DuckDBPyConnection,
     name: str,
     carry_columns: list[str] | None,
-    child_columns: list[str] | None = None,
+    input_columns: list[str] | None = None,
 ) -> None:
-    """Append caller-named parent columns onto `_02_assign`; does nothing if unset."""
+    """Append caller-named overlay columns onto `_02_assign`; does nothing if unset."""
     if not carry_columns:
         return
     reserved_collisions = set(carry_columns) & _RESERVED_ASSIGN_COLUMNS
@@ -177,16 +177,16 @@ def _carry_forward_columns(
             f"{sorted(reserved_collisions)}"
         )
         raise ValueError(msg)
-    child_column_set = (
-        set(child_columns)
-        if child_columns is not None
-        else {row[0] for row in conn.execute(f'DESCRIBE "{name}_child_01"').fetchall()}
+    input_column_set = (
+        set(input_columns)
+        if input_columns is not None
+        else {row[0] for row in conn.execute(f'DESCRIBE "{name}_input_01"').fetchall()}
     )
-    child_collisions = set(carry_columns) & child_column_set
-    if child_collisions:
+    input_collisions = set(carry_columns) & input_column_set
+    if input_collisions:
         msg = (
-            f"carry_columns collides with the child layer's own column(s): "
-            f"{sorted(child_collisions)}"
+            f"carry_columns collides with the input layer's own column(s): "
+            f"{sorted(input_collisions)}"
         )
         raise ValueError(msg)
     carry_sql = "".join(f', p."{c}" AS "{c}"' for c in carry_columns)
@@ -194,7 +194,7 @@ def _carry_forward_columns(
         CREATE OR REPLACE TABLE "{name}_02_assign" AS
         SELECT a.*{carry_sql}
         FROM "{name}_02_assign" a
-        JOIN "{name}_parent_01" p ON p.fid = a.parent_fid
+        JOIN "{name}_overlay_01" p ON p.fid = a.overlay_fid
     """)
 
 
@@ -203,53 +203,53 @@ def assign_one(  # noqa: PLR0913
     name: str,
     *,
     use_cached_tiles: bool = False,
-    parent_match_column: str | None = None,
-    child_match_column: str | None = None,
+    overlay_match_column: str | None = None,
+    input_match_column: str | None = None,
     carry_columns: list[str] | None = None,
-    child_columns: list[str] | None = None,
+    input_columns: list[str] | None = None,
 ) -> None:
-    """Force every child in a source_file onto that file's majority-vote parent."""
+    """Force every input feature in a source_file onto its file's majority overlay."""
     _build_pairs(conn, name, use_cached_tiles=use_cached_tiles)
 
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_02_file_votes" AS
-        SELECT c.source_file, pr.parent_fid, COUNT(DISTINCT pr.child_fid) AS n_children
+        SELECT c.source_file, pr.overlay_fid, COUNT(DISTINCT pr.input_fid) AS n_inputs
         FROM "{name}_02_pairs" pr
-        JOIN "{name}_child_01" c ON c.fid = pr.child_fid
+        JOIN "{name}_input_01" c ON c.fid = pr.input_fid
         WHERE pr.shared_area > 0
-        GROUP BY c.source_file, pr.parent_fid
+        GROUP BY c.source_file, pr.overlay_fid
     """)
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_02_file_winner" AS
-        SELECT source_file, parent_fid FROM (
-            SELECT source_file, parent_fid,
+        SELECT source_file, overlay_fid FROM (
+            SELECT source_file, overlay_fid,
                    ROW_NUMBER() OVER (
-                       PARTITION BY source_file ORDER BY n_children DESC, parent_fid ASC
+                       PARTITION BY source_file ORDER BY n_inputs DESC, overlay_fid ASC
                    ) AS rn
             FROM "{name}_02_file_votes"
         ) WHERE rn = 1
     """)
-    if parent_match_column and child_match_column:
-        # Per-child code candidate, restricted to a parent it overlaps at all,
-        # rolled up to a per-file majority, preserving one-parent-per-file.
+    if overlay_match_column and input_match_column:
+        # Per-feature code candidate, restricted to an overlay it overlaps at all,
+        # rolled up to a per-file majority, preserving one-overlay-per-file.
         conn.execute(f"""--sql
             CREATE OR REPLACE TABLE "{name}_02_tmp3" AS
-            SELECT c.source_file, p.fid AS parent_fid,
-                   COUNT(DISTINCT c.fid) AS n_children
-            FROM "{name}_child_01" c
-            JOIN "{name}_parent_01" p
-              ON c."{child_match_column}" = p."{parent_match_column}"
+            SELECT c.source_file, p.fid AS overlay_fid,
+                   COUNT(DISTINCT c.fid) AS n_inputs
+            FROM "{name}_input_01" c
+            JOIN "{name}_overlay_01" p
+              ON c."{input_match_column}" = p."{overlay_match_column}"
             JOIN "{name}_02_pairs" pr
-              ON pr.child_fid = c.fid AND pr.parent_fid = p.fid AND pr.shared_area > 0
+              ON pr.input_fid = c.fid AND pr.overlay_fid = p.fid AND pr.shared_area > 0
             GROUP BY c.source_file, p.fid
         """)
         conn.execute(f"""--sql
             CREATE OR REPLACE TABLE "{name}_02_tmp4" AS
-            SELECT source_file, parent_fid FROM (
-                SELECT source_file, parent_fid,
+            SELECT source_file, overlay_fid FROM (
+                SELECT source_file, overlay_fid,
                        ROW_NUMBER() OVER (
                            PARTITION BY source_file
-                           ORDER BY n_children DESC, parent_fid ASC
+                           ORDER BY n_inputs DESC, overlay_fid ASC
                        ) AS rn
                 FROM "{name}_02_tmp3"
             ) WHERE rn = 1
@@ -258,11 +258,11 @@ def assign_one(  # noqa: PLR0913
             CREATE OR REPLACE TABLE "{name}_02_file_final" AS
             SELECT
                 source_file,
-                COALESCE(code.parent_fid, spatial.parent_fid) AS parent_fid,
-                CASE WHEN code.parent_fid IS NOT NULL THEN 'code'
+                COALESCE(code.overlay_fid, spatial.overlay_fid) AS overlay_fid,
+                CASE WHEN code.overlay_fid IS NOT NULL THEN 'code'
                      ELSE 'spatial_fallback' END AS assignment_method,
-                CASE WHEN code.parent_fid IS NOT NULL
-                     THEN code.parent_fid = spatial.parent_fid END AS spatial_agrees
+                CASE WHEN code.overlay_fid IS NOT NULL
+                     THEN code.overlay_fid = spatial.overlay_fid END AS spatial_agrees
             FROM "{name}_02_tmp4" code
             FULL OUTER JOIN "{name}_02_file_winner" spatial USING (source_file)
         """)
@@ -274,33 +274,33 @@ def assign_one(  # noqa: PLR0913
         winner_table = f"{name}_02_file_winner"
         extra_cols = ""
 
-    # Every child rides its file's winner unconditionally; a truly
+    # Every input feature rides its file's winner unconditionally; a truly
     # non-overlapping one still drops later, at clip time.
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_02_assign" AS
-        SELECT c.fid AS child_fid, w.parent_fid{extra_cols}
-        FROM "{name}_child_01" c
+        SELECT c.fid AS input_fid, w.overlay_fid{extra_cols}
+        FROM "{name}_input_01" c
         JOIN "{winner_table}" w ON w.source_file = c.source_file
     """)
-    if parent_match_column and child_match_column:
+    if overlay_match_column and input_match_column:
         conn.execute(f'DROP TABLE IF EXISTS "{name}_02_file_final"')
 
-    _carry_forward_columns(conn, name, carry_columns, child_columns)
+    _carry_forward_columns(conn, name, carry_columns, input_columns)
 
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_02_unassigned" AS
-        SELECT fid AS child_fid, source_file, geom
-        FROM "{name}_child_01"
-        WHERE fid NOT IN (SELECT child_fid FROM "{name}_02_assign")
+        SELECT fid AS input_fid, source_file, geom
+        FROM "{name}_input_01"
+        WHERE fid NOT IN (SELECT input_fid FROM "{name}_02_assign")
     """)
 
     unassigned = conn.execute(f"""--sql
-        SELECT child_fid FROM "{name}_02_unassigned" ORDER BY child_fid
+        SELECT input_fid FROM "{name}_02_unassigned" ORDER BY input_fid
     """).fetchall()
     if unassigned:
         fids = [row[0] for row in unassigned]
         logger.warning(
-            "assign-one: dropping %d child fid(s) whose file had no parent "
+            "assign-one: dropping %d input fid(s) whose file had no overlay feature "
             "overlap at all: %s",
             len(fids),
             fids,
@@ -312,7 +312,7 @@ def assign_one(  # noqa: PLR0913
     used_fids = [
         row[0]
         for row in conn.execute(
-            f'SELECT DISTINCT parent_fid FROM "{name}_02_assign"'
+            f'SELECT DISTINCT overlay_fid FROM "{name}_02_assign"'
         ).fetchall()
     ]
     where = (
@@ -321,6 +321,6 @@ def assign_one(  # noqa: PLR0913
         else "WHERE FALSE"
     )
     conn.execute(f"""--sql
-        CREATE OR REPLACE TABLE "{name}_parent_01" AS
-        SELECT * FROM "{name}_parent_01" {where}
+        CREATE OR REPLACE TABLE "{name}_overlay_01" AS
+        SELECT * FROM "{name}_overlay_01" {where}
     """)

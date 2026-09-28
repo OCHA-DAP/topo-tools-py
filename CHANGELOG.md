@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Layer roles use QGIS terms: `edge-clip`, `edge-mosaic` and `edge-match`
+  take an input and an overlay layer, `schema-join` an input and a join
+  layer. There are no aliases for the old names.
+  - CLI: the edge tools' `CLIP_FILE` positional is now `OVERLAY_FILE`,
+    and `schema-join`'s `CHILD_FILE PARENT_FILE` is now
+    `INPUT_FILE JOIN_FILE`. The env vars match.
+  - API: `overlay_path` (was `clip_path`/`parent_path`), `input_path` (was
+    `children_path`/`child_path`), and `schema_join.join()`'s `join_path`.
+  - Flags (and matching kwargs/env vars): `--overlay-include`/`--overlay-exclude`,
+    `--input-include`/`--input-exclude`, `--overlay-match-column`/
+    `--input-match-column`, `--prefer overlay|input`, and `--per-feature`
+    (was `--multi-parent`, kwarg `per_feature`).
+  - Issues files: the edge tools' and `topo-clean`'s `parent_fid` column is
+    now `overlay_fid`, and `schema-join`'s is `join_fid`. `schema-join`'s
+    `no-parent` kind is now `no-overlap`, and its reason strings and the
+    edge tools' `clip-empty`, gap-fill and code-mismatch reasons use the
+    new terms.
+
 ## [0.9.0] - 2026-09-28
 
 ### Changed

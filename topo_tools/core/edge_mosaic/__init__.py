@@ -1,1 +1,1 @@
-"""Mosaic tool: fits already-extended child polygons into a new parent/clip layer."""
+"""Mosaic tool: fits already-extended input polygons into a new overlay layer."""

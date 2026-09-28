@@ -7,7 +7,7 @@ title: "edge-stitch"
 whole-table `ST_CoverageClean` pass: the operation `edge-match` and `edge-mosaic`
 each ran internally as their own final merge stage before this extraction.
 It is the fixed point both tools converge on regardless of how their tiles
-were produced (per-group Voronoi extension for `edge-match`, per-parent clip for
+were produced (per-group Voronoi extension for `edge-match`, per-overlay-feature clip for
 `edge-mosaic`): once a layer's independently-computed tiles sit next to each
 other, whatever seam disagreements remain between them get closed here.
 
@@ -36,7 +36,7 @@ Run `topo-tools edge-stitch --help` for the full, always-current option list.
    query built from `core.io.reproject_select_sql()` per file
    (`UNION ALL BY NAME`, fresh `row_number()` fid, no per-file
    materialization, see `docs/adr/0044`), the same shape
-   `core.assign.load_children` uses for its own multi-file combine, since
+   `core.assign.load_input` uses for its own multi-file combine, since
    the whole-table clean pass in `_02_clean` needs a single tiled layer to
    work over.
 2. **`_02_clean`**: `coverage_clean_escalating()`, one whole-table
@@ -65,7 +65,7 @@ boundaries, not a real feature to protect.
 ## Seam gaps are real geometry disagreements, not float noise
 
 Seam gaps between two independently-computed tiles (two Voronoi
-extensions, or two clipped parent regions) can run from slivers up to
+extensions, or two clipped overlay feature regions) can run from slivers up to
 hundreds of meters, confirmed on Burundi's admin2-into-admin1 case,
 where 171 invalid cross-group edges ranged up to 0.0058 degrees (~645 m),
 averaging ~12 m, against a `SNAP_TOLERANCE` of `1e-8` degrees (~1.1 mm). No
@@ -84,11 +84,11 @@ Two adjacent tiles whose shared border runs coincident with a clip
 boundary (not just crossing it at a point, but tracing along it for a
 stretch) can come out of independent clipping with mismatched edges,
 even when their input vertices along that stretch were byte-identical
-beforehand: each `ST_Intersection(child, parent)` call re-nodes the
+beforehand: each `ST_Intersection(input, overlay)` call re-nodes the
 *entire* input polygon in one pass, and GEOS's internal floating-point
 processing of the rest of each polygon's distinct geometry can perturb
 how it resolves that shared, degenerate stretch differently per call.
-Neither pre-snapping a child onto the parent boundary nor an explicit
+Neither pre-snapping an input feature onto the overlay boundary nor an explicit
 shared vertex at the crossing point prevents this: the divergence is
 introduced by the independent overlay computation itself, not by
 underdetermined input. `coverage_clean_escalating()` (`core/coverage.py`)

@@ -44,34 +44,34 @@ def resolve_column_selection(  # noqa: PLR0913
 def validate_merge_flags(  # noqa: PLR0913
     *,
     merge: bool,
-    parent_include: list[str] | None,
-    parent_exclude: list[str] | None,
-    child_include: list[str] | None,
-    child_exclude: list[str] | None,
+    overlay_include: list[str] | None,
+    overlay_exclude: list[str] | None,
+    input_include: list[str] | None,
+    input_exclude: list[str] | None,
     prefer: str | None,
 ) -> None:
     """Raise on mutual-exclusion/require-merge violations among the merge flags."""
-    if parent_include and parent_exclude:
-        msg = "parent_include and parent_exclude are mutually exclusive"
+    if overlay_include and overlay_exclude:
+        msg = "overlay_include and overlay_exclude are mutually exclusive"
         raise ValueError(msg)
-    if child_include and child_exclude:
-        msg = "child_include and child_exclude are mutually exclusive"
+    if input_include and input_exclude:
+        msg = "input_include and input_exclude are mutually exclusive"
         raise ValueError(msg)
-    if prefer is not None and prefer not in ("parent", "child"):
-        msg = "prefer must be 'parent' or 'child'"
+    if prefer is not None and prefer not in ("overlay", "input"):
+        msg = "prefer must be 'overlay' or 'input'"
         raise ValueError(msg)
     narrowing_given = bool(
-        parent_include or parent_exclude or child_include or child_exclude
+        overlay_include or overlay_exclude or input_include or input_exclude
     )
     if prefer and narrowing_given:
         msg = (
             "prefer is mutually exclusive with "
-            "parent_include/parent_exclude/child_include/child_exclude"
+            "overlay_include/overlay_exclude/input_include/input_exclude"
         )
         raise ValueError(msg)
     if not merge and (narrowing_given or prefer):
         msg = (
-            "parent_include/parent_exclude/child_include/child_exclude/prefer "
+            "overlay_include/overlay_exclude/input_include/input_exclude/prefer "
             "require merge=True"
         )
         raise ValueError(msg)
@@ -82,31 +82,31 @@ def resolve_merge_columns(  # noqa: PLR0913
     name: str,
     *,
     merge: bool,
-    parent_include: list[str] | None,
-    parent_exclude: list[str] | None,
-    child_include: list[str] | None,
-    child_exclude: list[str] | None,
+    overlay_include: list[str] | None,
+    overlay_exclude: list[str] | None,
+    input_include: list[str] | None,
+    input_exclude: list[str] | None,
     prefer: str | None,
 ) -> tuple[list[str] | None, list[str] | None]:
-    """Resolve merge settings into concrete (parent_columns, child_columns) lists."""
+    """Resolve merge settings into concrete (overlay_columns, input_columns) lists."""
     if not merge:
         return None, None
-    parent_columns = resolve_column_selection(
+    overlay_columns = resolve_column_selection(
         conn,
-        f"{name}_parent_01",
-        include=parent_include,
-        exclude=parent_exclude,
+        f"{name}_overlay_01",
+        include=overlay_include,
+        exclude=overlay_exclude,
         always_exclude=("fid", "geom"),
     )
-    child_columns = resolve_column_selection(
+    input_columns = resolve_column_selection(
         conn,
-        f"{name}_child_01",
-        include=child_include,
-        exclude=child_exclude,
+        f"{name}_input_01",
+        include=input_include,
+        exclude=input_exclude,
         always_include=("fid", "geom", "source_file"),
     )
-    if prefer == "parent":
-        child_columns = [c for c in child_columns if c not in set(parent_columns)]
-    elif prefer == "child":
-        parent_columns = [c for c in parent_columns if c not in set(child_columns)]
-    return parent_columns, child_columns
+    if prefer == "overlay":
+        input_columns = [c for c in input_columns if c not in set(overlay_columns)]
+    elif prefer == "input":
+        overlay_columns = [c for c in overlay_columns if c not in set(input_columns)]
+    return overlay_columns, input_columns
