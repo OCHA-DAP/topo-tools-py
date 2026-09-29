@@ -7,7 +7,7 @@ license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Maxym Malynowsky", email = "maxym.malynowsky@un.org" }]
 requires-python = ">=3.10"
-dependencies = ["click", "duckdb>=1.5.5", "psutil", "pyyaml>=6.0.3"]
+dependencies = ["click", "duckdb>=1.5.6", "psutil", "pyyaml>=6.0.3"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
