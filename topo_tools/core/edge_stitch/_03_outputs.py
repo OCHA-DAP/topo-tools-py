@@ -5,18 +5,25 @@ from pathlib import Path
 
 from duckdb import DuckDBPyConnection
 
-from topo_tools.core.coverage import check_valid_topology, gap_issues_sql
+from topo_tools.core.coverage import (
+    check_valid_topology,
+    gap_issues_sql,
+    micro_issues_sql,
+)
 from topo_tools.core.io import export_geometry_table, export_issues_table
 
 logger = getLogger(__name__)
 
 
 def _build_issues(conn: DuckDBPyConnection, name: str) -> None:
-    """Build `{name}_03`: gaps wider than the noise floor left after coverage-clean."""
+    """Build `{name}_03`: non-noise gaps left after coverage-clean, plus micro rows."""
     table = f"{name}_02"
+    parts = [gap_issues_sql(conn, table)]
+    if micro := micro_issues_sql(conn, table):
+        parts.append(micro)
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_03" AS
-        {gap_issues_sql(conn, table)}
+        {" UNION ALL BY NAME ".join(parts)}
     """)
 
 
@@ -58,4 +65,5 @@ def main(
         conn.execute(f'DROP VIEW IF EXISTS "{name}_02_export"')
         conn.execute(f'DROP TABLE IF EXISTS "{name}_01"')
         conn.execute(f'DROP TABLE IF EXISTS "{name}_02"')
+        conn.execute(f'DROP TABLE IF EXISTS "{name}_02_micro"')
         conn.execute(f'DROP TABLE IF EXISTS "{name}_03"')

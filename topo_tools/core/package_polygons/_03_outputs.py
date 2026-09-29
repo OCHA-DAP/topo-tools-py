@@ -36,9 +36,15 @@ def _export_one(
     check_valid_topology(conn, item.table)
 
     issues_table = f"{name}_03_{item.level}"
+    micro = (
+        f'UNION ALL BY NAME SELECT * FROM "{name}_01_micro"'
+        if item.table == f"{name}_01"
+        else ""
+    )
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{issues_table}" AS
         {gap_issues_sql(conn, item.table)}
+        {micro}
     """)
     remaining = conn.execute(f"""--sql
         SELECT COUNT(*) FROM "{issues_table}" WHERE kind = 'gap'
@@ -84,3 +90,4 @@ def main(
             if item.table != f"{name}_01":
                 conn.execute(f'DROP TABLE IF EXISTS "{item.table}"')
         conn.execute(f'DROP TABLE IF EXISTS "{name}_01"')
+        conn.execute(f'DROP TABLE IF EXISTS "{name}_01_micro"')

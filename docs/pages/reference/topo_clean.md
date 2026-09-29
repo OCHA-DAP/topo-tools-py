@@ -62,6 +62,9 @@ detection stage directly rather than owning separate logic (see
 
 - `topo-clean` MUST raise `RuntimeError` if the fixed output still contains
   any overlap.
+- `topo-clean` MUST merge or drop every micro-polygon left in the fixed
+  output (see `docs/reference/shared.md`), including when no gap or
+  overlap needed fixing.
 - `topo-clean` MUST NOT raise an error over a gap left unfilled by design. It
   MUST only log a warning naming how many gaps are still unfilled.
 - `topo-clean` MUST always produce the cleaned dataset. It MUST produce the

@@ -19,7 +19,7 @@ def main(  # noqa: PLR0913
 ) -> None:
     """Export each input file's own clipped rows and per-file issues report.
 
-    clip-empty rows always included; code-mismatch/code-fallback when code_join.
+    clip-empty and micro-polygon rows always; code-mismatch/fallback when code_join.
     """
     count = conn.execute(f'SELECT COUNT(*) FROM "{name}_03"').fetchone()[0]
     if count == 0:
@@ -48,7 +48,8 @@ def main(  # noqa: PLR0913
                NULL::DOUBLE AS unit_b_area_change_m2,
                NULL::DOUBLE AS filled_area_m2, FALSE AS fixed, source_file, geom
         FROM "{name}_03_dropped"
-    """
+    """,
+        f'SELECT * FROM "{name}_03_micro"',
     ]
     if code_join:
         issue_parts.append(
@@ -87,4 +88,5 @@ def main(  # noqa: PLR0913
         conn.execute(f'DROP TABLE IF EXISTS "{name}_02_assign"')
         conn.execute(f'DROP TABLE IF EXISTS "{name}_02_unassigned"')
         conn.execute(f'DROP TABLE IF EXISTS "{name}_03"')
+        conn.execute(f'DROP TABLE IF EXISTS "{name}_03_micro"')
         conn.execute(f'DROP TABLE IF EXISTS "{name}_03_dropped"')

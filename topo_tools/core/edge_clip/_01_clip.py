@@ -4,6 +4,8 @@ from pathlib import Path
 
 from duckdb import DuckDBPyConnection
 
+from topo_tools.core.coverage import merge_micro_polygons
+
 from ._engine import main as clip_engine
 
 
@@ -16,7 +18,7 @@ def main(  # noqa: PLR0913
     debug: bool = False,
     carry_columns: list[str] | None = None,
 ) -> None:
-    """Clip each assigned input feature to its overlay, isolated per overlay fid."""
+    """Clip each assigned input feature to its overlay, then merge micro-polygons."""
     carry_sql = "".join(f', a."{c}" AS "{c}"' for c in (carry_columns or []))
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_02_clip_in" AS
@@ -32,6 +34,12 @@ def main(  # noqa: PLR0913
         tmp_dir,
         threads=threads,
         debug=debug,
+    )
+    merge_micro_polygons(
+        conn,
+        f"{name}_03",
+        f"{name}_03",
+        issues_table=f"{name}_03_micro",
     )
     if not debug:
         conn.execute(f'DROP TABLE IF EXISTS "{name}_02_clip_in"')

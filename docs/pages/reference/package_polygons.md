@@ -34,8 +34,10 @@ tools.
 
 - `package-polygons` MUST produce one output file per detected level.
 - Each level's output MUST pass the hard gate in `docs/reference/shared.md`
-  (no overlap; a gap at or below `SNAP_TOLERANCE` blocks export, a wider
-  one does not).
+  (no overlap or micro-polygon; a gap at or below `SNAP_TOLERANCE` blocks
+  export, a wider one does not). Micro-polygons are merged on input (see
+  `docs/reference/shared.md`), and their `micro-polygon` rows go in the
+  finest level's issues report.
 - `package-polygons` MUST also export an issues report per level, using the
   shared schema in `docs/reference/shared.md`. A level's issues report MUST
   be produced only when it has at least one row.

@@ -139,7 +139,35 @@ No module-level `argparse`/env parsing exists anywhere; settings flow in
 as plain keyword arguments on each tool's own `api.*()` function, and the
 CLI maps flags/env vars onto those same kwargs 1:1.
 
+## Micro-polygons
+
+- A micro-polygon is any single polygon part (after splitting
+  MultiPolygons) whose maximum inscribed circle is at most
+  `SNAP_TOLERANCE` across, the same width measure the micro-gap rule
+  uses. A wider part MUST be kept, however small its area (e.g. a real
+  islet).
+- A tool that modifies geometry MUST NOT output a micro-polygon. Where it
+  finds one, it MUST merge the part into the feature whose non-micro part
+  it overlaps most once buffered by `SNAP_TOLERANCE` (ties to the lowest
+  fid, including the part's own feature), or drop it when it touches no
+  feature. A feature left with no parts MUST be removed.
+- Every `coverage_clean` call merges micro-polygons before
+  `ST_CoverageClean` runs, so `edge-extend`, `edge-stitch`, `edge-match`,
+  `edge-mosaic`, `topo-clean` and every auto-cleaned input apply this
+  rule. `edge-clip` applies it to its clipped output, `topo-clean` again
+  after its fix, and `package-polygons`, `package-points` and
+  `package-lines` to their input.
+- Each merged or dropped part MUST be reported as a `micro-polygon` row
+  (see Issues report schema) by every tool that writes an issues report.
+- `schema-join` and `schema-map` MUST NOT apply this rule, since they
+  never modify geometry. `change` applies it only through its auto-cleaned
+  inputs; its overlay drops intersections below `SNAP_TOLERANCE` squared
+  instead.
+
 ## Hard gates at each tool's output stage
+
+- Every tool below that runs a topology hard gate MUST also raise if its
+  final output has any micro-polygon.
 
 - `edge-extend` MUST raise if its final output has any overlap or any gap of any
   size: it has no overlay layer, so any gap is unambiguously a defect
@@ -208,6 +236,12 @@ have a `kind='gap-fill'` row (see `docs/reference/edge_mosaic.md`,
 kept unclipped in the output when `merge` is set: `overlay_fid` MUST hold
 the gap-filled overlay feature's fid, `unit_a` and `source_file` MUST be null (see
 `docs/adr/0083`, `docs/adr/0088`).
+
+A `kind='micro-polygon'` row (see Micro-polygons) MUST hold the part's
+own feature fid in `unit_a`, the receiving feature's fid in `unit_b` (null
+when dropped), `reason` MUST say whether it was merged or dropped,
+`fixed` MUST be true, and `geom` MUST be the part itself. `topo-detect`
+reports the same kind unfixed: `fixed` false, `unit_b` and `reason` null.
 
 A tool MUST NOT write an issues file at all when the run produced zero
 issues rows; if a file already exists at the destination path from a
