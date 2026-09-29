@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.2] - 2026-09-29
+
+### Fixed
+
+- `schema-map`: when a level has more than one code column, the one that
+  contains its parent's code (`AF01` under `AF`) gets the bare
+  `adm{n}_code`, and source-column order breaks ties. A surrogate ID listed
+  before the p-code gets the numbered sibling.
+- `cat` (GRASS GIS's category ID) is a noise column: `schema-map` leaves it
+  out of the crosswalk, and `package-polygons`/dissolve drop it.
+
+### Changed
+
+- `schema-join` keeps the input layer's column order, so the order set by
+  moving crosswalk rows in `schema-map` holds. A sibling it adds goes right
+  after its own column, and new-level columns go last in template order.
+- COD-AB how-to and skill: stage 1 leaves the admin0 file out, a per-level
+  extra such as `adm2_type` is allowed, and every numbered sibling
+  `schema-map` produces (another source's code or name, an older version,
+  a code given a name target) is the reviewer's call.
+
 ## [0.10.1] - 2026-09-29
 
 ### Fixed
@@ -638,7 +659,8 @@ Initial release: four tools, CLI + Python API for each.
   unit as unchanged/renamed/modified/relocated/split/merge/complex/created/
   removed, via spatial overlap and optional code/name identity linking.
 
-[Unreleased]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.10.1...HEAD
+[Unreleased]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.10.2...HEAD
+[0.10.2]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.10.1...v0.10.2
 [0.10.1]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.8.2...v0.9.0
