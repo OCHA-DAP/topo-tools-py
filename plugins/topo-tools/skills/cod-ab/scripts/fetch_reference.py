@@ -2,241 +2,132 @@
 # requires-python = ">=3.11"
 # dependencies = [
 #     "duckdb",
-#     "pyogrio",
+#     "tenacity",
 # ]
 # ///
-"""Fetch the HDX COD-AB reference GDB and convert it to GeoParquet.
+"""Fetch the previous COD-AB release from source.coop into 00a_old/.
 
 Standalone (PEP 723) script, run with uv:
 
     uv run <skill-dir>/scripts/fetch_reference.py <iso3>
 
-Downloads the GDB from HDX, converts all layers to GeoParquet in
+Reads the highest `vNN` under `matched/{iso3}/` in the hdx/cod-ab catalog on
+source.coop, writes each of its `{iso3}_admin{n}.parquet` layers plus
+`{iso3}_admin0.parquet` (a dissolve of its admin1) to
 02_working/{iso3}/{version}/00a_old/, and prints the old/new version numbers.
-The GDB is deleted after conversion. With no HDX release, prints
-ref_version=none version=v01 and exits cleanly. Reads every layer through
-pyogrio in bounded chunks (never DuckDB's own ST_Read on the raw GDB, which
-silently returns 0 rows on real HDX GDBs) and accumulates each chunk into a
-file-backed DuckDB table, so peak Python memory is one chunk, not the whole
-layer.
+With no release there, prints ref_version=none version=v01 and exits cleanly.
 """
 
 import argparse
 import json
 import logging
-import sys
-import tempfile
+import re
 import urllib.error
 import urllib.request
-import zipfile
 from http import HTTPStatus
 from pathlib import Path
 
 import duckdb
-import numpy as np
-import pyogrio
-import pyogrio.raw
+from tenacity import (
+    retry,
+    retry_if_not_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 logging.basicConfig(format="%(message)s", level=logging.INFO)
 log = logging.getLogger(__name__)
 
-_HDX_API = "https://data.humdata.org/api/3/action/package_show?id=cod-ab-{iso3}"
+_CATALOG = "https://data.source.coop/hdx/cod-ab/matched"
 _COPY_OPTIONS = (
     "FORMAT PARQUET, COMPRESSION ZSTD, COMPRESSION_LEVEL 15, GEOPARQUET_VERSION 'V2'"
 )
-_CHUNK_SIZE = 10_000
-_DTYPE_KIND_TO_SQL = {
-    "O": "VARCHAR",
-    "i": "BIGINT",
-    "u": "BIGINT",
-    "f": "DOUBLE",
-    "b": "BOOLEAN",
-    "M": "TIMESTAMP",
-}
+_VERSION_RE = re.compile(r"^\./(v\d+)/catalog\.json$")
+_ADMIN0_COLUMNS = re.compile(r"^(adm0_.*|iso2|iso3|lang\d*|valid_on|valid_to|version)$")
 
 
-def download_gdb(iso3: str, country_dir: Path) -> Path | None:
-    """Download and extract the HDX COD-AB GDB. Returns None if HDX has none."""
-    url = _HDX_API.format(iso3=iso3)
-    log.info("Querying HDX for cod-ab-%s...", iso3)
+class _NotFoundError(Exception):
+    pass
+
+
+@retry(
+    retry=retry_if_not_exception_type(_NotFoundError),
+    stop=stop_after_attempt(4),
+    wait=wait_exponential(multiplier=1, max=20),
+    reraise=True,
+)
+def _get_json(url: str) -> dict:
+    # source.coop answers 403 to urllib's default Python-urllib user agent.
+    request = urllib.request.Request(url, headers={"User-Agent": "topo-tools-cod-ab"})  # noqa: S310 (hardcoded https catalog)
     try:
-        with urllib.request.urlopen(url) as resp:  # noqa: S310 (url is the hardcoded HDX API, always https)
-            data = json.load(resp)
+        with urllib.request.urlopen(request) as resp:  # noqa: S310 (hardcoded https catalog)
+            return json.load(resp)
     except urllib.error.HTTPError as e:
         if e.code == HTTPStatus.NOT_FOUND:
-            return None
+            raise _NotFoundError(url) from e
         raise
 
-    if not data.get("success"):
+
+def _child_hrefs(catalog: dict) -> list[str]:
+    return [link["href"] for link in catalog["links"] if link["rel"] == "child"]
+
+
+def latest_version(iso3: str) -> str | None:
+    """Return the highest vNN published under matched/{iso3}/, or None."""
+    try:
+        catalog = _get_json(f"{_CATALOG}/{iso3}/catalog.json")
+    except _NotFoundError:
         return None
-
-    resources = data["result"]["resources"]
-    gdb_resources = [
-        r
-        for r in resources
-        if r.get("format", "").lower() == "geodatabase"
-        or ".gdb" in r.get("name", "").lower()
-    ]
-    if not gdb_resources:
-        return None
-
-    resource = gdb_resources[0]
-    download_url = resource["url"]
-    if not download_url.startswith("https://"):
-        sys.exit(f"Refusing non-https HDX download URL: {download_url}")
-    zip_name = resource["name"]
-    zip_path = country_dir / zip_name
-
-    log.info("Downloading %s...", zip_name)
-    urllib.request.urlretrieve(download_url, zip_path)  # noqa: S310 (scheme validated above)
-
-    log.info("Extracting...")
-    with zipfile.ZipFile(zip_path, "r") as zf:
-        resolved_root = country_dir.resolve()
-        for member in zf.namelist():
-            if not (resolved_root / member).resolve().is_relative_to(resolved_root):
-                sys.exit(f"Refusing zip member outside extraction dir: {member}")
-        zf.extractall(country_dir)
-    zip_path.unlink()
-
-    gdbs = list(country_dir.glob("**/*.gdb"))
-    if not gdbs:
-        sys.exit("Extracted zip but no .gdb found, check the HDX resource")
-    return gdbs[0]
+    versions = [m[1] for h in _child_hrefs(catalog) if (m := _VERSION_RE.match(h))]
+    return max(versions, key=lambda v: int(v[1:]), default=None)
 
 
-def get_layers(path: Path) -> list[str]:
-    """Return layer names from a spatial archive."""
-    return [name for name, _geom_type in pyogrio.list_layers(str(path))]
-
-
-def get_version(path: Path, layers: list[str]) -> str:
-    """Read the version field from the first layer that has one."""
-    for layer in layers:
-        info = pyogrio.read_info(str(path), layer=layer)
-        if "version" not in info["fields"]:
-            continue
-        _meta, _fids, _geometry, field_data = pyogrio.raw.read(
-            str(path),
-            layer=layer,
-            columns=["version"],
-            read_geometry=False,
-            max_features=1,
-        )
-        (version_field,) = field_data
-        if len(version_field) and version_field[0] is not None:
-            return version_field[0]
-    sys.exit(f"Could not detect version from {path}")
-
-
-def normalize_version(version: str) -> str:
-    """Normalize version string to 'vNN' form: 'V_01' → 'v01', 'v02' → 'v02'."""
-    cleaned = version.lower().lstrip("v").lstrip("_").replace("_", ".")
-    major = int(cleaned.split(".")[0])
-    return f"v{major:02d}"
+def layer_urls(iso3: str, version: str) -> dict[str, str]:
+    """Map each layer name (afg_admin1) to its GeoParquet URL."""
+    base = f"{_CATALOG}/{iso3}/{version}"
+    urls = {}
+    for href in _child_hrefs(_get_json(f"{base}/catalog.json")):
+        layer = href.removeprefix("./").split("/")[0]
+        collection = _get_json(f"{base}/{layer}/collection.json")
+        data = collection["assets"][layer]["href"].removeprefix("./")
+        urls[layer] = f"{base}/{layer}/{data}"
+    return urls
 
 
 def increment_version(version: str) -> str:
-    """Increment the major version number: 'v02' → 'v03', 'V_01' → 'v02'."""
-    cleaned = version.lower().lstrip("v").lstrip("_").replace("_", ".")
-    major = int(cleaned.split(".")[0])
-    return f"v{major + 1:02d}"
+    """Increment the version number: 'v02' -> 'v03'."""
+    return f"v{int(version[1:]) + 1:02d}"
 
 
-def _field_sql_types(
-    path: Path, layer: str, encoding: str | None = None
-) -> dict[str, str]:
-    """Map each field name to its DuckDB SQL type.
-
-    Read from the layer's own field definitions, never inferred from a chunk.
-    """
-    info = pyogrio.read_info(str(path), layer=layer, encoding=encoding)
-    return {
-        name: _DTYPE_KIND_TO_SQL.get(np.dtype(dtype).kind, "VARCHAR")
-        for name, dtype in zip(info["fields"], info["dtypes"], strict=True)
-    }
+def write_layer(con: duckdb.DuckDBPyConnection, url: str, dst: Path) -> None:
+    """Copy one remote layer to dst, geometry first."""
+    con.execute(f"""
+        COPY (SELECT geometry, * EXCLUDE (geometry) FROM read_parquet('{url}'))
+        TO '{dst}' ({_COPY_OPTIONS})
+    """)
+    count = con.execute(f"SELECT COUNT(*) FROM '{dst}'").fetchone()[0]
+    log.info("  %s: %s features", dst.name, f"{count:,}")
 
 
-def _read_chunk(
-    gdb_path: Path, layer: str, offset: int, encoding: str | None = None
-) -> tuple[dict, int]:
-    """Read up to _CHUNK_SIZE features as a dict of numpy arrays (geometry as WKB).
-
-    Drops any field that's entirely NULL in this chunk: DuckDB's numpy
-    registration errors on a large all-NULL object array.
-    """
-    meta, _fids, geometry, field_data = pyogrio.raw.read(
-        str(gdb_path),
-        layer=layer,
-        skip_features=offset,
-        max_features=_CHUNK_SIZE,
-        encoding=encoding,
+def write_admin0(con: duckdb.DuckDBPyConnection, admin1: Path, dst: Path) -> None:
+    """Dissolve admin1 into one admin0 feature, keeping its country-wide columns."""
+    columns = [
+        r[0] for r in con.execute(f"DESCRIBE SELECT * FROM '{admin1}'").fetchall()
+    ]
+    kept = ", ".join(
+        f'any_value("{c}") AS "{c}"' for c in columns if _ADMIN0_COLUMNS.match(c)
     )
-    cols = {}
-    for name, raw_arr in zip(meta["fields"], field_data, strict=True):
-        if raw_arr.dtype.kind == "M":
-            cols[name] = raw_arr.astype("datetime64[us]")
-        elif raw_arr.dtype == object and all(v is None for v in raw_arr):
-            continue
-        else:
-            cols[name] = raw_arr
-    cols["_geom_wkb"] = geometry
-    return cols, len(geometry)
-
-
-def convert_layer(  # noqa: PLR0913
-    con: duckdb.DuckDBPyConnection,
-    gdb_path: Path,
-    layer: str,
-    dst: Path,
-    *,
-    encoding: str | None = None,
-    crs: str | None = None,
-) -> None:
-    """Convert one layer to GeoParquet via chunked pyogrio reads + DuckDB writes."""
-    if dst.exists():
-        row = con.execute(f"SELECT COUNT(*) FROM '{dst}'").fetchone()
-        count = row[0] if row else 0
-        log.info("  skip %s (exists, %s features)", dst.name, f"{count:,}")
-        return
-    dst.parent.mkdir(parents=True, exist_ok=True)
-
-    field_types = _field_sql_types(gdb_path, layer, encoding)
-    geometry_type = "GEOMETRY"
-    if crs is not None:
-        escaped = crs.replace("'", "''")
-        geometry_type = f"GEOMETRY('{escaped}')"
-    table = '"_convert_' + layer.replace('"', '""') + '"'
-    con.execute(f"DROP TABLE IF EXISTS {table}")
-    cols_sql = ", ".join(
-        f'"{name}" {sql_type}' for name, sql_type in field_types.items()
-    )
-    con.execute(f"CREATE TABLE {table} (geometry {geometry_type}, {cols_sql})")
-
-    offset, total = 0, 0
-    while True:
-        cols, n = _read_chunk(gdb_path, layer, offset, encoding)
-        if n == 0:
-            break
-        con.register("_chunk", cols)
-        select_list = [f"ST_GeomFromWKB(_geom_wkb)::{geometry_type} AS geometry"] + [
-            f'"{name}"' if name in cols else f'NULL::{sql_type} AS "{name}"'
-            for name, sql_type in field_types.items()
-        ]
-        con.execute(f"INSERT INTO {table} SELECT {', '.join(select_list)} FROM _chunk")
-        con.unregister("_chunk")
-        total += n
-        offset += _CHUNK_SIZE
-
-    con.execute(f"COPY {table} TO '{dst}' ({_COPY_OPTIONS})")
-    con.execute(f"DROP TABLE {table}")
-    log.info("  %s: %s features", dst.name, f"{total:,}")
+    con.execute(f"""
+        COPY (SELECT ST_Union_Agg(geometry) AS geometry, {kept} FROM '{admin1}')
+        TO '{dst}' ({_COPY_OPTIONS})
+    """)
+    log.info("  %s: dissolved from %s", dst.name, admin1.name)
 
 
 def main() -> None:
-    """Fetch the HDX release for one ISO3 and convert it into 00a_old/."""
+    """Fetch the previous release for one ISO3 into 00a_old/."""
     parser = argparse.ArgumentParser(
-        description="Fetch HDX COD-AB release GDB and convert to GeoParquet.",
+        description="Fetch the previous COD-AB release from source.coop.",
     )
     parser.add_argument("iso3", help="Country ISO3 code (e.g. syr)")
     parser.add_argument(
@@ -245,28 +136,27 @@ def main() -> None:
     args = parser.parse_args()
     iso3 = args.iso3.lower()
 
-    with tempfile.TemporaryDirectory() as tmp:
-        tmp_dir = Path(tmp)
-        gdb = download_gdb(iso3, tmp_dir)
-        if gdb is None:
-            log.info("No HDX release for cod-ab-%s.", iso3)
-            log.info("ref_version=none version=v01")
-            return
+    ref_version = latest_version(iso3)
+    if ref_version is None:
+        log.info("No release for %s under %s.", iso3, _CATALOG)
+        log.info("ref_version=none version=v01")
+        return
+    new_version = increment_version(ref_version)
+    log.info("Old: %s  New: %s\n", ref_version, new_version)
 
-        layers = get_layers(gdb)
-        ref_version = normalize_version(get_version(gdb, layers))
-        new_version = increment_version(ref_version)
-        log.info("Old: %s  New: %s\n", ref_version, new_version)
-
-        old_dir = args.working_dir / iso3 / new_version / "00a_old"
-        con = duckdb.connect(str(tmp_dir / "fetch_reference.duckdb"))
-        con.execute("INSTALL spatial; LOAD spatial;")
-        log.info("Old -> %s/", old_dir)
-        try:
-            for layer in layers:
-                convert_layer(con, gdb, layer, old_dir / f"{layer}.parquet")
-        finally:
-            con.close()
+    old_dir = args.working_dir / iso3 / new_version / "00a_old"
+    old_dir.mkdir(parents=True, exist_ok=True)
+    log.info("Old -> %s/", old_dir)
+    con = duckdb.connect()
+    con.execute("INSTALL spatial; LOAD spatial; INSTALL httpfs; LOAD httpfs;")
+    try:
+        for layer, url in sorted(layer_urls(iso3, ref_version).items()):
+            write_layer(con, url, old_dir / f"{layer}.parquet")
+        admin1 = old_dir / f"{iso3}_admin1.parquet"
+        if admin1.exists():
+            write_admin0(con, admin1, old_dir / f"{iso3}_admin0.parquet")
+    finally:
+        con.close()
 
     log.info("ref_version=%s version=%s", ref_version, new_version)
 
