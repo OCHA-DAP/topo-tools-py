@@ -33,7 +33,7 @@ See `docs/reference/README.md` for the MUST/SHOULD/MAY convention, and
   from candidate columns entirely; they never appear in the crosswalk, not
   even as `unmatched`. A column matches if its name, case-insensitively,
   either exactly equals an entry in `core.constants.NOISE_COLUMNS`
-  (`objectid`, `globalid`, `shape_leng`/`shape_length`/`shape__length`,
+  (`objectid`, `globalid`, `cat`, `shape_leng`/`shape_length`/`shape__length`,
   `shape_area`/`shape__area`, `ogc_fid`/`ogc_fid_orig`/`fid_orig`), or
   equals one after stripping a trailing GDAL collision suffix
   (`_\d+`, e.g. `fid_1` -> `fid`), or is exactly 10 characters long (the
@@ -122,9 +122,10 @@ empirical justification.
   value shape rather than defaulting to `name` just because another
   sibling in the group embedded the parent (see `docs/adr/0067`). Same-
   role companions at one level MUST each get a numbered `target_column`
-  from `code_field`/`name_field` (the first by source-column order gets
-  the bare rendered template, each next one a numbered sibling of it, see
-  `docs/reference/shared.md`).
+  from `code_field`/`name_field` (a code that embeds its parent first,
+  then source-column order; the first gets the bare rendered template,
+  each next one a numbered sibling of it, see `docs/reference/shared.md`
+  and `docs/adr/0118`).
 - Every non-code-eligible column MUST be bracketed into the chain by its
   own `COUNT(DISTINCT)`: it lands at level `k` if `code_count[k-1] <
   distinct_count <= code_count[k]` (`code_count[-1]` is 0); a column
