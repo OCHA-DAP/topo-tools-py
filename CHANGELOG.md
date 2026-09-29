@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ST_CoverageClean` as an empty-geometry row; it's now merged into its
   neighbour before cleaning. `edge-stitch` on a layer with such features
   writes fewer rows than before.
+- Requires DuckDB 1.5.6, which fixes UNNEST pushdown, Top-N window
+  elimination (`QUALIFY row_number()`) and UNION ALL subplan bugs in
+  query shapes these tools use.
 
 ## [0.10.0] - 2026-09-28
 
