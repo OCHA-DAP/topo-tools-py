@@ -53,9 +53,11 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
      which candidate it responds to, see [Candidates](#candidates)). For a
      new source, run
      `uv run <skill-dir>/scripts/fetch_reference.py {iso3}`: it writes the
-     HDX release to `02_working/{iso3}/{version}/00a_old/` and prints
-     `ref_version`/`version` (`ref_version=none version=v01` when HDX has
-     none). If the user also dropped an old version, ask which one to
+     previous release from `source.coop/hdx/cod-ab/matched` to
+     `02_working/{iso3}/{version}/00a_old/` (one `{iso3}_admin{n}.parquet`
+     per level, plus `{iso3}_admin0.parquet` dissolved from its admin1) and
+     prints `ref_version`/`version` (`ref_version=none version=v01` when
+     there's none). If the user also dropped an old version, ask which one to
      compare against. For a user-supplied old version, ask its version;
      `{version}` is the next one after it. Propose `{version}` and have the
      user confirm it, renaming the folder if they change it. Extract a
@@ -139,6 +141,9 @@ use generic placeholder filenames, substitute your own paths there).
    width, PNG render) and whether `00a_old/` has the same holes. "No"
    means `--maximum-gap-width all`; "yes" means no flag.
 3. [Edge matching](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/cod-ab/03-edge-matching.md)
+
+   Use `00a_old/{iso3}_admin0.parquet` as the reference admin0. When it's
+   absent, stop and ask the user which outline to fit to.
 4. [Codes](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/cod-ab/04-codes.md)
 
    Use the base-level file in `00a_old/` as `code-update`'s OLD file.
