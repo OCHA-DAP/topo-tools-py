@@ -70,13 +70,17 @@ instead of repeating them.
 
 - Every geometry output MUST write `geometry` as its first column (see
   `docs/adr/0111`).
-- `schema-map` and `schema-join` MUST order columns by the
+- `schema-map` MUST order columns by the
   `name_field`/`code_field` templates: levels deepest first, and within
   each level its name-template columns, then any other column with that
   level's prefix and number, then its code-template columns, numbered
   siblings in numeric order. Every other column follows in input order.
   `schema-map` applying a crosswalk via `--csv` follows its row order instead
   (see `docs/reference/schema_map.md`).
+- `schema-join` MUST keep the input layer's columns in input order. It MUST
+  place each numbered sibling it adds right after the last existing column
+  of that sibling's family, and every column absent from the input layer
+  after all input columns, in template order (see `docs/adr/0119`).
 - A numbered sibling of a column (a second same-level name, or a join layer's
   differing value in `schema-join`) MUST be named by appending an integer
   starting at 1, separated by `_` when the column ends in a digit
@@ -86,7 +90,7 @@ instead of repeating them.
   by value (text codes as text), NULLs last, ties in input order.
 - With no code-template column, rows MUST keep their input order, and the
   tool MUST log a warning. `schema-map` then keeps crosswalk-row column
-  order, and `schema-join` keeps the input layer's column order.
+  order.
 
 ## CSV outputs
 

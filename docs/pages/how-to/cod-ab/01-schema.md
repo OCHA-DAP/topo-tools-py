@@ -21,9 +21,9 @@ A column with the same number of unique values as a level can be matched
 by mistake, such as a reference number mapped as a second code
 (`adm2_code1`). Blank out its `target_column`. Map extra name columns (a
 translation or alternate spelling) to the next free `adm2_name1`,
-`adm2_name2`, and never use a target outside the `adm{n}_code`/`adm{n}_name`
-families. Output columns follow the crosswalk's row order, so move rows to
-rearrange them. Then apply it:
+`adm2_name2`. A per-level extra such as a unit type takes the level's own
+prefix (`adm2_type`). Output columns follow the crosswalk's row order, so
+move rows to rearrange them. Then apply it:
 
     topo-tools schema-map admin2.parquet admin2_mapped.parquet --csv admin2_crosswalk.csv
 
