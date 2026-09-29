@@ -17,8 +17,9 @@ dissolved into one admin0 feature:
 reference boundary, clips any overhang, then cleans the shared edges
 across the whole layer, keeping every attribute column. The cleaning
 step can shift interior edges by a hairline, so units away from the
-border may show small geometry changes too. Load the issues file (if written) as a map layer to check for
-units that didn't match or clip cleanly. Where the new source's outline
+border may show small geometry changes too. Load the issues file (if
+written) as a map layer to check for units that didn't match or clip
+cleanly. Where the new source's outline
 differs from the previous one, confirm the difference with the data
 provider: redigitizing follows the previous outline, and only a real
 boundary change moves it. For a first release, with no previous outline,
