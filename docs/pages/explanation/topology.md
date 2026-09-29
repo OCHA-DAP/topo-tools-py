@@ -80,6 +80,31 @@ This produces **0 gaps, 0 overlaps, 0 `ST_CoverageInvalidEdges`** on all tested 
 
 ---
 
+## Micro-polygons
+
+A polygon part at most `SNAP_TOLERANCE` wide is treated like a micro gap:
+a defect, never real geography. At that scale it's a digitization or
+processing artifact, typically a sliver fragment beside a feature's large
+part, or reprojection noise that turns a shared border into a sliver
+overlap. A small but wider part, such as a real islet, is kept. Width
+uses the maximum inscribed circle, the same measure as the micro-gap
+check; `2 * area / perimeter` is a lower bound on that diameter, so it
+cheaply skips every clearly wide part before the costly call.
+
+Merging into the neighbour the buffered part overlaps most handles both
+shapes of the defect: an overlap sliver goes to the feature it overlaps
+(no change in area), and a touching fragment goes to the feature it
+borders, which is usually its own large part. Dropping a touching
+fragment instead would open a micro gap. Only an isolated fragment,
+touching nothing, is dropped.
+
+`ST_CoverageClean` absorbs micro parts at the default snapping distance,
+but returns a feature that is entirely micro as an EMPTY geometry, and
+`ST_CoverageInvalidEdges_Agg` doesn't flag a micro feature that only
+touches its neighbours. `coverage_clean` therefore merges micro-polygons
+first, and `has_valid_topology` checks for them directly, so an
+auto-cleaned input is cleaned whenever it has one.
+
 ## DuckDB 1.5.2 `SPATIAL_JOIN` Memory Reservation Bug
 
 DuckDB 1.5.2's `SPATIAL_JOIN` operator pre-allocates approximately **1× physical RAM** as a virtual memory spill reservation before executing, regardless of actual data size. The default `memory_limit` of 80% RAM falls below this threshold on most machines, causing an immediate OOM error even when the join touches only ~100 MB of real data.

@@ -9,6 +9,7 @@ from topo_tools.core.coverage import (
     assign_issue_rows_sql,
     check_valid_topology,
     gap_issues_sql,
+    micro_issues_sql,
     short_source_file_sql,
 )
 from topo_tools.core.io import export_geometry_table, export_issues_table
@@ -71,6 +72,8 @@ def _build_issues(
         FROM "{table}"
         WHERE overlay_fid IS NOT NULL
         """)
+    if micro := micro_issues_sql(conn, table, source_file_expr=short_source_file):
+        parts.append(micro)
     if code_join:
         parts.append(
             assign_issue_rows_sql(
@@ -128,4 +131,5 @@ def main(  # noqa: PLR0913
         conn.execute(f'DROP TABLE IF EXISTS "{name}_02_unassigned"')
         conn.execute(f'DROP TABLE IF EXISTS "{name}_03_dropped"')
         conn.execute(f'DROP TABLE IF EXISTS "{name}_04"')
+        conn.execute(f'DROP TABLE IF EXISTS "{name}_04_micro"')
         conn.execute(f'DROP TABLE IF EXISTS "{name}_05"')

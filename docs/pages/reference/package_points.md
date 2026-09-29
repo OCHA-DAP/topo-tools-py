@@ -9,7 +9,8 @@ tools.
 
 ## Inputs
 
-- `package-points` MUST read the input and reproject it to EPSG:4326.
+- `package-points` MUST read the input, reproject it to EPSG:4326 and
+  merge or drop its micro-polygons (see `docs/reference/shared.md`).
 - `package-points` MUST detect every admin level present, either
   structurally (`core.schema_map`'s cardinality/containment matcher, no
   naming convention assumed, the default when `name_field`/`code_field`

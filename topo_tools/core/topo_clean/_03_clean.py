@@ -1,11 +1,16 @@
-"""Fixes gap/overlap defects in a single ST_CoverageClean call."""
+"""Fixes gap/overlap defects in one ST_CoverageClean call, then micro-polygons."""
 
 from logging import getLogger
 
 from duckdb import DuckDBPyConnection
 
 from topo_tools.core.constants import SNAP_TOLERANCE
-from topo_tools.core.coverage import coverage_clean, has_gaps, has_invalid_edges
+from topo_tools.core.coverage import (
+    coverage_clean,
+    has_gaps,
+    has_invalid_edges,
+    merge_micro_polygons,
+)
 
 from ._constants import (
     AREA_NOISE_FACTOR,
@@ -96,7 +101,7 @@ def _bad_geometry_type_count(conn: DuckDBPyConnection, table: str) -> int:
     """).fetchall()[0][0]
 
 
-def main(
+def _fix(
     conn: DuckDBPyConnection,
     name: str,
     *,
@@ -173,3 +178,22 @@ def main(
         output_area,
         table,
     )
+
+
+def main(
+    conn: DuckDBPyConnection,
+    name: str,
+    *,
+    gap_maximum_width: tuple[str, float | None],
+    snapping_distance: tuple[str, float | None],
+) -> None:
+    """Fix gap/overlap defects in `{name}_01`, then merge micro-polygons."""
+    _fix(
+        conn,
+        name,
+        gap_maximum_width=gap_maximum_width,
+        snapping_distance=snapping_distance,
+    )
+    out_table = f"{name}_03"
+    merge_micro_polygons(conn, out_table, out_table, issues_table=f"{name}_03_micro")
+    conn.execute(f'DROP TABLE IF EXISTS "{name}_03_micro"')

@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Micro-polygons: a polygon part at most `SNAP_TOLERANCE` wide is a
+  defect, like a micro gap. Every tool that modifies geometry merges each
+  one into the neighbouring feature it overlaps most once buffered (often
+  its own large part), or drops it when it touches nothing, and reports it
+  as a `micro-polygon` issue row. `topo-detect` reports them, and the
+  topology hard gate raises on any left in an output.
+
+### Fixed
+
+- A feature that was entirely micro-polygon came back from
+  `ST_CoverageClean` as an empty-geometry row; it's now merged into its
+  neighbour before cleaning. `edge-stitch` on a layer with such features
+  writes fewer rows than before.
+
 ## [0.10.0] - 2026-09-28
 
 ### Changed

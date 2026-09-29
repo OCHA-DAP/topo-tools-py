@@ -9,6 +9,7 @@ from topo_tools.core.constants import (
     SNAP_ESCALATION_STEP,
     SNAP_TOLERANCE,
 )
+from topo_tools.core.duckdb_utils import bbox_columns_sql
 from topo_tools.core.units import METERS_PER_DEGREE, m2_per_deg2_factor
 
 logger = getLogger(__name__)
@@ -189,21 +190,180 @@ def count_gaps(conn: DuckDBPyConnection, table: str, *, min_width: float = 0) ->
     """).fetchall()[0][0]
 
 
+def is_micro_sql(geom: str, width: float = SNAP_TOLERANCE) -> str:
+    """Build SQL testing whether polygon `geom` is at most `width` wide.
+
+    2*area/perimeter bounds the inscribed-circle diameter from below, so CASE
+    skips the costly ST_MaximumInscribedCircle for every clearly wide part.
+    """
+    return (
+        f"CASE WHEN ST_IsEmpty({geom}) THEN FALSE "
+        f"WHEN 2 * ST_Area({geom}) <= {width} * ST_Perimeter({geom}) "
+        f"THEN (ST_MaximumInscribedCircle({geom})).radius * 2 <= {width} "
+        "ELSE FALSE END"
+    )
+
+
+def has_micro_polygons(conn: DuckDBPyConnection, table: str) -> bool:
+    """Return True if any polygon part of `table.geom` is SNAP_TOLERANCE-narrow."""
+    return conn.execute(f"""--sql
+        SELECT EXISTS (
+            SELECT 1
+            FROM (SELECT UNNEST(ST_Dump(geom)).geom AS geom FROM "{table}")
+            WHERE {is_micro_sql("geom")}
+        )
+    """).fetchall()[0][0]
+
+
+def check_micro_polygons(conn: DuckDBPyConnection, table: str) -> None:
+    """Raise RuntimeError if any polygon part of `table.geom` is a micro-polygon."""
+    if has_micro_polygons(conn, table):
+        error = f"MICRO_POLYGONS: {table}"
+        logger.error(error)
+        raise RuntimeError(error)
+
+
+_EMPTY_ISSUES_SQL = (
+    "SELECT NULL::VARCHAR AS key, NULL::VARCHAR AS kind, NULL::BIGINT AS unit_a, "
+    "NULL::BIGINT AS unit_b, NULL::BIGINT AS overlay_fid, NULL::VARCHAR AS reason, "
+    "NULL::DOUBLE AS area_m2, NULL::DOUBLE AS max_width_m, "
+    "NULL::DOUBLE AS thinness_ratio, NULL::DOUBLE AS unit_a_area_change_m2, "
+    "NULL::DOUBLE AS unit_b_area_change_m2, NULL::DOUBLE AS filled_area_m2, "
+    "NULL::BOOLEAN AS fixed, NULL::VARCHAR AS source_file, NULL::GEOMETRY AS geom "
+    "WHERE FALSE"
+)
+
+
+def merge_micro_polygons(
+    conn: DuckDBPyConnection,
+    table_in: str,
+    table_out: str,
+    *,
+    issues_table: str,
+) -> int:
+    """Merge each micro-polygon part into its neighbour, or drop it; return the count.
+
+    The neighbour is the non-micro part the SNAP_TOLERANCE-buffered micro part
+    overlaps most (ties to lowest fid), in any row including its own.
+    """
+    if not has_micro_polygons(conn, table_in):
+        conn.execute(f'CREATE OR REPLACE TABLE "{issues_table}" AS {_EMPTY_ISSUES_SQL}')
+        if table_out != table_in:
+            conn.execute(
+                f'CREATE OR REPLACE TABLE "{table_out}" AS SELECT * FROM "{table_in}"'
+            )
+        return 0
+    tol = SNAP_TOLERANCE
+    columns = {r[0] for r in conn.execute(f'DESCRIBE "{table_in}"').fetchall()}
+    src = "source_file" if "source_file" in columns else "NULL::VARCHAR"
+    m2_per_deg2 = m2_per_deg2_factor(conn, table_in)
+    conn.execute(f"""--sql
+        CREATE OR REPLACE TABLE _micro_all AS
+        SELECT row_number() OVER () AS rnid, * FROM "{table_in}"
+    """)
+    conn.execute(f"""--sql
+        CREATE OR REPLACE TABLE _micro_parts AS
+        WITH parts AS (
+            SELECT rnid, fid, {src} AS source_file,
+                   UNNEST(ST_Dump(geom)).geom AS geom
+            FROM _micro_all
+        )
+        SELECT row_number() OVER () AS pid, *, {is_micro_sql("geom")} AS micro,
+               {bbox_columns_sql("geom")}
+        FROM parts
+    """)
+    count = conn.execute("SELECT count(*) FROM _micro_parts WHERE micro").fetchone()[0]
+    conn.execute(f"""--sql
+        CREATE OR REPLACE TABLE _micro_dest AS
+        WITH m AS (SELECT * FROM _micro_parts WHERE micro),
+        n AS (SELECT * FROM _micro_parts WHERE NOT micro),
+        pairs AS (
+            SELECT m.pid, n.rnid AS dest_rnid, n.fid AS dest_fid,
+                   ST_Area(ST_Intersection(ST_Buffer(m.geom, {tol}), n.geom)) AS w
+            FROM m JOIN n
+              ON n.xmin <= m.xmax + {tol} AND n.xmax >= m.xmin - {tol}
+             AND n.ymin <= m.ymax + {tol} AND n.ymax >= m.ymin - {tol}
+        )
+        SELECT m.pid, m.rnid, m.fid, m.source_file, m.geom, p.dest_rnid, p.dest_fid
+        FROM m LEFT JOIN (
+            SELECT * FROM pairs WHERE w > 0
+            QUALIFY row_number() OVER (PARTITION BY pid ORDER BY w DESC, dest_fid)
+                = 1
+        ) p USING (pid)
+    """)
+    conn.execute(f"""--sql
+        CREATE OR REPLACE TABLE "{issues_table}" AS
+        SELECT 'micro-polygon-' || pid AS key, 'micro-polygon' AS kind,
+               fid AS unit_a, dest_fid AS unit_b, NULL::BIGINT AS overlay_fid,
+               CASE WHEN dest_rnid IS NULL THEN 'dropped: touches no feature'
+                    ELSE 'merged into neighbouring feature' END AS reason,
+               ST_Area(geom) * {m2_per_deg2} AS area_m2,
+               (ST_MaximumInscribedCircle(geom)).radius * 2 * {METERS_PER_DEGREE}
+                   AS max_width_m,
+               NULL::DOUBLE AS thinness_ratio,
+               NULL::DOUBLE AS unit_a_area_change_m2,
+               NULL::DOUBLE AS unit_b_area_change_m2,
+               NULL::DOUBLE AS filled_area_m2, TRUE AS fixed, source_file, geom
+        FROM _micro_dest ORDER BY pid
+    """)
+    conn.execute(f"""--sql
+        CREATE OR REPLACE TABLE "{table_out}" AS
+        WITH touched AS (
+            SELECT rnid FROM _micro_dest
+            UNION SELECT dest_rnid FROM _micro_dest WHERE dest_rnid IS NOT NULL
+        ),
+        pieces AS (
+            SELECT p.rnid, p.geom FROM _micro_parts p SEMI JOIN touched USING (rnid)
+            WHERE NOT p.micro
+            UNION ALL
+            SELECT dest_rnid, geom FROM _micro_dest WHERE dest_rnid IS NOT NULL
+        ),
+        rebuilt AS (
+            SELECT rnid, ST_Union_Agg(geom) AS geom FROM pieces GROUP BY rnid
+        )
+        SELECT t.* EXCLUDE (geom, rnid), COALESCE(r.geom, t.geom) AS geom
+        FROM _micro_all t
+        LEFT JOIN rebuilt r USING (rnid)
+        WHERE r.rnid IS NOT NULL OR t.rnid NOT IN (SELECT rnid FROM touched)
+        ORDER BY t.rnid
+    """)
+    for tmp in ("_micro_all", "_micro_parts", "_micro_dest"):
+        conn.execute(f"DROP TABLE IF EXISTS {tmp}")
+    if count:
+        logger.info("merged or dropped %d micro-polygon part(s) in %s", count, table_in)
+    return count
+
+
+def micro_issues_sql(
+    conn: DuckDBPyConnection, table: str, *, source_file_expr: str = "source_file"
+) -> str | None:
+    """Return a SELECT over `{table}_micro`'s merge rows, or None if absent."""
+    exists = conn.execute(
+        "SELECT count(*) FROM duckdb_tables() WHERE table_name = ?", [f"{table}_micro"]
+    ).fetchone()[0]
+    if not exists:
+        return None
+    return f'SELECT * REPLACE ({source_file_expr} AS source_file) FROM "{table}_micro"'
+
+
 def has_valid_topology(
     conn: DuckDBPyConnection, table: str, *, gap_maximum_width: float = SNAP_TOLERANCE
 ) -> bool:
-    """Return True if `table.geom` has no overlaps, unmatched shared edges, or gaps."""
-    return not has_invalid_edges(conn, table) and not has_gaps(
-        conn, table, gap_maximum_width=gap_maximum_width
+    """Return True if `table.geom` has no overlap, edge mismatch, gap or micro part."""
+    return (
+        not has_invalid_edges(conn, table)
+        and not has_gaps(conn, table, gap_maximum_width=gap_maximum_width)
+        and not has_micro_polygons(conn, table)
     )
 
 
 def check_valid_topology(
     conn: DuckDBPyConnection, table: str, *, gap_maximum_width: float = SNAP_TOLERANCE
 ) -> None:
-    """Raise RuntimeError if `table.geom` has any overlaps, edge mismatch, or gaps."""
+    """Raise RuntimeError on any overlap, edge mismatch, gap or micro-polygon."""
     check_invalid_edges(conn, table)
     check_gaps(conn, table, gap_maximum_width=gap_maximum_width)
+    check_micro_polygons(conn, table)
 
 
 def coverage_clean(  # noqa: PLR0913 (each param is a distinct required input, not decomposable)
@@ -214,19 +374,26 @@ def coverage_clean(  # noqa: PLR0913 (each param is a distinct required input, n
     fids: list[int] | None,
     gap_maximum_width: float | None = SNAP_TOLERANCE,
     snapping_distance: float | None = SNAP_TOLERANCE,
+    micro_issues_table: str | None = None,
 ) -> None:
     """Write table_out from table_in with ST_CoverageClean applied to a subset (or all).
 
-    Maps ST_Dump's path[1] back to rows via a synthetic rnid, not fid:
-    fid isn't guaranteed unique across a multi-source table_in.
+    Micro-polygons are merged first: ST_CoverageClean returns an all-micro row
+    EMPTY. Rows map back via a synthetic rnid, since fid may repeat across sources.
     """
+    issues = micro_issues_table or "_clean_micro"
+    source = "_clean_in" if has_micro_polygons(conn, table_in) else table_in
+    if source == table_in:
+        conn.execute(f'CREATE OR REPLACE TABLE "{issues}" AS {_EMPTY_ISSUES_SQL}')
+    else:
+        merge_micro_polygons(conn, table_in, source, issues_table=issues)
     where = "" if fids is None else f"WHERE fid IN ({','.join(str(f) for f in fids)})"
     snap_arg = -1 if snapping_distance is None else snapping_distance
     gap_arg = -1 if gap_maximum_width is None else gap_maximum_width
     cc = f"ST_CoverageClean(list(geom ORDER BY rn), {snap_arg}, {gap_arg})"
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE _clean_all AS
-        SELECT row_number() OVER () AS rnid, * FROM "{table_in}"
+        SELECT row_number() OVER () AS rnid, * FROM "{source}"
     """)
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{table_out}" AS
@@ -259,16 +426,19 @@ def coverage_clean(  # noqa: PLR0913 (each param is a distinct required input, n
         FROM _clean_all t
         LEFT JOIN mapping m USING (rnid)
     """)
-    conn.execute("DROP TABLE IF EXISTS _clean_all")
+    for tmp in ("_clean_all", "_clean_in", "_clean_micro"):
+        if tmp != micro_issues_table:
+            conn.execute(f"DROP TABLE IF EXISTS {tmp}")
 
 
-def coverage_clean_escalating(
+def coverage_clean_escalating(  # noqa: PLR0913 (mirrors coverage_clean's own inputs)
     conn: DuckDBPyConnection,
     table_in: str,
     table_out: str,
     *,
     fids: list[int] | None,
     gap_maximum_width: float | None = SNAP_TOLERANCE,
+    micro_issues_table: str | None = None,
 ) -> None:
     """Coverage-clean, widening snapping_distance only as far as needed."""
     snap = SNAP_TOLERANCE
@@ -280,6 +450,7 @@ def coverage_clean_escalating(
             fids=fids,
             gap_maximum_width=gap_maximum_width,
             snapping_distance=snap,
+            micro_issues_table=micro_issues_table,
         )
         if not has_invalid_edges(conn, table_out):
             if step:
