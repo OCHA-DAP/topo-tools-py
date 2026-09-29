@@ -4,7 +4,7 @@ title: "1. Schema"
 
 First step of COD-AB cleaning.
 
-Run `schema-map` on each supplied level:
+Run `schema-map` on each supplied level below admin0:
 
     topo-tools schema-map admin2.parquet --map-only
 
@@ -28,9 +28,11 @@ rearrange them. Then apply it:
     topo-tools schema-map admin2.parquet admin2_mapped.parquet --csv admin2_crosswalk.csv
 
 The output keeps only the columns with a `target_column`, plus `geometry`.
+A column with one value in every row, such as the country's name and code,
+stays blank and is dropped.
 
-With more than one level, copy each parent's codes and names onto its
-children, coarsest first, overwriting each child in place:
+With more than one level below admin0, copy each parent's codes and names
+onto its children, coarsest first, overwriting each child in place:
 
     topo-tools schema-join admin2_mapped.parquet admin1_mapped.parquet admin2_mapped.parquet
 
