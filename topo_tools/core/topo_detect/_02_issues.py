@@ -1,11 +1,11 @@
-"""Detects gap and overlap defects in a single polygon layer. Detection only."""
+"""Detects gap, overlap and micro-polygon defects in one layer. Detection only."""
 
 from collections.abc import Callable
 from logging import getLogger
 
 from duckdb import DuckDBPyConnection
 
-from topo_tools.core.coverage import gap_geometries_sql, has_invalid_edges
+from topo_tools.core.coverage import gap_geometries_sql, has_invalid_edges, is_micro_sql
 from topo_tools.core.duckdb_utils import bbox_columns_sql
 from topo_tools.core.units import METERS_PER_DEGREE, m2_per_deg2_factor
 
@@ -72,17 +72,27 @@ def _build_overlaps(conn: DuckDBPyConnection, tmp: str, table: str) -> None:
     conn.execute(f'DROP TABLE IF EXISTS "{narrow}"')
 
 
+def _build_micro(conn: DuckDBPyConnection, tmp: str, table: str) -> None:
+    conn.execute(f"""--sql
+        CREATE OR REPLACE TABLE "{tmp}" AS
+        SELECT row_number() OVER () AS n, fid AS unit_a, geom
+        FROM (SELECT fid, UNNEST(ST_Dump(geom)).geom AS geom FROM "{table}")
+        WHERE {is_micro_sql("geom")}
+    """)
+
+
 def main(
     conn: DuckDBPyConnection,
     name: str,
     *,
     debug: bool = False,
 ) -> None:
-    """Detect gap/overlap issues in `{name}_01`, writing `{name}_02`."""
+    """Detect gap/overlap/micro-polygon issues in `{name}_01`, writing `{name}_02`."""
     table = f"{name}_01"
 
     gaps_tmp = f"{name}_02_tmp1"
     overlaps_tmp = f"{name}_02_tmp2"
+    micro_tmp = f"{name}_02_tmp3"
 
     _detect_or_empty(
         conn,
@@ -107,6 +117,15 @@ def main(
         )
     else:
         conn.execute(empty_overlaps_sql)
+    _detect_or_empty(
+        conn,
+        "micro-polygon",
+        table,
+        f'CREATE OR REPLACE TABLE "{micro_tmp}" AS '
+        "SELECT NULL::BIGINT AS n, NULL::BIGINT AS unit_a, "
+        "NULL::GEOMETRY AS geom WHERE FALSE",
+        lambda c, t: _build_micro(c, micro_tmp, t),
+    )
     # max_width_m skips the cos(lat) factor, exact N-S, approximate E-W.
     m2_per_deg2 = m2_per_deg2_factor(conn, table)
     width_m = f"(ST_MaximumInscribedCircle(geom)).radius * 2 * {METERS_PER_DEGREE}"
@@ -127,8 +146,15 @@ def main(
                NULL::DOUBLE AS thinness_ratio,
                unit_a, unit_b, geom
         FROM "{overlaps_tmp}"
+        UNION ALL
+        SELECT 'micro-polygon-' || n AS key, 'micro-polygon' AS kind,
+               ST_Area(geom) * {m2_per_deg2} AS area_m2,
+               {width_m} AS max_width_m,
+               NULL::DOUBLE AS thinness_ratio,
+               unit_a, NULL::BIGINT AS unit_b, geom
+        FROM "{micro_tmp}"
     """)
 
     if not debug:
-        for tmp in (gaps_tmp, overlaps_tmp):
+        for tmp in (gaps_tmp, overlaps_tmp, micro_tmp):
             conn.execute(f'DROP TABLE IF EXISTS "{tmp}"')

@@ -43,6 +43,11 @@ def _write_synthetic(path, wkt_rows) -> None:
         conn.execute(f"COPY synth TO '{path}'")
 
 
+def _issue_kinds(path) -> list[str]:
+    with duckdb.connect() as conn:
+        return [r[0] for r in conn.execute(f"SELECT kind FROM '{path}'").fetchall()]
+
+
 @pytest.fixture
 def tiny_gap_input(tmp_path):
     """Build a frame with a gap far smaller than SNAP_TOLERANCE, closeable by stitch."""
@@ -83,8 +88,8 @@ def test_stitch_closes_small_seam_gap(tiny_gap_input, tmp_path):
     stitch(tiny_gap_input, output_path, issues_path, overwrite=True)
 
     assert output_path.exists()
-    assert not issues_path.exists()
-    expected_row_count = 4
+    assert _issue_kinds(issues_path) == ["micro-polygon", "micro-polygon"]
+    expected_row_count = 2  # the two 1e-9 wide strips merge as micro-polygons
     with duckdb.connect() as conn:
         conn.execute("LOAD spatial")
         row_count = conn.execute(f"SELECT COUNT(*) FROM '{output_path}'").fetchone()[0]
@@ -194,8 +199,8 @@ def test_stitch_multi_file_api(tiny_gap_split, tmp_path):
     stitch(tiny_gap_split, output_path, issues_path, overwrite=True)
 
     assert output_path.exists()
-    assert not issues_path.exists()
-    expected_row_count = 4
+    assert _issue_kinds(issues_path) == ["micro-polygon", "micro-polygon"]
+    expected_row_count = 2  # the two 1e-9 wide strips merge as micro-polygons
     with duckdb.connect() as conn:
         conn.execute("LOAD spatial")
         row_count = conn.execute(f"SELECT COUNT(*) FROM '{output_path}'").fetchone()[0]
@@ -283,7 +288,7 @@ def test_cli_glob_expansion(
     result = CliRunner().invoke(cli, ["edge-stitch", pattern, str(output_path)])
     assert result.exit_code == 0, result.output
 
-    expected_row_count = 4
+    expected_row_count = 2  # the two 1e-9 wide strips merge as micro-polygons
     with duckdb.connect() as conn:
         conn.execute("LOAD spatial")
         row_count = conn.execute(f"SELECT COUNT(*) FROM '{output_path}'").fetchone()[0]
@@ -299,7 +304,7 @@ def test_cli_extra_input_flag_combines_with_glob(tiny_gap_split, tmp_path):
     )
     assert result.exit_code == 0, result.output
 
-    expected_row_count = 4
+    expected_row_count = 2  # the two 1e-9 wide strips merge as micro-polygons
     with duckdb.connect() as conn:
         conn.execute("LOAD spatial")
         row_count = conn.execute(f"SELECT COUNT(*) FROM '{output_path}'").fetchone()[0]

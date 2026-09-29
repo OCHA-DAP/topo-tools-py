@@ -76,7 +76,9 @@ Run `topo-tools topo-clean --help` for the full, always-current option list.
    `ST_CoverageClean` to actually run), validated against invalid edges, a
    total-area floor, and a per-fid collapse/geometry-type check, raising
    immediately if any fails (see "Validating a coverage-clean result"
-   below).
+   below). `coverage_clean` merges micro-polygons before cleaning, and a
+   second `merge_micro_polygons` pass runs on the fixed output; both
+   passes' merge rows land in `{name}_03_micro`.
 4. **`_04_outputs`**: validates overlaps are gone (hard gate), logs
    (never raises on) any gaps still unfilled by design, and exports the
    cleaned dataset plus the issues report (only when it has rows).
@@ -267,11 +269,13 @@ columns, all *measured outcomes* of the fix, not the defect as originally
 detected: `fixed BOOLEAN`, `unit_a_area_change_m2 DOUBLE`,
 `unit_b_area_change_m2 DOUBLE`, `filled_area_m2 DOUBLE`. `filled_area_m2`
 is populated only for gap rows; `unit_a`/`unit_b_area_change_m2` only for
-overlap rows. `overlay_fid`, `reason`, and `source_file` are always null
-for `topo-clean`: they exist only so the schema matches `edge-match`/`edge-mosaic`/
-`edge-stitch`'s own issues tables column-for-column (see
-`docs/reference/shared.md`, "Issues report schema"), not because `topo-clean`
-itself has a use for them.
+overlap rows. `overlay_fid` and `source_file` are always null for
+`topo-clean`, and `reason` is set only on `micro-polygon` rows: they exist
+so the schema matches `edge-match`/`edge-mosaic`/`edge-stitch`'s own issues
+tables column-for-column (see `docs/reference/shared.md`, "Issues report
+schema"). Each `micro-polygon` row comes from `{name}_03_micro`, the merge
+outcome (receiving fid in `unit_b`, `fixed=TRUE`), replacing
+`topo-detect`'s detection row for it.
 
 All four are computed by `_04_outputs.py`'s `_add_outcome_columns` from
 `{name}_01` and `{name}_03` after `_03_clean.py` has run, since that's the

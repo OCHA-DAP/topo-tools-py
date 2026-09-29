@@ -124,6 +124,41 @@ def test_clean_issues_report_overlap_outcome(synthetic_input, tmp_path):
     assert fixed is True
 
 
+@pytest.mark.parametrize("with_overlap", [False, True])
+def test_clean_reports_merged_micro_polygon(with_overlap, tmp_path):
+    """A micro feature is merged and reported, with or without a coverage_clean."""
+    sliver, micro_id = SNAP_TOLERANCE / 10, 3
+    rows = [
+        (1, "POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))"),
+        (2, "POLYGON((1 0, 2 0, 2 1, 1 1, 1 0))"),
+        (3, f"POLYGON((2 0, {2 + sliver} 0, {2 + sliver} 1, 2 1, 2 0))"),
+    ]
+    if with_overlap:
+        rows += [r for r in _SYNTHETIC_WKT if r[0] in (5, 6)]
+    input_path = tmp_path / "micro.parquet"
+    output_path = tmp_path / "out.parquet"
+    issues_path = tmp_path / "issues.parquet"
+    values = ", ".join(f"({fid}, ST_GeomFromText('{wkt}'))" for fid, wkt in rows)
+    with duckdb.connect() as conn:
+        conn.execute("INSTALL spatial; LOAD spatial;")
+        conn.execute(
+            f"COPY (SELECT * FROM (VALUES {values}) t(id, geom)) TO '{input_path}'"
+        )
+    clean(input_path, output_path, issues_path, overwrite=True)
+
+    with duckdb.connect() as conn:
+        conn.execute("LOAD spatial")
+        out_ids = conn.execute(
+            f"SELECT id FROM '{output_path}' WHERE NOT ST_IsEmpty(geometry) ORDER BY id"
+        ).fetchall()
+        micro = conn.execute(f"""
+            SELECT unit_b IS NOT NULL, reason, fixed, ST_Area(geometry) > 0
+            FROM '{issues_path}' WHERE kind = 'micro-polygon'
+        """).fetchall()
+    assert [r[0] for r in out_ids] == [r[0] for r in rows if r[0] != micro_id]
+    assert micro == [(True, "merged into neighbouring feature", True, True)]
+
+
 def test_clean_default_output_paths(synthetic_input):
     clean(synthetic_input, overwrite=True)
 

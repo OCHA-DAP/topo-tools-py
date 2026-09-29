@@ -311,10 +311,11 @@ no warning.
    becomes a `code`/`name` row, `target_column` always rendered from the
    schema template at that level; when two or more qualify at the same
    level and role (bijective companions, or multiple function-passing
-   name matches), each is numbered by source-column order, the first
-   getting the bare template (`adm2_name`, `adm2_code`) and each next
-   one the template plus an appended integer (`adm2_name1`,
-   `adm2_code1`, ...) (see `docs/adr/0056`). **A resolved level is
+   name matches), each is numbered by source-column order, except that
+   a code embedding its parent comes first, the first getting the bare
+   template (`adm2_name`, `adm2_code`) and each next one the template
+   plus an appended integer (`adm2_name1`, `adm2_code1`, ...) (see
+   `docs/adr/0056`, `docs/adr/0118`). **A resolved level is
    excluded from output only when its own `COUNT(DISTINCT)` is exactly
    1**, a true constant; a non-constant level is resolved regardless of
    its rank in the chain, even at position 0 (see `docs/adr/0066`, which

@@ -60,6 +60,9 @@ def _add_outcome_columns(conn: DuckDBPyConnection, name: str) -> None:
         LEFT JOIN before before_b ON before_b.fid = i.unit_b
         LEFT JOIN after after_b ON after_b.fid = i.unit_b
         LEFT JOIN gap_union gu ON gu.key = i.key
+        WHERE i.kind != 'micro-polygon'
+        UNION ALL BY NAME
+        SELECT * FROM "{name}_03_micro"
     """)
 
 
@@ -98,3 +101,4 @@ def main(
         conn.execute(f'DROP TABLE IF EXISTS "{name}_01"')
         conn.execute(f'DROP TABLE IF EXISTS "{name}_02"')
         conn.execute(f'DROP TABLE IF EXISTS "{name}_03"')
+        conn.execute(f'DROP TABLE IF EXISTS "{name}_03_micro"')

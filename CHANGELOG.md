@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-09-29
+
+### Fixed
+
+- Micro-polygons: a polygon part at most `SNAP_TOLERANCE` wide is a
+  defect, like a micro gap. Every tool that modifies geometry merges each
+  one into the neighbouring feature it overlaps most once buffered (often
+  its own large part), or drops it when it touches nothing, and reports it
+  as a `micro-polygon` issue row. `topo-detect` reports them, and the
+  topology hard gate raises on any left in an output.
+- A feature that was entirely micro-polygon came back from
+  `ST_CoverageClean` as an empty-geometry row; it's now merged into its
+  neighbour before cleaning. `edge-stitch` on a layer with such features
+  writes fewer rows than before.
+- Requires DuckDB 1.5.6, which fixes UNNEST pushdown, Top-N window
+  elimination (`QUALIFY row_number()`) and UNION ALL subplan bugs in
+  query shapes these tools use.
+
+## [0.10.0] - 2026-09-28
+
 ### Changed
 
 - Layer roles use QGIS terms: `edge-clip`, `edge-mosaic` and `edge-match`
@@ -618,7 +638,9 @@ Initial release: four tools, CLI + Python API for each.
   unit as unchanged/renamed/modified/relocated/split/merge/complex/created/
   removed, via spatial overlap and optional code/name identity linking.
 
-[Unreleased]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.10.1...HEAD
+[0.10.1]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.10.0...v0.10.1
+[0.10.0]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.8.2...v0.9.0
 [0.8.2]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.8.0...v0.8.1

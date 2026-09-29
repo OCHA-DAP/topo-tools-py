@@ -94,7 +94,7 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
 
    | Stage | Defining output |
    | --- | --- |
-   | `01_schema/` | `{iso3}_admin{n}.parquet` for every supplied level, plus `{iso3}_admin{n}_issues.parquet` only where `schema-join` wrote issues; no other parquet |
+   | `01_schema/` | `{iso3}_admin{n}.parquet` for every supplied level below admin0, plus `{iso3}_admin{n}_issues.parquet` only where `schema-join` wrote issues; no other parquet |
    | `02_topology/` | the topo-cleaned file (the finer-level edge-match is conditional, skip if not applicable) |
    | `03_edge_matching/` | the edge-matched file |
    | `04_codes/` | the coded file |
@@ -118,10 +118,11 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
    partial or low quality (doesn't cover the whole country, has missing
    codes/names, or far fewer units than its parent level implies; judge
    from feature counts and total bounds, never file sizes). Stage 1
-   normalizes every supplied level into
+   normalizes every supplied level below admin0 into
    `01_schema/{iso3}_admin{n}.parquet` (one file per level, updated in
    place by each step, never a suffixed copy). Only the base continues past
-   stage 1. The others are `schema-join`'s join layers. Skip
+   stage 1. The others are `schema-join`'s join layers. Leave the admin0
+   file (one feature) out of stage 1. Skip
    this step when resuming past stage 1.
 
 ## Stages

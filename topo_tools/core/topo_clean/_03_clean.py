@@ -1,11 +1,16 @@
-"""Fixes gap/overlap defects in a single ST_CoverageClean call."""
+"""Fixes gap/overlap defects in one ST_CoverageClean call, then micro-polygons."""
 
 from logging import getLogger
 
 from duckdb import DuckDBPyConnection
 
 from topo_tools.core.constants import SNAP_TOLERANCE
-from topo_tools.core.coverage import coverage_clean, has_gaps, has_invalid_edges
+from topo_tools.core.coverage import (
+    coverage_clean,
+    has_gaps,
+    has_invalid_edges,
+    merge_micro_polygons,
+)
 
 from ._constants import (
     AREA_NOISE_FACTOR,
@@ -96,7 +101,7 @@ def _bad_geometry_type_count(conn: DuckDBPyConnection, table: str) -> int:
     """).fetchall()[0][0]
 
 
-def main(
+def _fix(
     conn: DuckDBPyConnection,
     name: str,
     *,
@@ -132,6 +137,7 @@ def main(
         fids=None,
         gap_maximum_width=gap_maximum_width_deg,
         snapping_distance=snapping_distance_deg,
+        micro_issues_table=f"{name}_03_tmp1",
     )
 
     output_area = _total_area(conn, out_table)
@@ -173,3 +179,35 @@ def main(
         output_area,
         table,
     )
+
+
+def main(
+    conn: DuckDBPyConnection,
+    name: str,
+    *,
+    gap_maximum_width: tuple[str, float | None],
+    snapping_distance: tuple[str, float | None],
+) -> None:
+    """Fix `{name}_01` into `{name}_03`; micro-polygon rows go to `{name}_03_micro`."""
+    _fix(
+        conn,
+        name,
+        gap_maximum_width=gap_maximum_width,
+        snapping_distance=snapping_distance,
+    )
+    out_table = f"{name}_03"
+    merge_micro_polygons(conn, out_table, out_table, issues_table=f"{name}_03_tmp2")
+    parts = [
+        f'SELECT * FROM "{t}"'
+        for t in (f"{name}_03_tmp1", f"{name}_03_tmp2")
+        if conn.execute(
+            "SELECT count(*) FROM duckdb_tables() WHERE table_name = ?", [t]
+        ).fetchone()[0]
+    ]
+    conn.execute(f"""--sql
+        CREATE OR REPLACE TABLE "{name}_03_micro" AS
+        SELECT * REPLACE ('micro-polygon-' || row_number() OVER () AS key)
+        FROM ({" UNION ALL BY NAME ".join(parts)})
+    """)
+    for tmp in (f"{name}_03_tmp1", f"{name}_03_tmp2"):
+        conn.execute(f'DROP TABLE IF EXISTS "{tmp}"')
