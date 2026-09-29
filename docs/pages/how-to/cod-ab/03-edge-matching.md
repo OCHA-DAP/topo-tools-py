@@ -14,8 +14,10 @@ dissolved into one admin0 feature:
       admin2_matched.parquet --issues-file admin2_matched_issues.parquet
 
 `edge-match` extends each unit outward to fill any gap against the
-reference boundary, then clips any overhang, keeping every attribute
-column. Load the issues file (if written) as a map layer to check for
+reference boundary, clips any overhang, then cleans the shared edges
+across the whole layer, keeping every attribute column. The cleaning
+step can shift interior edges by a hairline, so units away from the
+border may show small geometry changes too. Load the issues file (if written) as a map layer to check for
 units that didn't match or clip cleanly. Where the new source's outline
 differs from the previous one, confirm the difference with the data
 provider: redigitizing follows the previous outline, and only a real
