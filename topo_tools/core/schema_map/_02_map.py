@@ -805,6 +805,8 @@ def _assign_chain_roles(  # noqa: PLR0913, PLR0917
             ("name", schema.name_field),
         ):
             members = [c for c in cols if roles[c] == role]
+            # A code embedding its parent outranks a surrogate ID for the bare name.
+            members.sort(key=lambda c: not embeds_parent[c])
             for member_index, column in enumerate(members):
                 target = _numbered_target(template, level, member_index)
                 unique_count = (
