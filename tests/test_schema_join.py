@@ -139,8 +139,8 @@ def test_fills_every_coarser_level(input_path, join_path, tmp_path, fields):
         written = conn.execute(f"SELECT * FROM '{out}'")
         assert [d[0] for d in written.description] == [
             "geometry",
-            "adm3_name",
             "adm3_code",
+            "adm3_name",
             "adm2_name",
             "adm2_code",
             "adm1_name",
@@ -375,8 +375,8 @@ def test_sibling_of_digit_ending_column_is_separated(tmp_path):
         cols = [d[0] for d in conn.execute(f"SELECT * FROM '{out}'").description]
     assert cols == [
         "geometry",
-        "NAME_3",
         "GID_3",
+        "NAME_3",
         "NAME_2",
         "NAME_2_1",
         "GID_2",
@@ -397,3 +397,38 @@ def test_shared_column_of_another_type_kept_side_by_side(join_path, tmp_path):
     row = next(r for r in result if r[cols.index("adm3_code")] == "A0101")
     assert row[cols.index("adm2_code")] == code
     assert row[cols.index("adm2_code1")] == "A01"
+
+
+def test_keeps_input_column_order_and_places_added_columns(join_path, tmp_path):
+    parents = {a2c: a2n for _, _, a2c, a2n, _, _ in _PARENT_ROWS}
+    rows = [
+        {
+            "adm3_name": r["adm3_name"],
+            "adm3_code": r["adm3_code"],
+            "adm3_type": "District",
+            "adm2_name": "Alpha Uno"
+            if r["adm3_code"] == "A0101"
+            else parents[r["adm3_code"][:3]],
+            "adm2_code": r["adm3_code"][:3],
+            "wkt": r["wkt"],
+        }
+        for r in _input_rows()
+    ]
+    src = tmp_path / "typed.parquet"
+    _write(src, rows)
+    out = tmp_path / "out.parquet"
+    join(src, join_path, out)
+
+    with duckdb.connect() as conn:
+        written = conn.execute(f"SELECT * FROM '{out}' LIMIT 0")
+        assert [d[0] for d in written.description] == [
+            "geometry",
+            "adm3_name",
+            "adm3_code",
+            "adm3_type",
+            "adm2_name",
+            "adm2_name1",
+            "adm2_code",
+            "adm1_name",
+            "adm1_code",
+        ]

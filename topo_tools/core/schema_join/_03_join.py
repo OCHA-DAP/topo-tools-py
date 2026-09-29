@@ -56,6 +56,24 @@ def _next_free_name(column: str, taken: set[str]) -> str:
     return sibling_name(column, n)
 
 
+def _output_order(
+    input_columns: list[str],
+    siblings: list[tuple[str, str]],
+    added: list[str],
+    schema: TargetSchema,
+) -> list[str]:
+    """Input columns in input order, each sibling after its family, new levels last."""
+    columns = list(input_columns)
+    for column, sibling in siblings:
+        family = {column} | {
+            sibling_name(column, n) for n in range(1, len(columns) + 2)
+        }
+        last = max(i for i, c in enumerate(columns) if c in family)
+        columns.insert(last + 1, sibling)
+    new_levels, _ = canonical_order(added, schema.name_field, schema.code_field)
+    return columns + new_levels
+
+
 def main(conn: DuckDBPyConnection, name: str, schema: TargetSchema | None) -> None:
     """Build `{name}_03` (joined output) and `{name}_03_mismatch` (differing values)."""
     join_table = f"{name}_overlay_01"
@@ -69,11 +87,15 @@ def main(conn: DuckDBPyConnection, name: str, schema: TargetSchema | None) -> No
         for c in input_columns
         if c not in {"fid", "geom", "source_file"}
     }
+    output_input_columns = list(exprs)
+    siblings: list[tuple[str, str]] = []
+    added: list[str] = []
     mismatch_parts = []
     for column in join_hierarchy_columns(conn, join_table, schema):
         col = quote_identifier(column)
         if column not in input_columns:
             exprs[column] = f"p.{col}"
+            added.append(column)
             continue
         # Mismatched types compare as text so an unrelated cast can't fail.
         cast = "" if input_types[column] == join_types[column] else "::VARCHAR"
@@ -96,6 +118,7 @@ def main(conn: DuckDBPyConnection, name: str, schema: TargetSchema | None) -> No
             sibling,
         )
         exprs[sibling] = f"p.{col}"
+        siblings.append((column, sibling))
         mismatch_parts.append(f"""
             SELECT c.fid AS input_fid, a.overlay_fid, '{column.replace("'", "''")}'
                        AS column_name,
@@ -108,9 +131,10 @@ def main(conn: DuckDBPyConnection, name: str, schema: TargetSchema | None) -> No
         """)
 
     template = schema or DEFAULT_TARGET_SCHEMA
-    columns, sort_column = canonical_order(
+    _, sort_column = canonical_order(
         list(exprs), template.name_field, template.code_field
     )
+    columns = _output_order(output_input_columns, siblings, added, template)
     if sort_column is None:
         logger.warning(
             "schema-join: no %r column found; rows keep input order "
