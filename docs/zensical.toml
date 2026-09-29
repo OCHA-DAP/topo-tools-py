@@ -106,6 +106,7 @@ nav = [
     "agents/claude-code.md",
     "agents/other-agents.md",
   ] },
+  { "Web app" = "https://ocha-dap.github.io/topo-tools-js/" },
 ]
 
 [project.extra.status]
