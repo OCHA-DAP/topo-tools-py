@@ -581,6 +581,38 @@ def test_code_bracket_group_numbers_bijective_code_companions(tmp_path):
     assert rows_out["alt1_pcode"]["target_column"] == "level1_pcode1"
 
 
+def test_parent_embedding_code_outranks_earlier_surrogate_id(tmp_path):
+    path = tmp_path / "surrogate.parquet"
+    rows = [
+        (_unit_square(0), "199", "R0", "R0R1"),
+        (_unit_square(1), "199", "R0", "R0R1"),
+        (_unit_square(2), "303", "R0", "R0R2"),
+        (_unit_square(3), "303", "R0", "R0R2"),
+    ]
+    _write_table(path, ["geom", "unit_id", "adm0_pcode", "adm1_pcode"], rows)
+    out = tmp_path / "crosswalk.csv"
+    map(path, out, overwrite=True)
+
+    rows_out = _crosswalk(out)
+    assert rows_out["adm1_pcode"]["target_column"] == "adm1_code"
+    assert rows_out["unit_id"]["target_column"] == "adm1_code1"
+
+
+def test_grass_cat_column_excluded_as_noise(tmp_path):
+    path = tmp_path / "grass.parquet"
+    rows = [
+        (_unit_square(0), "65", "R0", "R0R1"),
+        (_unit_square(1), "65", "R0", "R0R1"),
+        (_unit_square(2), "14", "R0", "R0R2"),
+        (_unit_square(3), "14", "R0", "R0R2"),
+    ]
+    _write_table(path, ["geom", "cat", "adm0_pcode", "adm1_pcode"], rows)
+    out = tmp_path / "crosswalk.csv"
+    map(path, out, overwrite=True)
+
+    assert "cat" not in _crosswalk(out)
+
+
 def test_unedited_crosswalk_with_ambiguous_and_unmatched_survives_refactor(
     chain_input, chain_schema, tmp_path
 ):

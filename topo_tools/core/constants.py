@@ -29,6 +29,8 @@ NOISE_COLUMNS = frozenset(
         "shape_area",
         "shape__area",
         "bbox",
+        # GRASS GIS's per-feature category ID.
+        "cat",
         # GDAL's own synthesized feature index, see RESERVED_COLUMN_NAMES.
         "ogc_fid",
         "ogc_fid_orig",
