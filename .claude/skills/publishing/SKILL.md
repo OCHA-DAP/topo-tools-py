@@ -22,7 +22,7 @@ None of the above needs to be redone for future releases. It's specific to real 
 3. Merge to `main` (release-triggered workflows run from the default branch).
 4. GitHub → Releases → Draft a new release → tag it (e.g. `v0.1.1`) → Publish release.
 5. Approve the `publish` job in the Actions run (the required-reviewer gate from the environment setup above).
-6. `.github/workflows/homebrew-tap.yml` picks up the new version on its next daily run and opens a formula-bump PR against `OCHA-DAP/homebrew-topo-tools` if the tap is behind; review and merge it there. No manual step needed here, but `brew bump-formula-pr --install-dependencies` requires the PyPI upload to be more than 24h old, so a same-day `workflow_dispatch` re-run can still fail.
+6. `.github/workflows/homebrew-tap.yml` picks up the new version on its first daily run after the PyPI upload is more than 24h old, and opens a formula-bump PR against `OCHA-DAP/homebrew-topo-tools` if the tap is behind. No manual step needed here.
 
 Version numbers, once uploaded, are permanent: PyPI never allows re-uploading the same filename again, even after deletion. Staying in `0.x` (SemVer's "no compatibility promises yet" range) means there's no expectation of a steady cadence or of never breaking the CLI/API between releases.
 
