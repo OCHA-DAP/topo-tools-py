@@ -65,6 +65,9 @@ tools.
 - An input feature whose clipped result is empty MUST be dropped from the output,
   not treated as fatal, and MUST be recorded in the issues report as a
   `kind='clip-empty'` row (see Outputs).
+- `edge-mosaic` MUST merge or keep every clip-detached piece in the clipped result
+  (see `docs/reference/shared.md`), recording each as a
+  `kind='detached-part'` row.
 - `edge-mosaic` MUST raise if zero input features were ever assigned to any overlay feature,
   unless `merge` gap-filled at least one overlay feature or kept at least one
   unmatched input file as passthrough (see Configuration).
@@ -85,7 +88,8 @@ tools.
 - `edge-mosaic` MUST export the final merged layer.
 - `edge-mosaic` MUST also export an issues report alongside it, using the
   shared schema in `docs/reference/shared.md`, listing every input feature dropped
-  for an empty clip intersection, every unassigned/passthrough input file,
+  for an empty clip intersection, every clip-detached piece, every
+  unassigned/passthrough input file,
   every gap-filled/passthrough overlay feature (when `merge` is set), and every
   leftover gap wider than `SNAP_TOLERANCE`, so a human can audit what
   didn't make it into the output or what may need review.

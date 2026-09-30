@@ -43,7 +43,7 @@ _STEP_TABLES = {
     "assign": ["{n}_02_pairs", "{n}_02_assign", "{n}_02_unassigned"],
     # "groups" is absent: group ids aren't known ahead of time (dynamic
     # "{n}_g{overlay_fid}" names), so it falls through to the default below.
-    "clip": ["{n}_04", "{n}_04_dropped", "{n}_02_gap_fill"],
+    "clip": ["{n}_04", "{n}_04_dropped", "{n}_04_detached", "{n}_02_gap_fill"],
     "stitch": ["{n}_05"],
     "outputs": [],
 }

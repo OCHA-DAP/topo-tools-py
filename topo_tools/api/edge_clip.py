@@ -25,7 +25,7 @@ _STEP_ORDER = ["inputs", "assign", "clip", "outputs"]
 _STEP_TABLES = {
     "inputs": ["{n}_input_01", "{n}_overlay_01"],
     "assign": ["{n}_02_pairs", "{n}_02_assign", "{n}_02_unassigned"],
-    "clip": ["{n}_03", "{n}_03_dropped"],
+    "clip": ["{n}_03", "{n}_03_dropped", "{n}_03_detached"],
     "outputs": [],
 }
 

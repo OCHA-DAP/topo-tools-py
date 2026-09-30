@@ -39,7 +39,7 @@ _STEP_ORDER = ["inputs", "assign", "clip", "stitch", "outputs"]
 _STEP_TABLES = {
     "inputs": ["{n}_input_01", "{n}_overlay_01", "{n}_overlay_full"],
     "assign": ["{n}_02_pairs", "{n}_02_assign", "{n}_02_unassigned"],
-    "clip": ["{n}_03", "{n}_03_dropped", "{n}_02_gap_fill"],
+    "clip": ["{n}_03", "{n}_03_dropped", "{n}_03_detached", "{n}_02_gap_fill"],
     "stitch": ["{n}_04"],
     "outputs": [],
 }
@@ -358,7 +358,15 @@ def _mosaic_multi_file(  # noqa: C901, PLR0913, PLR0915, PLR0917
     acc_assign = f"{name}_02_assign_acc"
     acc_unassigned = f"{name}_02_unassigned_acc"
     acc_dropped = f"{name}_03_dropped_acc"
-    for tbl in (acc_input, acc_assign, acc_unassigned, acc_dropped, f"{name}_03"):
+    acc_detached = f"{name}_03_detached_acc"
+    for tbl in (
+        acc_input,
+        acc_assign,
+        acc_unassigned,
+        acc_dropped,
+        acc_detached,
+        f"{name}_03",
+    ):
         conn.execute(f'DROP TABLE IF EXISTS "{tbl}"')
 
     fid_offset = 0
@@ -397,11 +405,13 @@ def _mosaic_multi_file(  # noqa: C901, PLR0913, PLR0915, PLR0917
         _fold(conn, acc_assign, f"{name}_02_assign", seeded=seeded)
         _fold(conn, acc_unassigned, f"{name}_02_unassigned", seeded=seeded)
         _fold(conn, acc_dropped, f"{name}_03_iter_dropped", seeded=seeded)
+        _fold(conn, acc_detached, f"{name}_03_iter_detached", seeded=seeded)
 
         new_max = conn.execute(f'SELECT MAX(fid) FROM "{name}_input_01"').fetchone()[0]
         fid_offset = new_max if new_max is not None else fid_offset
         conn.execute(f'DROP TABLE IF EXISTS "{name}_03_iter"')
         conn.execute(f'DROP TABLE IF EXISTS "{name}_03_iter_dropped"')
+        conn.execute(f'DROP TABLE IF EXISTS "{name}_03_iter_detached"')
 
     conn.execute(f'DROP TABLE IF EXISTS "{name}_input_01"')
     conn.execute(f'ALTER TABLE "{acc_input}" RENAME TO "{name}_input_01"')
@@ -411,6 +421,8 @@ def _mosaic_multi_file(  # noqa: C901, PLR0913, PLR0915, PLR0917
     conn.execute(f'ALTER TABLE "{acc_unassigned}" RENAME TO "{name}_02_unassigned"')
     conn.execute(f'DROP TABLE IF EXISTS "{name}_03_dropped"')
     conn.execute(f'ALTER TABLE "{acc_dropped}" RENAME TO "{name}_03_dropped"')
+    conn.execute(f'DROP TABLE IF EXISTS "{name}_03_detached"')
+    conn.execute(f'ALTER TABLE "{acc_detached}" RENAME TO "{name}_03_detached"')
 
     if passthrough:
         # The last loop iteration left _overlay_01 narrowed to its own

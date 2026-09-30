@@ -168,6 +168,24 @@ CLI maps flags/env vars onto those same kwargs 1:1.
   inputs; its overlay drops intersections below `SNAP_TOLERANCE` squared
   instead.
 
+## Clip-detached pieces
+
+- A clip-detached piece is any polygon part of a clipped feature other than
+  the main piece of its own source part. The main piece is the one
+  overlapping that source part most, or the largest piece when none does
+  (e.g. a part `edge-match` grew entirely by extension).
+- `edge-clip`, `edge-match` and `edge-mosaic` MUST merge a clip-detached
+  piece under `DETACHED_MERGE_MAX_RATIO` (1%) of its main piece's area into
+  the feature, assigned to the same overlay feature, it shares the longest
+  edge with (ties to the lowest fid). A point contact, or a neighbour that
+  is itself a clip-detached piece, MUST NOT count as sharing an edge.
+- A piece MUST stay on its own feature when it is 1% or larger, when it
+  shares no edge with any feature, or when merging would leave the
+  receiving feature with an extra part.
+- Each piece, merged or kept, MUST be reported as a `detached-part` row.
+- In `edge-mosaic`'s per-file loop, only features from the same input file
+  are candidate neighbours.
+
 ## Hard gates at each tool's output stage
 
 - Every tool below that runs a topology hard gate MUST also raise if its
@@ -195,7 +213,7 @@ CLI maps flags/env vars onto those same kwargs 1:1.
   assigned overlay feature's geometry one `overlay_fid` at a time and does not
   itself validate whole-layer coverage. It MAY still produce an issues
   report (a `clip-empty` row for any input feature whose clip result was empty,
-  plus `code-mismatch`/`code-fallback` rows when a match column is
+  a `detached-part` row for each clip-detached piece, plus `code-mismatch`/`code-fallback` rows when a match column is
   supplied, see below).
 - `change` performs no topology hard gate at all; it is a read-only
   comparison between two inputs, not a fix.
@@ -217,7 +235,7 @@ involved (e.g. the other side of an overlap). `edge-match` MUST populate
 `source_file` with the row's originating input file, shortened to its
 parent directory plus filename (never the full input path), for every
 kind that has one (`unassigned`, `dropped_group`, `clip-empty`,
-`passthrough`), null only for `gap` (see `docs/adr/0084`,
+`detached-part`, `passthrough`), null only for `gap` (see `docs/adr/0084`,
 `docs/adr/0087`).
 
 None of `edge-match`/`edge-mosaic`/`edge-clip`/`edge-stitch`'s *main*
@@ -246,6 +264,15 @@ own feature fid in `unit_a`, the receiving feature's fid in `unit_b` (null
 when dropped), `reason` MUST say whether it was merged or dropped,
 `fixed` MUST be true, and `geom` MUST be the part itself. `topo-detect`
 reports the same kind unfixed: `fixed` false, `unit_b` and `reason` null.
+
+A `kind='detached-part'` row (see Clip-detached pieces) MUST hold the
+piece's own feature fid in `unit_a`, the receiving feature's fid in
+`unit_b` (null when kept), the piece's assigned overlay feature in
+`overlay_fid`, and the piece itself as `geom`, with `area_m2`,
+`max_width_m` and `thinness_ratio` measured on the piece. `reason` MUST be
+one of `merged into neighbouring feature`, `kept: too large to merge`,
+`kept: no neighbour` or `kept: merge did not attach`, and `fixed` MUST be
+true only for a merged piece.
 
 A tool MUST NOT write an issues file at all when the run produced zero
 issues rows; if a file already exists at the destination path from a

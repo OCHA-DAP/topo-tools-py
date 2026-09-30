@@ -82,6 +82,18 @@ See `docs/adr/0016` (grid-tiling a large overlay feature's boundary before
 intersecting) and `docs/adr/0017` (the adaptive threshold/cell size) for
 the full empirical detail.
 
+## Clip-detached pieces
+
+Clipping an extended feature to its overlay feature can cut one of its parts
+into several pieces, e.g. where the overlay edge crosses a thin tip.
+`_engine.main()` finishes with `core.coverage.merge_detached_parts`, which
+groups each piece by the source part it overlaps most, keeps that part's
+main piece, and merges any piece under 1% of it into the neighbour it
+shares the longest edge with. `edge-match` passes its pre-extension
+`{name}_input_01` as the source, so an extension-only piece never outranks
+a unit's real footprint. The rows land in `{table_out}_detached`, which
+each tool's outputs stage adds to its issues report.
+
 ## Hard-fail on the first bad overlay fid
 
 If an overlay fid's subprocess fails (crash, OOM, missing output), `edge-clip`

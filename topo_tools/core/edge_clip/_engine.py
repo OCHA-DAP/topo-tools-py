@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from duckdb import DuckDBPyConnection
 
+from topo_tools.core.coverage import merge_detached_parts
 from topo_tools.core.duckdb_utils import (
     bbox_columns_sql,
     get_connection,
@@ -30,11 +31,13 @@ def main(  # noqa: PLR0913 (each param is a distinct required input)
     *,
     threads: int | None = None,
     debug: bool = False,
+    original_table: str | None = None,
 ) -> None:
     """Clip every row of table_in to its own overlay_fid's geometry.
 
     table_in MUST already carry a overlay_fid column; an empty-intersection
     input feature is dropped from table_out but kept in "{table_out}_dropped".
+    A clip-detached piece is merged or reported in "{table_out}_detached".
     """
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{table_out}" AS
@@ -91,6 +94,15 @@ def main(  # noqa: PLR0913 (each param is a distinct required input)
 
         if not debug:
             shutil.rmtree(group_dir, ignore_errors=True)
+
+    merge_detached_parts(
+        conn,
+        table_out,
+        table_out,
+        pre_clip_table=table_in,
+        original_table=original_table or table_in,
+        issues_table=f"{table_out}_detached",
+    )
 
 
 def _clip_one_worker(

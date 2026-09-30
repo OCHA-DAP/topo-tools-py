@@ -9,6 +9,9 @@ SNAP_ESCALATION_STEP = SNAP_TOLERANCE
 # Caps the retry loop at SNAP_TOLERANCE + this many extra steps (9 ->
 # 1e-7 deg, ~1.1cm).
 SNAP_ESCALATION_MAX_STEPS = 9
+# A clip-detached piece merges into a neighbour only below this fraction of its
+# own source part's kept piece; else it is reported.
+DETACHED_MERGE_MAX_RATIO = 0.01
 # Equal Earth, used by match/change to rank/compute areas for cross-polygon
 # area comparison (never stored).
 EQUAL_AREA_CRS = "EPSG:8857"
