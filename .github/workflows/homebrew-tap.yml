@@ -12,10 +12,26 @@ jobs:
       - name: Checkout topo-tools-py
         uses: actions/checkout@v7
 
-      - name: Latest PyPI version
+      # brew bump-formula-pr resolves deps with --uploaded-prior-to=P1D, so a
+      # release under a day old can't be found yet.
+      - name: Latest PyPI version older than 1 day
         id: pypi
         run: |
-          version=$(curl -s https://pypi.org/pypi/topo-tools/json | jq -r .info.version)
+          set -euo pipefail
+          version=$(curl -sf https://pypi.org/pypi/topo-tools/json | jq -r '
+            (now - 86400) as $cutoff
+            | .releases | to_entries
+            | map(select(
+                (.key | test("^[0-9]+(\\.[0-9]+)*$"))
+                and (.value | length > 0)
+                and (.value | all(
+                  (.yanked | not)
+                  and ((.upload_time_iso_8601 | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) < $cutoff)
+                ))
+              ))
+            | sort_by(.key | split(".") | map(tonumber))
+            | last | .key // empty')
+          [ -n "$version" ] || { echo "No topo-tools release older than 1 day"; exit 1; }
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Tap OCHA-DAP/homebrew-topo-tools

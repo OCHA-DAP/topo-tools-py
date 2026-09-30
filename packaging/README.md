@@ -60,11 +60,12 @@ auto-trusts a fully-qualified install, no separate `brew tap`/`brew trust`
 step needed).
 
 Version bumps are automated: `.github/workflows/homebrew-tap.yml` runs
-daily, comparing the tap's current formula version against PyPI's latest
-`topo-tools` release, and runs `brew bump-formula-pr` to open a PR
-against the tap with the new `url`/`sha256` and regenerated resource
-blocks whenever they differ (review and merge like any other PR, nothing
-merges unattended). That job needs a `HOMEBREW_TAP_TOKEN` repository secret
+daily, comparing the tap's current formula version against the newest
+`topo-tools` PyPI release more than a day old (`brew bump-formula-pr`
+can't resolve a younger release's dependencies), and runs
+`brew bump-formula-pr` to open a PR against the tap with the new
+`url`/`sha256` and regenerated resource blocks whenever they differ, then
+pins the duckdb wheel on that PR's branch and merges it. That job needs a `HOMEBREW_TAP_TOKEN` repository secret
 (a fine-grained PAT scoped to `OCHA-DAP/homebrew-topo-tools` with
 `Contents: Read and write` and `Pull requests: Read and write`), set up
 once by a repo admin.
