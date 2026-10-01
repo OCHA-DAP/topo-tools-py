@@ -168,6 +168,39 @@ CLI maps flags/env vars onto those same kwargs 1:1.
   inputs; its overlay drops intersections below `SNAP_TOLERANCE` squared
   instead.
 
+## Clip-detached pieces
+
+- A clip-detached piece is any polygon part of a clipped feature other than
+  the kept piece of its own pre-clip part (the extended part holding the
+  piece's interior point). The kept piece is the largest piece on the
+  unit's original footprint, or the largest piece when none is.
+- A piece is on the original footprint when its interior point falls on an
+  original part of the same feature, or when at least
+  `DETACHED_MAX_ORIGINAL_SHARE` (50%) of its area is original land. An
+  original feature belongs to the pre-clip part holding its interior point.
+- `edge-clip`, `edge-match` and `edge-mosaic` MUST merge a piece under
+  `DETACHED_MERGE_MAX_RATIO` (1%) of its kept piece's area into the feature,
+  assigned to the same overlay feature, it shares the longest edge with
+  (ties to the lowest fid), when under 50% of the piece is original land or
+  when the original land clipped away beside it is at least
+  `DETACHED_MIN_NECK_RATIO` (0.1) of its area. Otherwise the piece MUST
+  stay, reported as `kept: matches original shape`.
+- Without an original layer, such a piece MUST stay, reported as
+  `kept: no original layer`. `edge-match` always uses its own
+  pre-extension input; `edge-clip` and `edge-mosaic` take one via
+  `original_path`/`original_paths` (CLI: `--original`).
+- A destination MUST be a kept piece, a single-part feature, or a piece
+  kept as too large. A point contact, or a neighbour that is any other
+  clip-detached piece, MUST NOT count as sharing an edge.
+- A piece MUST stay on its own feature when it is 1% or larger, when it
+  shares no edge with any destination, or when merging would leave the
+  receiving feature with an extra part.
+- A piece that shares an edge with a same-overlay feature MUST be reported
+  as a `detached-part` row, merged or kept. A piece sharing no edge with any
+  feature MUST NOT be reported.
+- In `edge-mosaic`'s per-file loop, only features from the same input file
+  are candidate neighbours.
+
 ## Hard gates at each tool's output stage
 
 - Every tool below that runs a topology hard gate MUST also raise if its
@@ -195,7 +228,7 @@ CLI maps flags/env vars onto those same kwargs 1:1.
   assigned overlay feature's geometry one `overlay_fid` at a time and does not
   itself validate whole-layer coverage. It MAY still produce an issues
   report (a `clip-empty` row for any input feature whose clip result was empty,
-  plus `code-mismatch`/`code-fallback` rows when a match column is
+  a `detached-part` row for each clip-detached piece with an edge neighbour, plus `code-mismatch`/`code-fallback` rows when a match column is
   supplied, see below).
 - `change` performs no topology hard gate at all; it is a read-only
   comparison between two inputs, not a fix.
@@ -217,7 +250,7 @@ involved (e.g. the other side of an overlap). `edge-match` MUST populate
 `source_file` with the row's originating input file, shortened to its
 parent directory plus filename (never the full input path), for every
 kind that has one (`unassigned`, `dropped_group`, `clip-empty`,
-`passthrough`), null only for `gap` (see `docs/adr/0084`,
+`detached-part`, `passthrough`), null only for `gap` (see `docs/adr/0084`,
 `docs/adr/0087`).
 
 None of `edge-match`/`edge-mosaic`/`edge-clip`/`edge-stitch`'s *main*
@@ -246,6 +279,17 @@ own feature fid in `unit_a`, the receiving feature's fid in `unit_b` (null
 when dropped), `reason` MUST say whether it was merged or dropped,
 `fixed` MUST be true, and `geom` MUST be the part itself. `topo-detect`
 reports the same kind unfixed: `fixed` false, `unit_b` and `reason` null.
+
+A `kind='detached-part'` row (see Clip-detached pieces) MUST hold the
+piece's own feature fid in `unit_a`, the fid of the feature it shares the
+longest edge with in `unit_b` (the receiving feature when merged), the
+piece's assigned overlay feature in
+`overlay_fid`, and the piece itself as `geom`, with `area_m2`,
+`max_width_m` and `thinness_ratio` measured on the piece. `reason` MUST be
+one of `merged into neighbouring feature`, `kept: too large to merge`,
+`kept: matches original shape`, `kept: no original layer` or
+`kept: merge did not attach`, and `fixed` MUST be
+true only for a merged piece.
 
 A tool MUST NOT write an issues file at all when the run produced zero
 issues rows; if a file already exists at the destination path from a

@@ -17,6 +17,7 @@ def main(  # noqa: PLR0913
     threads: int | None = None,
     debug: bool = False,
     carry_columns: list[str] | None = None,
+    original_table: str | None = None,
 ) -> None:
     """Clip each assigned input feature to its overlay, then merge micro-polygons."""
     carry_sql = "".join(f', a."{c}" AS "{c}"' for c in (carry_columns or []))
@@ -34,6 +35,7 @@ def main(  # noqa: PLR0913
         tmp_dir,
         threads=threads,
         debug=debug,
+        original_table=original_table,
     )
     merge_micro_polygons(
         conn,

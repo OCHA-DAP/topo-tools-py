@@ -355,6 +355,47 @@ def test_mosaic_multi_file_api(synthetic_inputs_split, synthetic_overlays, tmp_p
     assert [r[0] for r in rows] == [1, 2]
 
 
+def test_mosaic_multi_file_detached_keys_are_unique(tmp_path):
+    notch = (
+        "POLYGON(({x0} 0, {x2} 0, {x2} 0.008, {x1} 0.008, {x1} 0.009, "
+        "{x3} 0.009, {x3} 0.0091, {x1} 0.0091, {x1} 0.01, {x0} 0.01, {x0} 0))"
+    )
+    overlays, paths = [], []
+    for i, dx in enumerate((0, 1)):
+        x0, x1, x2, x3 = dx - 0.005, dx, dx + 0.01, dx + 0.00005
+        overlays.append((i + 1, notch.format(x0=x0, x1=x1, x2=x2, x3=x3)))
+        path = tmp_path / f"children_{i}.parquet"
+        _write_synthetic(
+            path,
+            [
+                (2 * i + 1, f"POLYGON(({x1} 0, {x2} 0, {x2} 0.01, {x1} 0.01, {x1} 0))"),
+                (2 * i + 2, f"POLYGON(({x0} 0, {x1} 0, {x1} 0.01, {x0} 0.01, {x0} 0))"),
+            ],
+        )
+        paths.append(path)
+    overlays_path = tmp_path / "parents.parquet"
+    _write_synthetic(overlays_path, overlays)
+    output_path = tmp_path / "out.parquet"
+    issues_path = tmp_path / "issues.parquet"
+    mosaic(
+        paths,
+        overlays_path,
+        output_path,
+        issues_path,
+        overwrite=True,
+        original_paths=paths,
+    )
+
+    with duckdb.connect() as conn:
+        conn.execute("LOAD spatial")
+        rows = conn.execute(
+            f"SELECT key, fixed FROM '{issues_path}' WHERE kind = 'detached-part'"
+        ).fetchall()
+    keys = [k for k, _ in rows]
+    assert len(set(keys)) == len(keys) == len(paths)
+    assert all(fixed for _, fixed in rows)
+
+
 def test_mosaic_multi_file_column_order_is_deterministic(synthetic_overlays, tmp_path):
     """UNION ALL BY NAME must not let caller-supplied file order pick the schema."""
     deep_path = tmp_path / "deep.parquet"

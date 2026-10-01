@@ -44,6 +44,9 @@ def _build_issues(
         FROM "{name}_03_dropped"
         """,
         gap_issues_sql(conn, table),
+        f"""SELECT * REPLACE ({short_source_file} AS source_file)
+        FROM "{name}_03_detached"
+        """,
     ]
     if passthrough:
         parts.append(f"""
@@ -130,6 +133,7 @@ def main(  # noqa: PLR0913
         conn.execute(f'DROP TABLE IF EXISTS "{name}_02_assign"')
         conn.execute(f'DROP TABLE IF EXISTS "{name}_02_unassigned"')
         conn.execute(f'DROP TABLE IF EXISTS "{name}_03_dropped"')
+        conn.execute(f'DROP TABLE IF EXISTS "{name}_03_detached"')
         conn.execute(f'DROP TABLE IF EXISTS "{name}_04"')
         conn.execute(f'DROP TABLE IF EXISTS "{name}_04_micro"')
         conn.execute(f'DROP TABLE IF EXISTS "{name}_05"')

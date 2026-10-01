@@ -38,6 +38,7 @@ def main(  # noqa: PLR0913
         tmp_dir,
         threads=threads,
         debug=debug,
+        original_table=f"{name}_input_01",
     )
 
     if passthrough:

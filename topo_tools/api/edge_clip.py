@@ -3,7 +3,7 @@
 from logging import getLogger
 from pathlib import Path
 
-from topo_tools.core.assign import assign_one, load_input, load_overlay
+from topo_tools.core.assign import assign_one, load_input, load_original, load_overlay
 from topo_tools.core.duckdb_utils import (
     maybe_export_debug_tables,
     pipeline_connection,
@@ -23,9 +23,9 @@ logger = getLogger(__name__)
 _STEP_ORDER = ["inputs", "assign", "clip", "outputs"]
 
 _STEP_TABLES = {
-    "inputs": ["{n}_input_01", "{n}_overlay_01"],
+    "inputs": ["{n}_input_01", "{n}_overlay_01", "{n}_original_01"],
     "assign": ["{n}_02_pairs", "{n}_02_assign", "{n}_02_unassigned"],
-    "clip": ["{n}_03", "{n}_03_dropped"],
+    "clip": ["{n}_03", "{n}_03_dropped", "{n}_03_detached"],
     "outputs": [],
 }
 
@@ -46,6 +46,7 @@ def clip(  # noqa: C901, PLR0912, PLR0913
     overlay_match_column: str | None = None,
     input_match_column: str | None = None,
     carry_columns: list[str] | None = None,
+    original_path: str | Path | None = None,
 ) -> None:
     """Assign one input file to its overlay feature via assign-one, then clip it."""
     if match_column is not None and (overlay_match_column or input_match_column):
@@ -66,6 +67,8 @@ def clip(  # noqa: C901, PLR0912, PLR0913
 
     input_path = resolve_input_path(input_path)
     overlay_path = resolve_input_path(overlay_path)
+    if original_path is not None:
+        original_path = resolve_input_path(original_path)
 
     output_path = (
         Path(output_path)
@@ -103,6 +106,8 @@ def clip(  # noqa: C901, PLR0912, PLR0913
             if s == "inputs":
                 load_input(conn, name, [input_path])
                 load_overlay(conn, name, overlay_path)
+                if original_path is not None:
+                    load_original(conn, name, [original_path])
             elif s == "assign":
                 assign_one(
                     conn,
@@ -119,6 +124,9 @@ def clip(  # noqa: C901, PLR0912, PLR0913
                     threads=threads,
                     debug=debug,
                     carry_columns=carry_columns,
+                    original_table=(
+                        f"{name}_original_01" if original_path is not None else None
+                    ),
                 )
             elif s == "outputs":
                 outputs.main(

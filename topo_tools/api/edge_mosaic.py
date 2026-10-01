@@ -11,6 +11,7 @@ from topo_tools.core.assign import (
     fill_unmatched_overlays,
     input_bbox_extent,
     load_input,
+    load_original,
     load_overlay,
     prepare_overlay_tiles,
     resolve_merge_columns,
@@ -37,9 +38,9 @@ logger = getLogger(__name__)
 _STEP_ORDER = ["inputs", "assign", "clip", "stitch", "outputs"]
 
 _STEP_TABLES = {
-    "inputs": ["{n}_input_01", "{n}_overlay_01", "{n}_overlay_full"],
+    "inputs": ["{n}_input_01", "{n}_overlay_01", "{n}_overlay_full", "{n}_original_01"],
     "assign": ["{n}_02_pairs", "{n}_02_assign", "{n}_02_unassigned"],
-    "clip": ["{n}_03", "{n}_03_dropped", "{n}_02_gap_fill"],
+    "clip": ["{n}_03", "{n}_03_dropped", "{n}_03_detached", "{n}_02_gap_fill"],
     "stitch": ["{n}_04"],
     "outputs": [],
 }
@@ -69,6 +70,7 @@ def mosaic(  # noqa: C901, PLR0912, PLR0913, PLR0915
     name_field: str | None = None,
     code_field: str | None = None,
     depth_column: str = "adm_lvl",
+    original_paths: str | Path | list[str | Path] | None = None,
 ) -> None:
     """Fit one or more already-extended input layers into a new overlay layer."""
     if match_column is not None and (overlay_match_column or input_match_column):
@@ -110,6 +112,9 @@ def mosaic(  # noqa: C901, PLR0912, PLR0913, PLR0915
         raise ValueError(msg)
 
     overlay_path = resolve_input_path(overlay_path)
+    if isinstance(original_paths, (str, Path)):
+        original_paths = [original_paths]
+    originals = [resolve_input_path(p) for p in original_paths or []]
     if output_path is not None:
         output_path = Path(output_path)
     elif single_path is not None:
@@ -133,6 +138,7 @@ def mosaic(  # noqa: C901, PLR0912, PLR0913, PLR0915
         if single_path is not None
         else output_path.name.replace(".", "_") + "_edge_mosaic"
     )
+    original_table = f"{name}_original_01" if originals else None
 
     with (
         resolve_tmp_dir(tmp_dir, debug=debug) as tmp_dir_path,
@@ -164,6 +170,7 @@ def mosaic(  # noqa: C901, PLR0912, PLR0913, PLR0915
                 name_field=name_field,
                 code_field=code_field,
                 depth_column=depth_column,
+                originals=originals,
             )
         else:
             resolved_overlay_columns: list[str] | None = None
@@ -177,6 +184,8 @@ def mosaic(  # noqa: C901, PLR0912, PLR0913, PLR0915
                 if s == "inputs":
                     load_input(conn, name, paths)
                     load_overlay(conn, name, overlay_path)
+                    if originals:
+                        load_original(conn, name, originals)
                     if passthrough:
                         conn.execute(f"""--sql
                             CREATE OR REPLACE TABLE "{name}_overlay_full" AS
@@ -231,6 +240,7 @@ def mosaic(  # noqa: C901, PLR0912, PLR0913, PLR0915
                         passthrough=passthrough,
                         result_table=f"{name}_03",
                         raise_if_empty=False,
+                        original_table=original_table,
                     )
                     if passthrough:
                         fill_unmatched_overlays(
@@ -320,9 +330,12 @@ def _mosaic_multi_file(  # noqa: C901, PLR0913, PLR0915, PLR0917
     name_field: str | None,
     code_field: str | None,
     depth_column: str,
+    originals: list[Path | str],
 ) -> None:
     """Assign/clip one input file at a time against one already-loaded overlay layer."""
     load_overlay(conn, name, overlay_path)
+    if originals:
+        load_original(conn, name, originals)
     conn.execute(f"""--sql
         CREATE TABLE "{name}_overlay_full" AS SELECT * FROM "{name}_overlay_01"
     """)
@@ -358,7 +371,15 @@ def _mosaic_multi_file(  # noqa: C901, PLR0913, PLR0915, PLR0917
     acc_assign = f"{name}_02_assign_acc"
     acc_unassigned = f"{name}_02_unassigned_acc"
     acc_dropped = f"{name}_03_dropped_acc"
-    for tbl in (acc_input, acc_assign, acc_unassigned, acc_dropped, f"{name}_03"):
+    acc_detached = f"{name}_03_detached_acc"
+    for tbl in (
+        acc_input,
+        acc_assign,
+        acc_unassigned,
+        acc_dropped,
+        acc_detached,
+        f"{name}_03",
+    ):
         conn.execute(f'DROP TABLE IF EXISTS "{tbl}"')
 
     fid_offset = 0
@@ -389,6 +410,7 @@ def _mosaic_multi_file(  # noqa: C901, PLR0913, PLR0915, PLR0917
             passthrough=passthrough,
             result_table=f"{name}_03_iter",
             raise_if_empty=False,
+            original_table=f"{name}_original_01" if originals else None,
         )
 
         seeded = i > 0
@@ -397,11 +419,13 @@ def _mosaic_multi_file(  # noqa: C901, PLR0913, PLR0915, PLR0917
         _fold(conn, acc_assign, f"{name}_02_assign", seeded=seeded)
         _fold(conn, acc_unassigned, f"{name}_02_unassigned", seeded=seeded)
         _fold(conn, acc_dropped, f"{name}_03_iter_dropped", seeded=seeded)
+        _fold(conn, acc_detached, f"{name}_03_iter_detached", seeded=seeded)
 
         new_max = conn.execute(f'SELECT MAX(fid) FROM "{name}_input_01"').fetchone()[0]
         fid_offset = new_max if new_max is not None else fid_offset
         conn.execute(f'DROP TABLE IF EXISTS "{name}_03_iter"')
         conn.execute(f'DROP TABLE IF EXISTS "{name}_03_iter_dropped"')
+        conn.execute(f'DROP TABLE IF EXISTS "{name}_03_iter_detached"')
 
     conn.execute(f'DROP TABLE IF EXISTS "{name}_input_01"')
     conn.execute(f'ALTER TABLE "{acc_input}" RENAME TO "{name}_input_01"')
@@ -411,6 +435,8 @@ def _mosaic_multi_file(  # noqa: C901, PLR0913, PLR0915, PLR0917
     conn.execute(f'ALTER TABLE "{acc_unassigned}" RENAME TO "{name}_02_unassigned"')
     conn.execute(f'DROP TABLE IF EXISTS "{name}_03_dropped"')
     conn.execute(f'ALTER TABLE "{acc_dropped}" RENAME TO "{name}_03_dropped"')
+    conn.execute(f'DROP TABLE IF EXISTS "{name}_03_detached"')
+    conn.execute(f'ALTER TABLE "{acc_detached}" RENAME TO "{name}_03_detached"')
 
     if passthrough:
         # The last loop iteration left _overlay_01 narrowed to its own
@@ -421,6 +447,7 @@ def _mosaic_multi_file(  # noqa: C901, PLR0913, PLR0915, PLR0917
         """)
     if not debug:
         conn.execute(f'DROP TABLE IF EXISTS "{name}_overlay_full"')
+        conn.execute(f'DROP VIEW IF EXISTS "{name}_original_01"')
     if passthrough:
         fill_unmatched_overlays(
             conn,
