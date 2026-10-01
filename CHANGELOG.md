@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   change; update an installed `topo-tools` plugin so
   its COD-AB step links resolve.
 
+### Removed
+
+- `pyyaml` is not a dependency: no topo-tools code reads YAML.
+
 ## [0.10.2] - 2026-09-29
 
 ### Fixed
