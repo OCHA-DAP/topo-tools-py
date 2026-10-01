@@ -81,8 +81,7 @@ See [edge-extend](edge_extend.md) for the rules `edge-match` shares with it.
 - Unlike a failed group's extension, `edge-match` MUST raise immediately if any
   real `overlay_fid`'s clip subprocess fails, aborting the whole run rather than
   dropping just that group.
-- `edge-match` MUST merge or keep every clip-detached piece in the clipped result
-  (see `docs/dev/shared.md`), recording each one with an edge
+- `edge-match` MUST merge or keep every clip-detached piece in the clipped result, recording each one with an edge
   neighbour as a `kind='detached-part'` row.
 
 ## Stitching
@@ -94,13 +93,11 @@ See [edge-extend](edge_extend.md) for the rules `edge-match` shares with it.
 
 ## Outputs
 
-- `edge-match`'s final output MUST pass the hard gate in
-  `docs/dev/shared.md` (no overlap, no gap at or below
+- `edge-match`'s final output MUST pass the coverage check (no overlap, no gap at or below
   `SNAP_TOLERANCE`) before export. A wider leftover gap does not block
   export (see `docs/adr/0035`).
 - `edge-match` MUST export the final merged layer.
-- `edge-match` MUST also export an issues report alongside it, using the shared
-  schema in `docs/dev/shared.md`, listing every dropped input feature, every
+- `edge-match` MUST also export an issues report alongside it, using the same columns as every other tool's issues report, listing every dropped input feature, every
   input feature belonging to a dropped group, every input feature dropped for an empty
   clip intersection, every clip-detached piece with an edge neighbour, every passthrough input feature and gap-filled overlay feature
   (`merge` set only), and every leftover gap wider than `SNAP_TOLERANCE`,
@@ -147,8 +144,7 @@ See [edge-extend](edge_extend.md) for the rules `edge-match` shares with it.
   MUST be `None` whenever more than one input file is given; any other
   value MUST raise `ValueError` (see `docs/adr/0084`).
 - `edge-match` MAY accept `match_column`/`overlay_match_column`/`input_match_column`
-  to override spatial assignment with an exact code join (see
-  `docs/dev/shared.md`, `docs/pages/3-edge/explanation/assign.md`).
+  to override spatial assignment with an exact code join (see `docs/pages/3-edge/explanation/assign.md`).
 - `edge-match` MAY accept `per_feature: bool = False` (CLI:
   `--per-feature`): `False` (default) assigns the whole input file to one
   majority-vote overlay feature (`assign-one`); `True` assigns each input feature
@@ -183,8 +179,7 @@ See [edge-extend](edge_extend.md) for the rules `edge-match` shares with it.
   `prefer` (the default) preserves raising `ValueError` on a real
   collision. `prefer` MUST raise `ValueError` if given without `merge`,
   or combined with any of `overlay_include`/`overlay_exclude`/
-  `input_include`/`input_exclude` (see `docs/dev/shared.md`,
-  `docs/adr/0077`, `docs/adr/0081`, `docs/adr/0088`).
+  `input_include`/`input_exclude` (see `docs/adr/0077`, `docs/adr/0081`, `docs/adr/0088`).
 - `edge-match` MAY opt into cascading admin-hierarchy columns via
   `fill_schema`/`--fill-schema`, right after stitching and before export
   (both the single-file step loop and the multi-file combine path).

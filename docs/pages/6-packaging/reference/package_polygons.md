@@ -29,19 +29,16 @@ title: "package-polygons"
 ## Outputs
 
 - `package-polygons` MUST produce one output file per detected level.
-- Each level's output MUST pass the hard gate in `docs/dev/shared.md`
+- Each level's output MUST pass the coverage check
   (no overlap or micro-polygon; a gap at or below `SNAP_TOLERANCE` blocks
-  export, a wider one does not). Micro-polygons are merged on input (see
-  `docs/dev/shared.md`), and their `micro-polygon` rows go in the
+  export, a wider one does not). Micro-polygons are merged on input, and their `micro-polygon` rows go in the
   finest level's issues report.
-- `package-polygons` MUST also export an issues report per level, using the
-  shared schema in `docs/dev/shared.md`. A level's issues report MUST
+- `package-polygons` MUST also export an issues report per level, using the same columns as every other tool's issues report. A level's issues report MUST
   be produced only when it has at least one row.
 - `package-polygons` MAY take `output_name_field`/`output_code_field`
   (each containing a `{n}` placeholder, either or both). When given, every
   written level MUST rename each column in the input
-  `name_field`/`code_field` family (numbered siblings included, see
-  `docs/dev/shared.md`) to the matching output template at the same
+  `name_field`/`code_field` family (numbered siblings included) to the matching output template at the same
   level, leaving every other column unchanged. Either one given without
   `name_field`/`code_field` MUST raise `ValueError`, as MUST a renamed
   column colliding with any other output column.

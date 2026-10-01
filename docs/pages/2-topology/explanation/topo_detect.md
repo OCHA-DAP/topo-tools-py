@@ -68,8 +68,7 @@ very-high-vertex-count polygons. See
 `docs/adr/0014-bbox-inline-recompute-in-join.md`.
 
 `has_invalid_edges()` alone cannot stand in for gap detection: it
-only detects overlaps/mismatched edges, never gaps (see
-`docs/dev/shared.md`).
+only detects overlaps/mismatched edges, never gaps.
 
 ## Sliver detection was removed
 

@@ -50,7 +50,7 @@ title: "edge-extend"
 
 ## Outputs
 
-- `edge-extend`'s final output MUST pass the hard gate in `docs/dev/shared.md` (no
+- `edge-extend`'s final output MUST pass the coverage check (no
   overlap, no gap) before export.
 - `edge-extend` MUST export the final merged layer.
 

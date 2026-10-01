@@ -370,8 +370,7 @@ insertion points (the single-file step loop's `outputs` branch and
 `_match_multi_file()`'s own final stage), calling
 `core.schema_fill._02_fill.main()` directly through the private
 `api._schema_fill_compose` helper; `core.edge_match` itself is unchanged
-and still MUST NOT depend on `core.schema_fill`/`core.schema_map` (see
-`docs/dev/shared.md`, `docs/adr/0095`).
+and still MUST NOT depend on `core.schema_fill`/`core.schema_map` (see `docs/adr/0095`).
 
 `fill_schema` and `merge` are conceptually complementary but
 independently gated flags, not aliases: `merge`'s own

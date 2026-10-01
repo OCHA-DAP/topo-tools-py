@@ -147,8 +147,7 @@ the cross-check); `assign_one` computes it per source file (its usual
 per-file majority vote feeds the cross-check, so every input feature in a
 code-mismatched or code-fallback file shares the same `assignment_method`).
 Neither function derives issues rows itself; that's each calling
-`api.*()`'s job (`kind='code-mismatch'`/`'code-fallback'`, see
-`docs/dev/shared.md`). See `docs/adr/0045` for why code wins on
+`api.*()`'s job (`kind='code-mismatch'`/`'code-fallback'`). See `docs/adr/0045` for why code wins on
 disagreement instead of spatial, and why an unmatched code falls back
 instead of dropping the input feature/file.
 

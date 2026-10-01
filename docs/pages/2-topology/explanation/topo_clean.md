@@ -89,8 +89,7 @@ See `docs/pages/2-topology/explanation/topo_detect.md` for how gap/overlap detec
 (skipping overlap detection when the coverage is already valid, the
 bbox-precompute-before-join requirement, why sliver detection/fixing was
 removed entirely). `has_invalid_edges()` alone cannot stand in for
-gap detection: it only detects overlaps/mismatched edges, never gaps (see
-`docs/dev/shared.md`). `_03_clean.py`'s fix-stage gate also checks
+gap detection: it only detects overlaps/mismatched edges, never gaps. `_03_clean.py`'s fix-stage gate also checks
 whether any detected gap qualifies to fill under the resolved
 `gap_maximum_width`, not `has_invalid_edges()` alone (see "Pipeline"
 above). See `docs/adr/0008-has-coverage-violations-misses-gaps.md`.
@@ -272,8 +271,7 @@ is populated only for gap rows; `unit_a`/`unit_b_area_change_m2` only for
 overlap rows. `overlay_fid` and `source_file` are always null for
 `topo-clean`, and `reason` is set only on `micro-polygon` rows: they exist
 so the schema matches `edge-match`/`edge-mosaic`/`edge-stitch`'s own issues
-tables column-for-column (see `docs/dev/shared.md`, "Issues report
-schema"). Each `micro-polygon` row comes from `{name}_03_micro`, the merge
+tables column-for-column. Each `micro-polygon` row comes from `{name}_03_micro`, the merge
 outcome (receiving fid in `unit_b`, `fixed=TRUE`), replacing
 `topo-detect`'s detection row for it.
 
