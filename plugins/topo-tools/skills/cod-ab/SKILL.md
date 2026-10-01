@@ -44,8 +44,8 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
    `uv init --bare --vcs none` there, `uv add topo-tools`, add a
    `[tool.topo-tools-cod-ab]` table to the new `pyproject.toml`, then the
    same refresh. Run every command below via `uv run topo-tools ...`.
-3. Create `01_inputs/`, `02_working/`, and `03_outputs/` at the workspace
-   root if missing, then check `01_inputs/` and `02_working/`.
+3. Create `00_shared/`, `01_inputs/`, `02_working/`, and `03_outputs/`
+   at the workspace root if missing, then check `01_inputs/` and `02_working/`.
    - Files exist in `01_inputs/`: for each, ask the user its country and
      whether it's the new source or the old (previous) version, plus a
      third option, a file returned by an external reviewer, only when
@@ -74,7 +74,12 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
      missing), delete its GeoParquet and rerun with `--encoding cp1252`
      (or the source's actual codepage). Delete the file from `01_inputs/` (a
      zip together with everything extracted from it) only after it
-     converts cleanly. On a failure, stop and keep the file.
+     converts cleanly. On a failure, stop and keep the file. When
+     `00a_old/` ends up without `{iso3}_admin0.parquet` and `00_shared/`
+     holds no admin0 GeoParquet, ask the user to put their own admin0 file
+     in `00_shared/`, never proposing one. Convert any other format with
+     `uv run <skill-dir>/scripts/convert.py to-parquet {file} 00_shared/`,
+     and delete the original once it converts cleanly.
    - `01_inputs/` is empty and `02_working/` has no country folders: ask
      the user which country to start, or point them to `01_inputs/`.
    - `01_inputs/` is empty and exactly one country folder exists: ask the
@@ -152,9 +157,16 @@ PNGs using the JSON sidecar's pixel mapping and font, never by importing
    holes. "No" means `--maximum-gap-width all`; "yes" means no flag.
 3. [Edge matching](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/3-edge/how-to.md)
 
-   Use `00a_old/{iso3}_admin0.parquet` as the reference admin0. When it's
-   absent, stop and ask the user which outline to fit to. Render the
-   edge-matched output's largest gaps with
+   Take the reference admin0 from the admin0 file in `00_shared/` (ask
+   which when there are several), which may cover many countries, else
+   `00a_old/{iso3}_admin0.parquet`. When neither exists, ask for one as in
+   setup step 3. Extract the country from `00_shared/` with DuckDB
+   (`spatial` loaded), filtering on a column whose values include
+   `{iso3}` in any case. When none does, ask whether the whole file is
+   this country (then drop the `WHERE`), or which column and value select
+   it; when matching columns select different features, ask which:
+   `COPY (SELECT * FROM '00_shared/{admin0}.parquet' WHERE trim(upper("{column}"::VARCHAR)) = upper('{iso3}')) TO '02_working/{iso3}/{version}/03_edge_matching/{iso3}_admin0.parquet' (FORMAT PARQUET, COMPRESSION ZSTD, GEOPARQUET_VERSION 'V2')`.
+   Render the edge-matched output's largest gaps with
    `preview.py issues {issues} 03_edge_matching/previews/ --units {output}`
    and check them against both base layers before accepting the output.
 4. [Codes](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/4-codes/how-to.md)
