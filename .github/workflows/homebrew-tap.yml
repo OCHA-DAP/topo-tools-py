@@ -98,7 +98,10 @@ jobs:
   test-linux:
     needs: update-homebrew-tap
     if: needs.update-homebrew-tap.outputs.bumped == 'true'
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        runner: [ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
     steps:
       - name: Set up Homebrew
         uses: Homebrew/actions/setup-homebrew@main
