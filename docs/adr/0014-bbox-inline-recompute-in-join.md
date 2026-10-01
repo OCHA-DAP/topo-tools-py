@@ -43,7 +43,7 @@ columns in its `_05_tmp1`/`v` CTEs, the reference pattern for the fix.
 **`SPATIAL_JOIN` considered and ruled out** as an alternative to manual
 bbox-prefiltering entirely (the manual prefiltering exists partly to dodge
 `SPATIAL_JOIN`'s known ~1x-RAM reservation bug on DuckDB 1.5.2, per
-`docs/explanation/topology.md`, added without rigorous benchmarking at the
+`docs/dev/topology.md`, added without rigorous benchmarking at the
 time). Confirmed via `EXPLAIN` + timing on the real Colombia file:
 `SPATIAL_JOIN` only activates when a spatial predicate is the *entire* `ON`
 clause, no fid ordering, no `WHERE`, no `UNION`, nothing else. The

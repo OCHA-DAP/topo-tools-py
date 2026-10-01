@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+  <!-- Unit polygon with a check mark: its name has been reviewed -->
+  <path d="M6 10 L30 6 L36 24 L24 34 L6 28 Z" fill="currentColor" fill-opacity="0.12" />
+  <path d="M13 19 L18 24 L27 14" />
+  <!-- Name label tag attached to the unit -->
+  <path d="M26 36 L46 36 L58 47 L46 58 L26 58 Z" fill="currentColor" fill-opacity="0.12" />
+  <circle cx="49" cy="47" r="2" />
+  <path d="M31 43 L41 43" stroke-width="1.5" />
+  <path d="M31 51 L38 51" stroke-width="1.5" />
+</svg>

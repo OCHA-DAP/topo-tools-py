@@ -28,7 +28,7 @@ never even ran on a real candidate.
 ## Consequences
 
 The noise floor was removed; `clean` now reports every detected gap and
-overlap regardless of size. Consistent with `docs/explanation/change.md`'s
+overlap regardless of size. Consistent with `docs/pages/4-codes/explanation/change.md`'s
 documented WASM-only GEOS `OverlayNG` bug that doesn't reproduce natively:
 constants tuned against topo-tools-js's WASM-compiled GEOS build don't
 necessarily carry over to this native pipeline without independent

@@ -7,7 +7,7 @@ Accepted.
 ## Context
 
 Both `code-refactor` (a cold-start cascade) and `code-update` (a
-per-level batch of new-code requests, `docs/explanation/code_update.md`)
+per-level batch of new-code requests, `docs/pages/4-codes/explanation/code_update.md`)
 need to pick a fresh, unused integer tail under a given parent. A
 persisted, ever-growing registry of every integer ever issued (even after
 a unit was later removed) would guarantee no historical number is ever
@@ -33,6 +33,6 @@ higher sibling code was still live, and that higher sibling is also later
 removed in a subsequent run, a live-max-only computation can in theory
 re-derive a "next available" integer below a number used earlier in the
 dataset's own history. This is a deliberate, documented limitation
-(`docs/explanation/code.md`, `docs/reference/shared.md`), not a bug to
+(`docs/pages/4-codes/explanation/code.md`, `docs/dev/shared.md`), not a bug to
 silently work around with hidden state: a caller who needs strict
 historical non-reuse guarantees must track that externally.

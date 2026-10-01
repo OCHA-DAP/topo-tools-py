@@ -114,7 +114,7 @@ matching the memory-constrained deployment targets in CLAUDE.md, at the
 cost of losing per-step resumability for multi-file runs (new: `step` now
 raises `ValueError` there) and of one extra "renumber `fid`" pass at the
 end to keep the previously-documented "fid is renumbered fresh after the
-union" contract (`docs/explanation/edge_mosaic.md`) true under the new
+union" contract (`docs/pages/3-edge/explanation/edge_mosaic.md`) true under the new
 per-file assembly. `--carry-column`/`--on-unmatched` no longer exist for
 `edge-mosaic`; any caller using either must switch to `--merge`, a breaking
 CLI/API rename, not an addition. `edge-mosaic`'s CLI surface is otherwise

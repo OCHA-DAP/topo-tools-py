@@ -16,7 +16,7 @@ edge-matched polygons fully surrounding a real 1x1 hole):
 `has_coverage_violations()` returned `False` even though a genuine
 fully-enclosed gap existed. It only detects overlaps/mismatched edges,
 never gaps, see
-`docs/reference/shared.md`'s rule that this check must not be treated as a
+`docs/dev/shared.md`'s rule that this check must not be treated as a
 gap check.
 
 ## Consequences

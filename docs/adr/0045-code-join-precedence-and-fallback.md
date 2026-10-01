@@ -42,7 +42,7 @@ callers.
 `match`, `mosaic`, and standalone `clip` all gained this automatically,
 since assignment is a shared leaf primitive rather than duplicated per tool;
 `clip` gained an issues report as a result, its first (see
-`docs/reference/shared.md`, `docs/reference/clip.md`). The design
+`docs/dev/shared.md`, `docs/reference/clip.md`). The design
 deliberately excludes any autodetection of which columns to join on (unlike
 `core/change`'s regex-based column matcher): the caller must name both
 columns explicitly, which also keeps `core/assign` free of any dependency on

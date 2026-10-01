@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Docs are grouped by the six COD-AB release phases (schema, topology,
+  edge matching, codes, names, packaging), each holding its how-to step,
+  tutorial, reference and explanation pages. The shared rules, topology
+  and performance notes move to the unpublished `docs/dev/`. Page URLs
+  change; update an installed `topo-tools` plugin so
+  its COD-AB step links resolve.
+
 ## [0.10.2] - 2026-09-29
 
 ### Fixed

@@ -10,7 +10,7 @@ Accepted.
 detecting gap/overlap defects (`core/clean/_02_issues.py`) and fixing them
 (`core/clean/_03_clean.py`). This mirrored the situation `match` was in
 before `assign`/`clip`/`stitch` were extracted as standalone, independently
-usable primitives (see `docs/explanation/assign.md`, `docs/explanation/
+usable primitives (see `docs/pages/3-edge/explanation/assign.md`, `docs/explanation/
 clip.md`, `docs/explanation/stitch.md`).
 
 Two concrete reasons pushed this from "could split" to "should split":

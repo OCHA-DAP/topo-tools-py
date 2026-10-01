@@ -77,8 +77,8 @@ geometry in the output; `fill_schema` fills a *schema-depth* gap, a row
 whose admin-hierarchy columns don't reach as deep as some other row's, by
 cascading each column family down to the row's own real depth. No flag
 rename was made to make this pairing more visible; the parallel is
-documented instead (see `docs/explanation/edge_match.md`,
-`docs/explanation/edge_mosaic.md`).
+documented instead (see `docs/pages/3-edge/explanation/edge_match.md`,
+`docs/pages/3-edge/explanation/edge_mosaic.md`).
 
 ## Consequences
 

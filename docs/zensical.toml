@@ -10,96 +10,96 @@ site_dir = "site"
 extra_css = ["stylesheets/extra.css"]
 
 nav = [
-  { "Tutorials" = [
-    "tutorials/index.md",
-    "tutorials/change.md",
-    "tutorials/code.md",
-    "tutorials/edge.md",
-    "tutorials/package.md",
-    "tutorials/schema.md",
-    "tutorials/topo.md",
-  ] },
-  { "How-to" = [
-    "how-to/index.md",
-    { "COD-AB cleaning" = [
-      "how-to/cod-ab/01-schema.md",
-      "how-to/cod-ab/02-topology.md",
-      "how-to/cod-ab/03-edge-matching.md",
-      "how-to/cod-ab/04-codes.md",
-      "how-to/cod-ab/05-names.md",
-      "how-to/cod-ab/06-packaging.md",
+  { "1. Schema" = [
+    "1-schema/index.md",
+    { "Tutorial" = "1-schema/tutorial.md" },
+    { "How-to" = "1-schema/how-to.md" },
+    { "Reference" = [
+      "1-schema/reference/schema_map.md",
+      "1-schema/reference/schema_join.md",
+      "1-schema/reference/schema_fill.md",
+    ] },
+    { "Explanation" = [
+      { "Overview" = "1-schema/explanation/overview.md" },
+      "1-schema/explanation/schema_map.md",
+      "1-schema/explanation/schema_join.md",
+      "1-schema/explanation/schema_fill.md",
     ] },
   ] },
-  { "Reference" = [
-    "reference/index.md",
-    "reference/change.md",
-    { "Code" = [
-      "reference/code_refactor.md",
-      "reference/code_update.md",
+  { "2. Topology" = [
+    "2-topology/index.md",
+    { "Tutorial" = "2-topology/tutorial.md" },
+    { "How-to" = "2-topology/how-to.md" },
+    { "Reference" = [
+      "2-topology/reference/topo_detect.md",
+      "2-topology/reference/topo_clean.md",
     ] },
-    { "Edge" = [
-      "reference/edge_clip.md",
-      "reference/edge_extend.md",
-      "reference/edge_match.md",
-      "reference/edge_mosaic.md",
-      "reference/edge_stitch.md",
-    ] },
-    { "Package" = [
-      "reference/package.md",
-      "reference/package_lines.md",
-      "reference/package_points.md",
-      "reference/package_polygons.md",
-    ] },
-    { "Schema" = [
-      "reference/schema_fill.md",
-      "reference/schema_join.md",
-      "reference/schema_map.md",
-    ] },
-    "reference/shared.md",
-    { "Topo" = [
-      "reference/topo_clean.md",
-      "reference/topo_detect.md",
+    { "Explanation" = [
+      { "Overview" = "2-topology/explanation/overview.md" },
+      "2-topology/explanation/topo_detect.md",
+      "2-topology/explanation/topo_clean.md",
     ] },
   ] },
-  { "Explanation" = [
-    "explanation/index.md",
-    "explanation/assign.md",
-    "explanation/change.md",
-    { "Code" = [
-      "explanation/code_overview.md",
-      "explanation/code.md",
-      "explanation/code_refactor.md",
-      "explanation/code_update.md",
+  { "3. Edge matching" = [
+    "3-edge/index.md",
+    { "Tutorial" = "3-edge/tutorial.md" },
+    { "How-to" = "3-edge/how-to.md" },
+    { "Reference" = [
+      "3-edge/reference/edge_extend.md",
+      "3-edge/reference/edge_clip.md",
+      "3-edge/reference/edge_stitch.md",
+      "3-edge/reference/edge_match.md",
+      "3-edge/reference/edge_mosaic.md",
     ] },
-    { "Edge" = [
-      "explanation/edge_overview.md",
-      "explanation/edge_clip.md",
-      "explanation/edge_extend.md",
-      "explanation/edge_match.md",
-      "explanation/edge_mosaic.md",
-      "explanation/edge_stitch.md",
+    { "Explanation" = [
+      { "Overview" = "3-edge/explanation/overview.md" },
+      "3-edge/explanation/assign.md",
+      "3-edge/explanation/edge_extend.md",
+      "3-edge/explanation/edge_clip.md",
+      "3-edge/explanation/edge_stitch.md",
+      "3-edge/explanation/edge_match.md",
+      "3-edge/explanation/edge_mosaic.md",
+      "3-edge/explanation/voronoi-memory.md",
     ] },
-    { "Package" = [
-      "explanation/package_overview.md",
-      "explanation/package.md",
-      "explanation/package_lines.md",
-      "explanation/package_points.md",
-      "explanation/package_polygons.md",
+  ] },
+  { "4. Codes" = [
+    "4-codes/index.md",
+    { "Tutorial" = "4-codes/tutorial.md" },
+    { "change tutorial" = "4-codes/change-tutorial.md" },
+    { "How-to" = "4-codes/how-to.md" },
+    { "Reference" = [
+      "4-codes/reference/code_refactor.md",
+      "4-codes/reference/code_update.md",
+      "4-codes/reference/change.md",
     ] },
-    "explanation/performance.md",
-    { "Schema" = [
-      "explanation/schema_overview.md",
-      "explanation/schema_fill.md",
-      "explanation/schema_join.md",
-      "explanation/schema_map.md",
+    { "Explanation" = [
+      { "Overview" = "4-codes/explanation/overview.md" },
+      "4-codes/explanation/code.md",
+      "4-codes/explanation/code_refactor.md",
+      "4-codes/explanation/code_update.md",
+      "4-codes/explanation/change.md",
     ] },
-    { "Topo" = [
-      "explanation/topo_overview.md",
-      "explanation/topo_clean.md",
-      "explanation/topo_detect.md",
+  ] },
+  { "5. Names" = [
+    "5-names/index.md",
+  ] },
+  { "6. Packaging" = [
+    "6-packaging/index.md",
+    { "Tutorial" = "6-packaging/tutorial.md" },
+    { "How-to" = "6-packaging/how-to.md" },
+    { "Reference" = [
+      "6-packaging/reference/package.md",
+      "6-packaging/reference/package_polygons.md",
+      "6-packaging/reference/package_points.md",
+      "6-packaging/reference/package_lines.md",
     ] },
-    "explanation/topology.md",
-    "explanation/voronoi-memory.md",
+    { "Explanation" = [
+      { "Overview" = "6-packaging/explanation/overview.md" },
+      "6-packaging/explanation/package.md",
+      "6-packaging/explanation/package_polygons.md",
+      "6-packaging/explanation/package_points.md",
+      "6-packaging/explanation/package_lines.md",
+    ] },
   ] },
   { "Agents" = [
     "agents/index.md",
@@ -165,6 +165,7 @@ pymdownx.caret = {}
 pymdownx.details = {}
 pymdownx.emoji.emoji_generator = "zensical.extensions.emoji.to_svg"
 pymdownx.emoji.emoji_index = "zensical.extensions.emoji.twemoji"
+pymdownx.emoji.options.custom_icons = ["icons"]
 pymdownx.highlight.anchor_linenums = true
 pymdownx.highlight.line_spans = "__span"
 pymdownx.highlight.pygments_lang_class = true

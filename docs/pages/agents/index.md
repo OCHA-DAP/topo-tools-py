@@ -4,7 +4,7 @@ description: Ways to start a topo-tools session with an agent, plugin install or
 ---
 
 Run the topo-tools COD-AB workflow with an AI agent. Pick the option that
-matches where you work:
+matches the working setup:
 
 <div class="grid cards" markdown>
 

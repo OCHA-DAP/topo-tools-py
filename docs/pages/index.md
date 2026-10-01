@@ -8,48 +8,92 @@ title: Topo Tools
 DuckDB-powered geospatial topology utilities for cleaning and reconciling
 administrative boundary polygons, as a Python/CLI package and library.
 
-<div class="grid cards" markdown>
+## Boundary cleaning { .section-label }
 
--   :material-school:{ .lg .middle } **Tutorials**
+<div class="phase-steps" markdown>
 
-    ---
+1.  **[Schema](1-schema/index.md)**
 
-    Learn the repo step by step with a guided lesson.
+    Map source columns to admin code and name columns, then apply the crosswalk.
 
-    [:octicons-arrow-right-24: Tutorials](tutorials/index.md)
+    :tools-schema-map:
 
--   :material-hammer-wrench:{ .lg .middle } **How-to**
+2.  **[Topology](2-topology/index.md)**
 
-    ---
+    Find gaps and overlaps between units, then clean them.
 
-    Get a specific task done with a step-by-step guide.
+    :tools-topo-clean:
 
-    [:octicons-arrow-right-24: How-to](how-to/index.md)
+3.  **[Edge matching](3-edge/index.md)**
 
--   :material-book-open-variant:{ .lg .middle } **Reference**
+    Fit units to a reference boundary so the outer edge follows the agreed outline.
 
-    ---
+    :tools-edge-match:
 
-    Know exactly what a tool does with its reference material.
+4.  **[Codes](4-codes/index.md)**
 
-    [:octicons-arrow-right-24: Reference](reference/index.md)
+    Keep the previous release's codes for units that carry over, or cold-start codes when there is no previous release.
 
--   :material-lightbulb-on-outline:{ .lg .middle } **Explanation**
+    :tools-code-update:
 
-    ---
+5.  **[Names](5-names/index.md)**
 
-    Understand why a tool works the way it does with its design
-    rationale.
+    Review names by hand: duplicates under the same parent, near-duplicate typos, blanks and placeholders, and encoding artifacts.
 
-    [:octicons-arrow-right-24: Explanation](explanation/)
+    :steps-names:
 
--   :material-robot:{ .lg .middle } **Agents**
+6.  **[Packaging](6-packaging/index.md)**
 
-    ---
+    Build per-level polygons, label points, and the boundary line network for release.
 
-    A prompt to paste into an agent, and how to install the `topo-tools`
-    skill.
-
-    [:octicons-arrow-right-24: Agents](agents/index.md)
+    :tools-package:
 
 </div>
+
+Each phase has a step-by-step guide, a tutorial, reference pages (what
+each tool does) and explanation pages (why it works that way).
+
+## Using with agents
+
+<div class="grid cards" markdown>
+
+-   **[Claude Code](agents/claude-code.md)**: install the plugin in VS Code
+    or a terminal, then run it from Claude Code.
+
+-   **[Other agents](agents/other-agents.md)**: paste one prompt into any
+    agent that can read a URL. Nothing to install.
+
+</div>
+
+## Installation
+
+The boundary cleaning steps run the `topo-tools` CLI. Install it with:
+
+=== "uv"
+
+    ```sh
+    uv tool install topo-tools   # CLI
+    uv add topo-tools            # Python library
+    ```
+
+=== "pip"
+
+    ```sh
+    pip install topo-tools       # CLI or library
+    pipx install topo-tools      # CLI
+    ```
+
+=== "Homebrew"
+
+    ```sh
+    brew install OCHA-DAP/topo-tools/topo-tools
+    ```
+
+    macOS/Linux, with no Python tooling required.
+
+Inputs and outputs: GeoParquet, GeoPackage, Shapefile and GeoJSON. The
+output format matches the input format.
+
+The tools are also available as a
+[web app](https://ocha-dap.github.io/topo-tools-js/), which runs DuckDB in
+the browser: nothing to install, and files are processed locally.

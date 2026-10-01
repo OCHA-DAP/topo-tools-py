@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+  <!-- Shared boundary between two units traced as its own line -->
+  <path d="M8 20 L26 30 L20 50" fill="currentColor" fill-opacity="0.1" />
+  <path d="M56 16 L26 30 L44 54" fill="currentColor" fill-opacity="0.16" />
+  <path d="M26 30 L58 26" stroke-width="3" />
+</svg>

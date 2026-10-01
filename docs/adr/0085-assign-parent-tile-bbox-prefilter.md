@@ -22,7 +22,7 @@ implies bbox overlap.
 **Rejected: an exact spatial-overlap check between bbox and tiling.** Would
 mean running `ST_Intersects` against the very heavy, untiled parent
 polygons that tiling exists to make cheap to query in the first place, a
-circular cost. `docs/explanation/performance.md`'s RTREE experiment found
+circular cost. `docs/dev/performance.md`'s RTREE experiment found
 explicit spatial indexes give zero/negative benefit in this engine for
 adjacent-geometry joins, and that DuckDB's own `SPATIAL_JOIN` rewrite
 already handles bbox rejection cheaply for a plain `ST_Intersects`

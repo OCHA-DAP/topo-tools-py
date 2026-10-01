@@ -63,4 +63,4 @@ behavior to catch a wide seam defect must now check the issues report
 rather than trust that the call would have raised. `tests/test_match.py`/
 `tests/test_mosaic.py` gained fixtures for both the tolerated-enclave
 case and the still-raising micro-gap case (see `docs/reference/match.md`,
-`docs/reference/mosaic.md`, `docs/reference/shared.md`).
+`docs/reference/mosaic.md`, `docs/dev/shared.md`).

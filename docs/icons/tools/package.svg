@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+  <!-- One layer, three outputs: polygon, point, and line -->
+  <path d="M8 14 L28 8 L36 20 L28 32 L8 26 Z" fill="currentColor" fill-opacity="0.12" />
+  <circle cx="48" cy="14" r="4.5" fill="currentColor" />
+  <path d="M40 40 L58 34 L54 54 Z" stroke-width="1.5" stroke-opacity="0.6" />
+</svg>

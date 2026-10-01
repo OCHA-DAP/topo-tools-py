@@ -14,7 +14,7 @@ for its per-file majority-vote assignment (`core/assign/_one.py`, `GROUP
 BY c.source_file, pr.parent_fid`). It was never meant to be user-facing:
 its presence in `edge-mosaic`/`edge-match`'s exported main output was an
 oversight that made its way into the documented behavior contract
-(`docs/reference/edge_mosaic.md`, `docs/reference/edge_match.md`) without
+(`docs/pages/3-edge/reference/edge_mosaic.md`, `docs/pages/3-edge/reference/edge_match.md`) without
 being a deliberate design choice.
 
 Standalone `edge-clip`'s `core/edge_clip/_02_outputs.py` already excludes

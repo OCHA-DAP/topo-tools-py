@@ -28,7 +28,7 @@ underlying `core.edge_clip`/`core.assign` engine already runs against a
 raw, uncleaned parent for `edge-mosaic` and standalone `edge-clip` in
 production. The one documented rationale for pre-cleaning the parent (a
 shared, exact parent boundary giving vertex-identical adjacent edges,
-`docs/explanation/edge_match.md`'s rejected `ST_Snap` experiment) was
+`docs/pages/3-edge/explanation/edge_match.md`'s rejected `ST_Snap` experiment) was
 tested there and found to make zero measurable difference: seam quality
 comes from `edge-stitch`'s own whole-table `ST_CoverageClean`, not from
 parent vertex identity.
