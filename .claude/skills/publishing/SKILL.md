@@ -1,6 +1,6 @@
 ---
 name: publishing
-description: Use when cutting a topo-tools PyPI release, rehearsing a release on TestPyPI, or checking the release/publish workflow setup (GitHub Environment approval gate, PyPI trusted publisher, Homebrew tap).
+description: Use when cutting a topo-tools PyPI release, rehearsing a release on TestPyPI, or checking the release/publish workflow setup (GitHub Environment approval gate, PyPI trusted publisher, Homebrew tap, conda-forge feedstock).
 ---
 
 # Publishing to PyPI
@@ -23,6 +23,7 @@ None of the above needs to be redone for future releases. It's specific to real 
 4. GitHub → Releases → Draft a new release → tag it (e.g. `v0.1.1`) → Publish release.
 5. Approve the `publish` job in the Actions run (the required-reviewer gate from the environment setup above).
 6. `.github/workflows/homebrew-tap.yml` picks up the new version on its first daily run after the PyPI upload is more than 24h old, and opens a formula-bump PR against `OCHA-DAP/homebrew-topo-tools` if the tap is behind. No manual step needed here.
+7. conda-forge's autotick bot opens a version-bump PR on `conda-forge/topo-tools-feedstock` after the PyPI upload, and automerges it once CI passes. No manual step needed here; check the feedstock only if a release doesn't appear on conda-forge.
 
 Version numbers, once uploaded, are permanent: PyPI never allows re-uploading the same filename again, even after deletion. Staying in `0.x` (SemVer's "no compatibility promises yet" range) means there's no expectation of a steady cadence or of never breaking the CLI/API between releases.
 
