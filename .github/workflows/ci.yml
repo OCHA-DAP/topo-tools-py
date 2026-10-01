@@ -29,7 +29,25 @@ jobs:
             'plugins/**/*.md'
           lycheeVersion: v0.24.2
 
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+      - id: diff
+        run: |
+          if [ "${{ github.event_name }}" != pull_request ] ||
+            git diff --name-only HEAD^1 HEAD |
+            grep -qE '^(topo_tools/|tests/|pyproject\.toml$|uv\.lock$|\.github/workflows/ci\.yml$)'; then
+            echo code=true >> "$GITHUB_OUTPUT"
+          fi
+
   test:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -42,3 +60,12 @@ jobs:
       - run: uv sync --python ${{ matrix.python-version }}
       - run: uv run python -c "import duckdb; duckdb.connect().execute('INSTALL spatial')"
       - run: uv run pytest
+
+  tests:
+    if: always()
+    needs: [changes, test]
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          test "${{ needs.changes.result }}" = success
+          test "${{ needs.test.result }}" = success -o "${{ needs.test.result }}" = skipped
