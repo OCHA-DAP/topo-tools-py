@@ -348,10 +348,11 @@ its supporting functions:
   level.
 - A parent whose live/assigned child count exceeds `10 ** width - 1` (its
   level's fixed width; `auto` never overflows) MUST NOT have its
-  already-assigned, lower-numbered children's codes repadded; an overflowing child's own tail component MUST simply grow
-  past the width instead (`lpad` truncates an over-width string, unlike
-  Python's `zfill`, so the target width is widened to the tail's own
-  length first).
+  already-assigned, lower-numbered children's codes repadded; an
+  overflowing child's own tail component MUST simply grow past the width
+  instead (`lpad` truncates an over-width string, unlike Python's `zfill`,
+  so the target width is widened to the tail's own length first). With an
+  empty delimiter, the overflow MUST raise `ValueError` instead.
 - `next_available_integer()` MUST derive a parent's next unused integer
   only from a given list of currently-live codes, never a persisted
   registry; a code no longer in that list (retired, or never included) MAY

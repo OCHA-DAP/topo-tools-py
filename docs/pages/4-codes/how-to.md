@@ -31,10 +31,13 @@ Government codes inside the code:
       --root-code XY --delimiter '' --min-width auto --source-codes embed \
       --code-field adm{n}_code --name-field adm{n}_name
 
-Each level's government code follows its parent's code unchanged. A level
-with names but no code column gets sequential numbers under its parent,
-sorted by name. The run stops if a row has no government code, or if a
-level's government codes differ in length.
+Each level's government code follows its parent's code. Codes may be
+local to each level (`11`, `22`, `33`) or already include the parent's
+code (`11`, `1122`, `112233`); both give `XY112233`, and existing p-codes
+come out unchanged. A level with names but no code column gets sequential
+numbers under its parent, sorted by name. The run stops if a row has no
+government code, if a level's government codes differ in length, or if
+only some of a level's codes include the parent's code.
 
 Sequential codes, government code kept alongside:
 
@@ -44,7 +47,10 @@ Sequential codes, government code kept alongside:
 
 Every unit gets a fresh code under its parent, sorted by its government
 code. The government code is copied into the column right after it
-(`adm1_code` to `adm1_code1`).
+(`adm1_code` to `adm1_code1`). Another organisation's IDs (not government
+codes) are used the same way with `--delimiter ''`, giving sequential
+country-code-style codes (`XY010301`), with each ID kept in its own
+column.
 
 `--min-width` sets how many digits each level's numbers are zero-padded to:
 
@@ -53,10 +59,10 @@ code. The government code is copied into the column right after it
   Under `embed`, a level that keeps its government code ignores its entry.
 - `auto`: each level gets as many digits as its largest parent needs.
 
-With a fixed width, a parent with more children than the width allows
-(over 99 at width 2) gets longer codes from that child on, and the issues
-file lists it. Use `auto` with `--delimiter ''`, since mixed lengths can't
-be split.
+With a delimiter, a parent with more children than the width allows (over
+99 at width 2) gets longer codes from that child on, and the issues file
+lists it. Without a delimiter the run stops instead, since mixed lengths
+can't be split; `auto` avoids this.
 
 Review the result, particularly any unit whose rank could plausibly tie
 with a neighbor.

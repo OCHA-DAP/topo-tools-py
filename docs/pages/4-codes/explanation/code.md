@@ -65,7 +65,9 @@ own. Under `auto`, `width` is the widest tail at that level, retained
 codes included, so every new code at the level shares one length. A
 parent's 1000th child (at width 3, capacity `10**3 - 1 = 999`) gets a
 4-digit tail; every child ranked below it keeps its own already-assigned
-3-digit code untouched, no whole-parent repad. `code-create` and
+3-digit code untouched, no whole-parent repad. Without a delimiter a
+longer tail can't be split, so `assign_new_codes()` raises `ValueError`
+instead when a fixed-width level overflows. `code-create` and
 `code-update` each independently detect and report this condition in
 their own outputs stage (own issues report / changelog `overflow`
 outcome, see their own explanation docs), `core.code` itself has no

@@ -63,7 +63,10 @@ directly, and even when it happens to look clean, nothing guarantees it's
 unique or gap-free across every sibling group in the file. Under `embed`,
 a source-coded level's values pass through unchanged instead (see
 `docs/adr/0122`), checked for missing values and, without a delimiter,
-for a single length.
+for a single length. When every code at a level starts with its parent's
+source code (or `root_code`, at level 1), `_strip_parent_prefixes()`
+removes that prefix first, finest level first so each parent column still
+holds its own source code (see `docs/adr/0125`).
 
 ## `_04_outputs`: export plus overflow reporting
 

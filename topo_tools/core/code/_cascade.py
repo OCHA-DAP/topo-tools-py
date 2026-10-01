@@ -47,6 +47,22 @@ def assign_new_codes(  # noqa: PLR0913
     )
 
     width = fmt.width(level)
+    if fmt.delimiter == "" and width is not None:
+        widest = conn.execute(f"""--sql
+            SELECT max(length(CAST(b.base_n - 1 + c.n AS VARCHAR)))
+            FROM (
+                SELECT "{parent_column}" AS parent_code, COUNT(*) AS n
+                FROM "{table}" GROUP BY 1
+            ) c
+            JOIN "{base_table}" b ON b.parent_code = c.parent_code
+        """).fetchone()[0]
+        if widest is not None and widest > width:
+            msg = (
+                f"level {level} needs {widest} digits but its min_width is {width}; "
+                "without a delimiter the code can't be split, use a wider width "
+                "or auto"
+            )
+            raise ValueError(msg)
     if width is None:
         # auto: pad every tail at this level to the widest one, retained included.
         existing_width = max(

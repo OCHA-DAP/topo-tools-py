@@ -46,6 +46,50 @@ def _seed_from_names(
         conn.execute(f'UPDATE "{table}" SET "{level.code}" = "{level.name}"::VARCHAR')
 
 
+def _strip_parent_prefixes(
+    conn: DuckDBPyConnection, table: str, levels: dict[int, Level], fmt: CodeFormat
+) -> None:
+    """Strip each level's parent source code (or root) where every code repeats it."""
+    numbered = sorted(n for n in levels if n >= 1)
+    # Finest first, so each parent column still holds its own source code.
+    for n in reversed(numbered):
+        level = levels[n]
+        if level.seeded:
+            continue
+        if n == numbered[0]:
+            prefix_sql, params = "?", [fmt.root_code]
+        elif levels[n - 1].seeded:
+            continue
+        else:
+            prefix_sql, params = f'"{levels[n - 1].code}"::VARCHAR', []
+        code_sql = f'"{level.code}"::VARCHAR'
+        matched, total = conn.execute(
+            f"""--sql
+            SELECT
+                COUNT(*) FILTER (
+                    WHERE starts_with({code_sql}, {prefix_sql})
+                      AND length({code_sql}) > length({prefix_sql})
+                ),
+                COUNT({code_sql})
+            FROM "{table}"
+            """,
+            params * 2,
+        ).fetchone()
+        if matched == 0:
+            continue
+        if matched < total:
+            msg = (
+                f"level {n} ({level.code!r}): {matched} of {total} source codes "
+                "start with their parent's code; they must all, or none"
+            )
+            raise ValueError(msg)
+        conn.execute(
+            f'UPDATE "{table}" SET "{level.code}" = '
+            f"substr({code_sql}, length({prefix_sql}) + 1)",
+            params,
+        )
+
+
 def _check_embeddable(
     conn: DuckDBPyConnection, table: str, n: int, level: Level, fmt: CodeFormat
 ) -> None:
@@ -84,6 +128,8 @@ def main(
     if source_codes == "copy":
         _copy_source_codes(conn, table, levels)
     _seed_from_names(conn, table, levels)
+    if source_codes == "embed":
+        _strip_parent_prefixes(conn, table, levels, fmt)
     if 0 in levels:
         conn.execute(f'UPDATE "{table}" SET "{levels[0].code}" = ?', [fmt.root_code])
 

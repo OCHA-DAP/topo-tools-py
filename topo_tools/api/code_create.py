@@ -43,7 +43,7 @@ def _resolve_format(
         root_code,
         delimiter,
         min_width,
-        allow_empty_delimiter=source_codes == "embed",
+        allow_empty_delimiter=True,
     )
 
 
