@@ -109,6 +109,9 @@ nav = [
   { "Web app" = "https://ocha-dap.github.io/topo-tools-js/" },
 ]
 
+[project.extra]
+generator = false
+
 [project.extra.status]
 draft = "Draft, not yet reviewed"
 
