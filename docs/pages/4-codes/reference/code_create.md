@@ -62,10 +62,14 @@ title: "code-create"
   it, before assignment; a seeded level gets none.
 - Under `embed`, a level with a source code column MUST be coded as its
   parent's code (or `root_code`), then `delimiter`, then its own source
-  value unchanged, and a seeded level is ranked as under `replace`. `embed`
-  MUST raise `ValueError` if a row of a source-coded level has no source
-  code, or if `delimiter` is empty and that level's source codes differ in
-  length (see `docs/adr/0122`).
+  value unchanged, and a seeded level is ranked as under `replace`. If
+  every source code at a level starts with its parent's source code (or
+  `root_code`, at level 1) and is longer than it, that prefix MUST be
+  removed before embedding; if only some do, `embed` MUST raise
+  `ValueError`. `embed` MUST also raise `ValueError` if a row of a
+  source-coded level has no source code, or if `delimiter` is empty and
+  that level's source codes differ in length (see `docs/adr/0122`,
+  `docs/adr/0125`).
 - The sort key MUST be the resolved code column's own raw value; there is
   no COD-AB-specific multi-column tie-break (e.g. `srcid` then `name` then
   `name1`-`name3`).
@@ -75,7 +79,8 @@ title: "code-create"
 - A parent whose child count exceeds `10 ** width - 1` (999 at width 3)
   MUST NOT have its already-assigned, lower-numbered children's codes
   repadded; the overflowing child's own tail simply grows past the width
-  instead.
+  instead. With an empty delimiter and a fixed width, an overflowing parent
+  MUST raise `ValueError` instead.
 
 ## Outputs
 
@@ -96,8 +101,8 @@ title: "code-create"
 - `code-create` MUST process exactly one input file per call.
 - `root_code`, `delimiter`, and `min_width` MUST all be given explicitly
   (no default), validated via `core.code.resolve_code_format()`:
-  `root_code` non-empty, `delimiter` exactly one character, or empty under
-  `source_codes='embed'`, `min_width` one positive width, a comma list of
+  `root_code` non-empty, `delimiter` exactly one character, or empty,
+  `min_width` one positive width, a comma list of
   positive widths with exactly one per numbered level (coarsest first),
   or `auto`. `root_code` is opaque, never shape-checked (a disputed-
   territory or otherwise non-ISO3 string works identically to an ISO3

@@ -475,11 +475,95 @@ def test_embed_raises_on_mixed_length_codes_without_delimiter(tmp_path):
         )
 
 
-def test_empty_delimiter_requires_embed(tmp_path):
-    input_path = tmp_path / "in.parquet"
+def test_replace_without_delimiter_numbers_each_level(tmp_path):
+    input_path, output_path = tmp_path / "in.parquet", tmp_path / "out.parquet"
     _write_synthetic(input_path, _source_coded_rows())
-    with pytest.raises(ValueError, match="single character"):
-        code_create(input_path, root_code="BH", delimiter="", min_width=2, **_TEMPLATES)
+    code_create(
+        input_path,
+        output_path,
+        root_code="BH",
+        delimiter="",
+        min_width="auto",
+        **_TEMPLATES,
+    )
+    assert _fetch(output_path, "adm1_code, adm2_code, adm3_code", "adm3_code")[0] == (
+        "BH1",
+        "BH11",
+        "BH111",
+    )
+
+
+def test_fixed_width_overflow_raises_without_delimiter(tmp_path):
+    input_path = tmp_path / "in.parquet"
+    rows = [
+        {
+            "adm1_code": "51",
+            "adm1_name": "North",
+            "adm2_name": f"Unit {i:02d}",
+            "wkt": f"POLYGON(({i} 0, {i + 1} 0, {i + 1} 1, {i} 1, {i} 0))",
+        }
+        for i in range(10)
+    ]
+    _write_synthetic(input_path, rows)
+    with pytest.raises(ValueError, match="needs 2 digits"):
+        code_create(input_path, root_code="BH", delimiter="", min_width=1, **_TEMPLATES)
+
+
+def _government_rows(codes):
+    return [
+        {
+            "adm1_code": c1,
+            "adm1_name": f"A{c1}",
+            "adm2_code": c2,
+            "adm2_name": f"B{c2}",
+            "adm3_code": c3,
+            "adm3_name": f"C{c3}",
+            "wkt": f"POLYGON(({i} 0, {i + 1} 0, {i + 1} 1, {i} 1, {i} 0))",
+        }
+        for i, (c1, c2, c3) in enumerate(codes)
+    ]
+
+
+@pytest.mark.parametrize(
+    "codes",
+    [
+        [("11", "22", "33"), ("11", "23", "34")],
+        [("11", "1122", "112233"), ("11", "1123", "112334")],
+        [("XY11", "XY1122", "XY112233"), ("XY11", "XY1123", "XY112334")],
+    ],
+    ids=["local", "hierarchical", "pcodes"],
+)
+def test_embed_accepts_local_or_parent_prefixed_codes(tmp_path, codes):
+    input_path, output_path = tmp_path / "in.parquet", tmp_path / "out.parquet"
+    _write_synthetic(input_path, _government_rows(codes))
+    code_create(
+        input_path,
+        output_path,
+        root_code="XY",
+        delimiter="",
+        min_width="auto",
+        source_codes="embed",
+        **_TEMPLATES,
+    )
+    assert _fetch(output_path, "adm1_code, adm2_code, adm3_code", "adm3_code") == [
+        ("XY11", "XY1122", "XY112233"),
+        ("XY11", "XY1123", "XY112334"),
+    ]
+
+
+def test_embed_raises_when_only_some_codes_carry_the_parent(tmp_path):
+    input_path = tmp_path / "in.parquet"
+    codes = [("11", "1122", "33"), ("11", "1123", "112334")]
+    _write_synthetic(input_path, _government_rows(codes))
+    with pytest.raises(ValueError, match="1 of 2 source codes"):
+        code_create(
+            input_path,
+            root_code="XY",
+            delimiter="",
+            min_width="auto",
+            source_codes="embed",
+            **_TEMPLATES,
+        )
 
 
 def test_copy_keeps_source_codes_in_numbered_siblings(tmp_path):
