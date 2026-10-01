@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+  <!-- Two adjacent tiles with a gap between them -->
+  <path d="M6 14 L24 10 L26 30 L22 50 L6 46 Z" fill="currentColor" fill-opacity="0.12" />
+  <path d="M34 18 L52 14 L54 34 L50 50 L32 46 Z" fill="currentColor" fill-opacity="0.12" />
+  <!-- Magnifying glass inspecting the gap -->
+  <circle cx="34" cy="34" r="12" />
+  <path d="M43 43 L54 54" />
+</svg>

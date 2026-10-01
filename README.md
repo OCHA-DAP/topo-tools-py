@@ -26,6 +26,8 @@ Full documentation: <https://ocha-dap.github.io/topo-tools-py/>
 | **edge-clip** | clip an input layer to an overlay layer |
 | **edge-stitch** | close seams in a tiled layer |
 | **change** | classify changes between two polygon layer versions |
+| **code-refactor** | assign a fresh hierarchical code, ranked per parent |
+| **code-update** | carry codes over from an old layer to a new one |
 | **package** | dissolve, label, and line-ify a layer in one call |
 | **package-polygons** | dissolve a layer into coarser admin levels |
 | **package-points** | one label point per admin unit |
@@ -33,25 +35,14 @@ Full documentation: <https://ocha-dap.github.io/topo-tools-py/>
 
 ## Installation
 
-Install with `uv` (recommended):
+Install with `uv`, `pip`/`pipx` or Homebrew:
 
 ```sh
-uv tool install topo-tools   # CLI
-uv add topo-tools            # Python library
-```
-
-Or with `pip`/`pipx`:
-
-```sh
-pip install topo-tools       # CLI or library
-pipx install topo-tools      # CLI
-```
-
-On macOS/Linux, `topo-tools` is also available via Homebrew, no Python
-tooling required:
-
-```sh
-brew install OCHA-DAP/topo-tools/topo-tools
+uv tool install topo-tools                   # CLI
+uv add topo-tools                            # Python library
+pip install topo-tools                       # CLI or library
+pipx install topo-tools                      # CLI
+brew install OCHA-DAP/topo-tools/topo-tools  # macOS/Linux, no Python tooling
 ```
 
 ## Supported Formats

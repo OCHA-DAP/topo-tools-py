@@ -22,7 +22,7 @@ hand-rolling an assign step.
 Standalone `clip` (`api.clip.clip()` / CLI `clip`) no longer requires or
 reads a pre-existing `parent_fid` column. It always performs its own
 internal assignment via assign-one's per-file majority-vote strategy (see
-`docs/explanation/assign.md`, ADR-0019) between loading its inputs and
+`docs/pages/3-edge/explanation/assign.md`, ADR-0019) between loading its inputs and
 clipping. There is no `--assign-strategy` flag and no auto-detection:
 standalone `clip` is unconditionally an assign-one operation, since a
 single input file is exactly assign-one's natural unit (one file, one

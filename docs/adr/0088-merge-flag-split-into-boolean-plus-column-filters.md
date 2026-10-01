@@ -24,7 +24,7 @@ mirror image: it kept an unmatched *child file* via its own
 already-extended geometry, with no parent-side gap-fill at all. This
 contradicted the tools' own superset relationship (`edge-mosaic` exists
 purely to skip `edge-match`'s redundant extension step, see
-`docs/explanation/edge_mosaic.md`): running `edge-match` on a raw child
+`docs/pages/3-edge/explanation/edge_mosaic.md`): running `edge-match` on a raw child
 set and `edge-mosaic` on the already-extended version of that same set,
 against the same parent, produced different `--merge` results depending
 on which unmatched-entity shape the input happened to hit.

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+  <!-- Two tiles meeting at a seam -->
+  <path d="M6 12 L30 8 L34 30 L28 52 L6 48 Z" fill="currentColor" fill-opacity="0.12" />
+  <path d="M58 12 L34 8 L30 30 L36 52 L58 48 Z" fill="currentColor" fill-opacity="0.12" />
+  <!-- Stitch marks closing the seam -->
+  <g stroke-width="2">
+    <path d="M22 12 L42 12" />
+    <path d="M20 22 L44 22" />
+    <path d="M20 32 L44 32" />
+    <path d="M22 42 L42 42" />
+  </g>
+</svg>

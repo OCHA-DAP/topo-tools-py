@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+  <circle cx="16" cy="14" r="5" />
+  <circle cx="16" cy="38" r="5" />
+  <path d="M16 19 L16 33" />
+  <path d="M24 38 L38 38" stroke-dasharray="3 3" />
+  <circle cx="46" cy="14" r="5" fill="currentColor" fill-opacity="0.12" />
+  <circle cx="46" cy="38" r="5" />
+  <path d="M46 19 L46 33" />
+  <text x="4" y="56" font-size="9" fill="currentColor" stroke="none" font-family="ui-monospace, monospace">old</text>
+  <text x="38" y="56" font-size="9" fill="currentColor" stroke="none" font-family="ui-monospace, monospace">new</text>
+</svg>

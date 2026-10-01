@@ -51,7 +51,7 @@ instead of `api/edge_clip.py`.
 `edge-clip`'s CLI/API surface loses multi-file batching entirely, a breaking
 change for any caller using `--input`/`--output`/`--issues`/`--name`: that
 caller must switch to `edge-mosaic` (already-extended children only; see
-`docs/reference/edge_mosaic.md`) or call standalone `edge-clip` once per
+`docs/pages/3-edge/reference/edge_mosaic.md`) or call standalone `edge-clip` once per
 children file itself. `edge-clip` returns to being a small, easy-to-reason-
 about primitive with one job, matching the shape `edge-stitch`/`topo-detect`
 already have. ADR-0022/0023/0024's Context/Decision/Consequences stay as

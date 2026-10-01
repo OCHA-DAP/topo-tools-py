@@ -133,23 +133,23 @@ Work through these in order, writing each stage's own output into its
 matching `02_working/{iso3}/{version}/0N_stage/` folder (the linked guides below
 use generic placeholder filenames, substitute your own paths there).
 
-1. [Schema](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/cod-ab/01-schema.md)
-2. [Topology](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/cod-ab/02-topology.md)
+1. [Schema](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/1-schema/how-to.md)
+2. [Topology](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/2-topology/how-to.md)
 
    Always ask whether any large `topo-detect` gap is a lake or other
    water body left outside every unit, showing the largest gaps (area,
    width, PNG render) and whether `00a_old/` has the same holes. "No"
    means `--maximum-gap-width all`; "yes" means no flag.
-3. [Edge matching](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/cod-ab/03-edge-matching.md)
+3. [Edge matching](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/3-edge/how-to.md)
 
    Use `00a_old/{iso3}_admin0.parquet` as the reference admin0. When it's
    absent, stop and ask the user which outline to fit to.
-4. [Codes](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/cod-ab/04-codes.md)
+4. [Codes](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/4-codes/how-to.md)
 
    Use the base-level file in `00a_old/` as `code-update`'s OLD file.
    When `00a_old/` is absent, use `code-refactor` instead.
-5. [Names](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/cod-ab/05-names.md)
-6. [Packaging](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/how-to/cod-ab/06-packaging.md)
+5. [Names](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/5-names/index.md)
+6. [Packaging](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/6-packaging/how-to.md)
 
 ## Candidates
 

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+  <!-- Polygon boundary reduced to one representative point per unit -->
+  <path d="M8 14 L34 8 L58 18 L54 44 L30 56 L8 42 Z" stroke-opacity="0.35" />
+  <path d="M8 14 L30 30 M34 8 L30 30 M58 18 L30 30 M54 44 L30 30 M30 56 L30 30 M8 42 L30 30" stroke-width="1.25" stroke-dasharray="3 3" stroke-opacity="0.35" />
+  <circle cx="30" cy="30" r="4.5" fill="currentColor" />
+</svg>

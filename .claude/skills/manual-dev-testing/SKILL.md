@@ -15,7 +15,7 @@ uv run topo-tools <tool> <args...>
 ```
 
 e.g. `uv run topo-tools package-polygons my_layer.gpkg`. Args
-differ per tool, see `docs/reference/{tool}.md` for the contract and
+differ per tool, see `docs/pages/{phase}/reference/{tool}.md` for the contract and
 its Examples section for worked examples. `uv run topo-tools
 <tool> --help` lists the flags directly.
 

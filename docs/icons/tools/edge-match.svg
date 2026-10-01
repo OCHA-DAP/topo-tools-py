@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+  <!-- Left group: two fine polygons sharing a coarse boundary -->
+  <path d="M8 12 L20 8 L24 20 L16 26 L6 22 Z" fill="currentColor" fill-opacity="0.12" />
+  <path d="M16 26 L24 20 L30 30 L22 38 L12 34 Z" fill="currentColor" fill-opacity="0.12" />
+  <path d="M4 10 Q28 2 32 32 Q20 42 2 24 Z" stroke-dasharray="2 3" stroke-width="1.5" />
+
+  <!-- Right group: two fine polygons sharing a second coarse boundary -->
+  <path d="M40 10 L52 14 L50 26 L40 28 L36 18 Z" fill="currentColor" fill-opacity="0.12" />
+  <path d="M40 28 L50 26 L58 36 L50 46 L38 40 Z" fill="currentColor" fill-opacity="0.12" />
+  <path d="M34 14 Q62 8 60 40 Q44 52 32 32 Z" stroke-dasharray="2 3" stroke-width="1.5" />
+</svg>

@@ -71,7 +71,7 @@ just never gets clipped afterward (there is no parent to clip against).
 
 **Materially weaker safety profile than `edge-mosaic`'s passthrough**, and
 this is documented plainly rather than presenting the two as equivalent
-(`docs/explanation/edge_match.md`, `docs/reference/shared.md`).
+(`docs/pages/3-edge/explanation/edge_match.md`, `docs/dev/shared.md`).
 `edge-mosaic`'s passthrough geometry was already a finished, validated
 `edge_extend()` output before the run started. `edge-match`'s orphan group
 is extended fresh, alone, with zero neighboring-parent context of any kind,

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+  <!-- Parent unit over its children, parent columns copied onto a child row -->
+  <rect x="6" y="8" width="30" height="30" rx="2" fill="currentColor" fill-opacity="0.12" />
+  <path d="M6 23 L36 23 M21 8 L21 38" stroke-dasharray="3 3" />
+  <path d="M28 44 L28 50 L38 50" />
+  <path d="M34 46 L38 50 L34 54" />
+  <rect x="42" y="42" width="16" height="16" rx="2" fill="currentColor" fill-opacity="0.18" />
+  <path d="M42 50 L58 50" />
+</svg>

@@ -53,6 +53,6 @@ existence instead of opening it and finding zero rows.
 `tests/test_clean.py`/`test_match.py`/`test_mosaic.py`'s empty-issues
 tests were renamed and inverted to assert non-existence; column-list
 assertions across all three (plus new `test_stitch.py` issues tests)
-updated for the shared schema. See `docs/reference/shared.md`'s "Issues
+updated for the shared schema. See `docs/dev/shared.md`'s "Issues
 report schema" section for the authoritative column list and `docs/adr/0035`
 for the gap-tolerance change that gave `stitch` its first issues rows.

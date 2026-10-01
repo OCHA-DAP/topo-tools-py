@@ -2,12 +2,12 @@
 title: Claude Code
 ---
 
-Install the [`topo-tools`](https://github.com/OCHA-DAP/topo-tools-py/blob/main/plugins/topo-tools) plugin to clean, code, and package COD-AB administrative boundary polygons. Follow the tab for where you use Claude Code.
+Install the [`topo-tools`](https://github.com/OCHA-DAP/topo-tools-py/blob/main/plugins/topo-tools) plugin to clean, code, and package COD-AB administrative boundary polygons. Follow the tab for the Claude Code setup in use.
 
 === "VS Code (Claude Code panel)"
 
     1. [Click here](vscode://anthropic.claude-code/install-plugin?plugin=topo-tools&marketplace=https%3A%2F%2Focha-dap.github.io%2Ftopo-tools-py%2Fmarketplace.json), allow the browser to open VS Code, confirm adding the marketplace, then select **Install for you**.
-    2. Turn on automatic updates. In VS Code, select **File > Open File** and open your settings file:
+    2. Turn on automatic updates. In VS Code, select **File > Open File** and open the user settings file:
 
         - **Windows:** `%USERPROFILE%\.claude\settings.json`
         - **macOS:** `~/.claude/settings.json`

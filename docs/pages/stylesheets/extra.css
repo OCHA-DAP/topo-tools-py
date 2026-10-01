@@ -23,3 +23,131 @@
   color: var(--md-default-fg-color--light);
   background: no-repeat left center / 1em url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="%23888" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497zM15 5l4 4"/></svg>');
 }
+
+[dir] .md-typeset h2.section-label {
+  margin-bottom: 0.8rem;
+  color: var(--md-default-fg-color--light);
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+[dir] .md-typeset .phase-steps ol {
+  counter-reset: step;
+  margin: 1em 0;
+  padding: 0;
+  list-style: none;
+}
+
+[dir] .md-typeset .phase-steps ol li {
+  position: relative;
+  z-index: 0;
+  counter-increment: step;
+  display: grid;
+  grid-template-columns: 2.4rem 1fr;
+  grid-template-rows: auto 1fr;
+  column-gap: 0.9rem;
+  margin: 0 0 0.6rem;
+  padding: 0.7rem 0.9rem 0.7rem 3.4rem;
+}
+
+[dir] .md-typeset .phase-steps ol li::before {
+  content: counter(step);
+  position: absolute;
+  top: 0.65rem;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  background: var(--md-default-fg-color);
+  color: var(--md-default-bg-color);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+[dir] .md-typeset .phase-steps ol li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 2.25rem;
+  bottom: -0.6rem;
+  left: calc(0.8rem - 1px);
+  width: 2px;
+  background: var(--md-default-fg-color--lightest);
+}
+
+[dir] .md-typeset .phase-steps ol li p:first-child::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0 0 0 2.6rem;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.7rem;
+  background: var(--md-default-bg-color);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.03),
+    0 2px 6px rgba(0, 0, 0, 0.03);
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    transform 120ms ease;
+}
+
+[dir] .md-typeset .phase-steps ol li:hover p:first-child::before {
+  border-color: var(--md-default-fg-color--lighter);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 4px 12px rgba(0, 0, 0, 0.04);
+  transform: translateY(-1px);
+}
+
+[dir] .md-typeset .phase-steps ol li p {
+  grid-column: 2;
+  margin: 0;
+}
+
+[dir] .md-typeset .phase-steps ol li p:first-child {
+  font-size: 0.88rem;
+  line-height: 1.6rem;
+}
+
+[dir] .md-typeset .phase-steps ol li p:first-child strong {
+  font-weight: 600;
+}
+
+[dir] .md-typeset .phase-steps ol li p + p {
+  color: var(--md-default-fg-color--light);
+  font-size: 0.7rem;
+  line-height: 1.45;
+}
+
+[dir] .md-typeset .phase-steps ol li p:first-child a {
+  color: var(--md-default-fg-color);
+  text-decoration: none;
+}
+
+[dir] .md-typeset .phase-steps ol li p:first-child a::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 0 2.6rem;
+}
+
+[dir] .md-typeset .phase-steps ol li p + p + p {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  align-self: center;
+  color: var(--md-default-fg-color);
+}
+
+[dir] .md-typeset .phase-steps ol li p + p + p .twemoji {
+  height: 2.4rem;
+}
+
+[dir] .md-typeset .phase-steps ol li p + p + p .twemoji svg {
+  width: 2.4rem;
+  max-height: none;
+  fill: none;
+}

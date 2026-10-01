@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+  <!-- Left polygon (filled-ish) -->
+  <path d="M6 14 L22 8 L28 22 L20 34 L6 30 Z" fill="currentColor" fill-opacity="0.12" />
+  <!-- Right polygon -->
+  <path d="M40 12 L56 18 L58 34 L46 40 L36 28 Z" fill="currentColor" fill-opacity="0.12" />
+  <!-- Bottom polygon to imply a wider mesh -->
+  <path d="M14 40 L30 36 L44 44 L38 56 L18 54 Z" fill="currentColor" fill-opacity="0.12" />
+  <!-- Dashed extension arrows showing the boundaries growing outward to close gaps -->
+  <g stroke-dasharray="2 3" stroke-width="1.5" fill="none">
+    <path d="M28 22 L36 28" />
+    <path d="M20 34 L30 36" />
+    <path d="M36 28 L44 44" />
+  </g>
+</svg>

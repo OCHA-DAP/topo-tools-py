@@ -65,7 +65,7 @@ special-casing, verified directly: `levels` is simply `[1]`.
 `schema-fill` is meant to run against an already-clipped/stitched layer
 (an `edge-match`/`edge-mosaic` output), not a raw pre-clip source, since
 level detection needs the target schema's columns already settled by that
-point (see `docs/explanation/schema_fill.md`).
+point (see `docs/pages/1-schema/explanation/schema_fill.md`).
 
 ## Consequences
 

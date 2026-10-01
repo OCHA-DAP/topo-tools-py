@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+  <circle cx="32" cy="10" r="5" fill="currentColor" fill-opacity="0.12" />
+  <path d="M32 15 L32 24 M32 24 L14 24 L14 32 M32 24 L50 24 L50 32" />
+  <circle cx="14" cy="38" r="5" />
+  <circle cx="50" cy="38" r="5" />
+  <text x="8" y="56" font-size="9" fill="currentColor" stroke="none" font-family="ui-monospace, monospace">01</text>
+  <text x="44" y="56" font-size="9" fill="currentColor" stroke="none" font-family="ui-monospace, monospace">02</text>
+</svg>

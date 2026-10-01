@@ -45,4 +45,4 @@ tie-break) can supply COD-AB's specific values as external data on top of
 this generic engine, without touching `core/code/` itself. Today, every
 caller (COD-AB or otherwise) configures the format explicitly on
 `code-refactor`, or lets `code-update` detect it from OLD's own existing
-codes (`docs/explanation/code.md`).
+codes (`docs/pages/4-codes/explanation/code.md`).

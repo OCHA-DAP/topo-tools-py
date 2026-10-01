@@ -71,7 +71,7 @@ exercised against a remote URL.
 
 Any read-role file argument across all 8 tools MAY now be an
 `http://`/`https://` URL to a `.parquet` file (see
-`docs/reference/shared.md`). Output-role arguments MUST still always be a
+`docs/dev/shared.md`). Output-role arguments MUST still always be a
 local filesystem path — no code path resolves them any other way. Verified
 live against `https://data.source.coop/hdx/cod-ab/...` for all 8 CLI
 commands, each producing correct output. Non-parquet remote URLs remain

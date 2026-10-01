@@ -34,7 +34,7 @@ to ArcGIS's own model, not a two-value split.
 Also noted as a supporting, independent argument: no positive evidence
 exists that a 10x-finer value would still reliably close real GEOS
 crossing-point jitter in `ST_Snap`/`snapping_distance`
-(`docs/explanation/topology.md`'s sweep test and this session's Chile
+(`docs/dev/topology.md`'s sweep test and this session's Chile
 `_05_tmp3` measurement both validate `1e-8` specifically, not a finer
 value).
 

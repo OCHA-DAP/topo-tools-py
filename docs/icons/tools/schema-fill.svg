@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+  <!-- Three admin levels, a gap at the deepest cascading fill from the level above -->
+  <rect x="8" y="8" width="48" height="12" rx="2" fill="currentColor" fill-opacity="0.12" />
+  <rect x="8" y="26" width="48" height="12" rx="2" fill="currentColor" fill-opacity="0.12" />
+  <rect x="8" y="44" width="20" height="12" rx="2" stroke-dasharray="3 3" />
+  <path d="M40 38 L40 44 M40 44 L44 40 M40 44 L36 40" />
+</svg>

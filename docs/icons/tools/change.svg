@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+  <!-- Previous-version polygon (dashed outline) -->
+  <path d="M8 12 L30 8 L34 28 L26 40 L10 36 Z" fill="currentColor" fill-opacity="0.10" stroke-dasharray="3 3" />
+  <!-- New-version polygon (solid outline), overlapping the previous one -->
+  <path d="M22 20 L48 14 L54 36 L42 50 L24 46 Z" fill="currentColor" fill-opacity="0.18" />
+  <!-- Diff/cross-walk indicator: two small arrows between the shapes -->
+  <g stroke-width="1.5" fill="none">
+    <path d="M16 28 L26 28" />
+    <path d="M22 24 L26 28 L22 32" />
+    <path d="M40 44 L30 44" />
+    <path d="M34 40 L30 44 L34 48" />
+  </g>
+</svg>

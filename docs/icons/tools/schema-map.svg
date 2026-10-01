@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+  <!-- Map stage: small hierarchy tree -->
+  <circle cx="12" cy="12" r="5" fill="currentColor" fill-opacity="0.12" />
+  <path d="M12 17 L12 25 M12 25 L20 25 M12 25 L12 33" />
+  <path d="M20 25 L20 17" />
+  <circle cx="20" cy="12" r="5" fill="currentColor" fill-opacity="0.12" />
+  <circle cx="12" cy="38" r="4" fill="currentColor" fill-opacity="0.12" />
+  <!-- Arrow into apply stage -->
+  <path d="M26 40 L38 40" stroke-dasharray="3 3" />
+  <path d="M34 35 L40 40 L34 45" />
+  <!-- Apply stage: relabeled tag -->
+  <path d="M44 30 L56 30 L60 40 L56 50 L44 50 Z" fill="currentColor" fill-opacity="0.18" />
+  <circle cx="50" cy="40" r="2.5" fill="currentColor" />
+</svg>
