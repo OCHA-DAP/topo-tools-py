@@ -52,7 +52,7 @@ title: "code-refactor"
 - A parent whose child count exceeds `10 ** min_width - 1` (999 at the
   default width 3) MUST NOT have its already-assigned, lower-numbered
   children's codes repadded; the overflowing child's own tail simply grows
-  past `min_width` instead (see `docs/dev/shared.md`).
+  past `min_width` instead.
 
 ## Outputs
 

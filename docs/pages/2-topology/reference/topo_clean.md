@@ -61,14 +61,14 @@ detection stage directly rather than owning separate logic (see
 - `topo-clean` MUST raise `RuntimeError` if the fixed output still contains
   any overlap.
 - `topo-clean` MUST merge or drop every micro-polygon left in the fixed
-  output (see `docs/dev/shared.md`), including when no gap or
+  output, including when no gap or
   overlap needed fixing. Each part merged or dropped, before the fix or
   after it, MUST appear in the issues report as a `micro-polygon` row
   with its merge outcome, in place of its detection row.
 - `topo-clean` MUST NOT raise an error over a gap left unfilled by design. It
   MUST only log a warning naming how many gaps are still unfilled.
 - `topo-clean` MUST always produce the cleaned dataset. It MUST produce the
-  issues report, using the shared schema in `docs/dev/shared.md`,
+  issues report, using the same columns as every other tool's issues report,
   only when the input had at least one detected defect; when it would be
   empty, no file MUST be written (and a stale file from a previous run at
   that path MUST be removed).

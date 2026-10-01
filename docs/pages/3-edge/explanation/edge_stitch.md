@@ -104,7 +104,7 @@ overlap gate in `_03_outputs.py` is the correctness guarantee, not an
 opinion any one stage holds about its input's cleanliness. Unlike
 `edge-match`/`edge-mosaic`/`topo-clean`, `edge-stitch` has no concept of a "dropped" row:
 every input row survives into the cleaned output. Its issues report,
-using the shared schema in `docs/dev/shared.md`, exists only to
+using the same columns as every other tool's issues report, exists only to
 surface leftover gaps: any interior hole wider than `SNAP_TOLERANCE`
 after the coverage-clean pass gets a `kind='gap'` row (width, area,
 thinness ratio) and a warning log, the same generalization of ADR-0027's
@@ -120,6 +120,6 @@ the coverage-clean pass and before export, via `fill_schema=True`
 calling `core.schema_fill._02_fill.main()` directly through the private
 `api._schema_fill_compose` helper; `core.edge_stitch` itself is
 unchanged and still MUST NOT depend on `core.schema_fill`/
-`core.schema_map` (see `docs/dev/shared.md`, `docs/adr/0095`). It is
+`core.schema_map` (see `docs/adr/0095`). It is
 opt-in, not default, since stitching a purely geometric layer with no
 admin-hierarchy columns has nothing to fill.

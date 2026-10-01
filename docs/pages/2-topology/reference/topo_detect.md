@@ -20,8 +20,7 @@ title: "topo-detect"
   input has no coverage violations, `topo-detect` MUST report zero overlaps
   without running the overlap check. Two polygons that only share a
   boundary edge MUST NOT be reported as an overlap.
-- `topo-detect` MUST report every micro-polygon part (see
-  `docs/dev/shared.md`) as a `micro-polygon`, identifying the unit
+- `topo-detect` MUST report every micro-polygon part as a `micro-polygon`, identifying the unit
   it belongs to.
 - If detecting one kind of defect fails, `topo-detect` MUST still report the
   other kinds rather than failing entirely.

@@ -18,15 +18,13 @@ title: "edge-stitch"
 
 ## Outputs
 
-- `edge-stitch`'s final output MUST pass the hard gate in
-  `docs/dev/shared.md` (no overlap; unlike other tools, an unfilled
+- `edge-stitch`'s final output MUST pass the coverage check (no overlap; unlike other tools, an unfilled
   gap does not block export, see `docs/adr/0027`).
 - `edge-stitch` MUST export the final cleaned layer, and MUST NOT carry a
   `source_file` column on it even if the input already had one (e.g. a
   re-stitched `edge-mosaic`/`edge-match` output), silently dropping it
   (see `docs/adr/0087`).
-- `edge-stitch` MUST also export an issues report alongside it, using the
-  shared schema in `docs/dev/shared.md`, listing every leftover gap
+- `edge-stitch` MUST also export an issues report alongside it, using the same columns as every other tool's issues report, listing every leftover gap
   wider than `SNAP_TOLERANCE`, so a human can audit what may need review.
   `area_m2`, `max_width_m`, and `thinness_ratio` MUST be populated for
   each row; every other column MUST be null.

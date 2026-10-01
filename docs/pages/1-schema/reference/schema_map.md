@@ -121,8 +121,7 @@ empirical justification.
   role companions at one level MUST each get a numbered `target_column`
   from `code_field`/`name_field` (a code that embeds its parent first,
   then source-column order; the first gets the bare rendered template,
-  each next one a numbered sibling of it, see `docs/dev/shared.md`
-  and `docs/adr/0118`).
+  each next one a numbered sibling of it, see `docs/adr/0118`).
 - Every non-code-eligible column MUST be bracketed into the chain by its
   own `COUNT(DISTINCT)`: it lands at level `k` if `code_count[k-1] <
   distinct_count <= code_count[k]` (`code_count[-1]` is 0); a column
@@ -173,11 +172,17 @@ empirical justification.
 - A source column whose `target_column` is null or empty MUST be dropped.
   Every other source column MUST be renamed to its `target_column`. The
   geometry column MUST pass through unchanged.
-- A freshly mapped crosswalk MUST follow the shared column order in
-  `docs/dev/shared.md`. A `csv_input` MUST set column order by
-  its row order, after `geometry`, with a warning (no reordering) when a
-  column's numbered siblings (`adm2_name1`, `adm2_name2`) don't follow it
-  in numeric order. Rows MUST follow the shared row order either way.
+- A freshly mapped crosswalk MUST order columns by the
+  `name_field`/`code_field` templates: levels deepest first, and within
+  each level its name-template columns, then any other column with that
+  level's prefix and number, then its code-template columns, numbered
+  siblings in numeric order. Every other column follows in input order.
+  A `csv_input` MUST set column order by its row order, after `geometry`,
+  with a warning (no reordering) when a column's numbered siblings
+  (`adm2_name1`, `adm2_name2`) don't follow it in numeric order.
+- Rows MUST be sorted by the deepest level's own code column, by value
+  (text codes as text), NULLs last, ties in input order. With no
+  code-template column, rows MUST keep their input order, with a warning.
 
 ## Outputs
 

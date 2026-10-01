@@ -93,7 +93,7 @@ parent codes:
   mixed.
 - A `'new'`-outcome row's `code_outcome` MUST be overwritten to
   `'overflow'` (reusing `code-refactor`'s own `10 ** min_width - 1`
-  capacity rule, see `docs/dev/shared.md`) when its parent's total
+  capacity rule) when its parent's total
   retained-plus-new child count at that level exceeds capacity; `reason`
   MUST be overwritten to state the overflow.
 

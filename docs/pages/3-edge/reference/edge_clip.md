@@ -41,24 +41,21 @@ title: "edge-clip"
 - An input feature whose clipped result is empty MUST be dropped from the output,
   not treated as fatal, and MUST be recorded in the issues report as a
   `kind='clip-empty'` row (see Outputs).
-- `edge-clip` MUST merge or keep every clip-detached piece in the clipped result
-  (see `docs/dev/shared.md`), recording each one with an edge
+- `edge-clip` MUST merge or keep every clip-detached piece in the clipped result, recording each one with an edge
   neighbour as a `kind='detached-part'` row.
-- `edge-clip` MUST merge or drop every micro-polygon in the clipped result
-  (see `docs/dev/shared.md`), recording each as a
+- `edge-clip` MUST merge or drop every micro-polygon in the clipped result, recording each as a
   `kind='micro-polygon'` row.
 - `edge-clip` MUST raise immediately on the first `overlay_fid` whose subprocess
   fails, aborting the whole run rather than skipping just that `overlay_fid`.
 
 ## Outputs
 
-- `edge-clip` MUST NOT run the coverage hard gate in `docs/dev/shared.md`
+- `edge-clip` MUST NOT run the coverage check
   on its own output: closing seams between clipped pieces is `edge-stitch`'s
   job, not `edge-clip`'s.
 - `edge-clip` MUST raise `RuntimeError` if the clipped result has zero rows.
 - `edge-clip` MUST export the clipped layer to the output file.
-- `edge-clip` MUST export an issues report alongside it, using the shared
-  schema in `docs/dev/shared.md`, whenever it has at least one
+- `edge-clip` MUST export an issues report alongside it, using the same columns as every other tool's issues report, whenever it has at least one
   `kind='clip-empty'`, `kind='detached-part'` or `kind='micro-polygon'` row (or, when a code join is given, one
   `code-mismatch`/`code-fallback` row); when it would be empty, no file
   MUST be written (and a stale file from a previous run at that path MUST
@@ -74,17 +71,14 @@ title: "edge-clip"
 - `step`, if given, MUST be one of `inputs`, `assign`, `edge-clip`, `outputs`;
   any other value MUST raise `ValueError`.
 - `edge-clip` MAY accept `match_column`/`overlay_match_column`/`input_match_column`
-  to override spatial assignment with an exact code join (see
-  `docs/dev/shared.md`, `docs/pages/3-edge/explanation/assign.md`), adding
+  to override spatial assignment with an exact code join (see `docs/pages/3-edge/explanation/assign.md`), adding
   `code-mismatch`/`code-fallback` rows to the issues report alongside any
   `clip-empty` rows.
 - `edge-clip` MAY accept `carry_columns` (CLI: `--carry-column`) to copy
-  named overlay columns onto every matched input feature (see
-  `docs/dev/shared.md`, `docs/adr/0077`).
+  named overlay columns onto every matched input feature (see `docs/adr/0077`).
 - `edge-clip` MAY accept `original_path` (CLI: `--original`, env
   `ORIGINAL_FILE`), the input layer's pre-extension original, in any
-  supported format or as a URL. Without it, no clip-detached piece merges
-  (see `docs/dev/shared.md`).
+  supported format or as a URL. Without it, no clip-detached piece merges.
 
 ## Examples
 

@@ -43,8 +43,7 @@ For each join layer hierarchy column:
 - present on the input layer and different on any assigned input feature:
   `schema-join` MUST leave the input layer's column untouched and add the
   join feature's values under the next free numbered sibling name (`adm2_name1`,
-  then `adm2_name2` if `adm2_name1` is taken on either layer; see
-  `docs/dev/shared.md`), logging a
+  then `adm2_name2` if `adm2_name1` is taken on either layer), logging a
   warning with the differing row count.
 
 `schema-join` MUST NOT raise on a conflicting value, and MUST NOT
@@ -54,9 +53,12 @@ overwrite any input value (see `docs/adr/0109`).
 
 - `schema-join` MUST NOT modify geometry, and so performs no topology
   hard gate at all.
-- The output MUST keep every input row, in the shared column and row order
-  (see `docs/dev/shared.md`), using `name_field`/`code_field`, or
-  `adm{n}_name`/`adm{n}_code` when omitted.
+- The output MUST keep every input row, using `name_field`/`code_field`, or
+  `adm{n}_name`/`adm{n}_code` when omitted. Columns MUST keep input order,
+  each added numbered sibling right after the last existing column of its
+  family, and every column absent from the input layer after all input
+  columns, in template order (see `docs/adr/0119`). Rows MUST be sorted by
+  the deepest level's own code column, as in `schema-map`.
 - `schema-join` MUST write an issues file in the shared issues-table
   column schema, with one row per:
   - `no-overlap`: an input feature overlapping no join feature;

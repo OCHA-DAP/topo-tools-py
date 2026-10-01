@@ -63,8 +63,7 @@ See [edge-match](edge_match.md) for the rules `edge-mosaic` shares with it.
 - An input feature whose clipped result is empty MUST be dropped from the output,
   not treated as fatal, and MUST be recorded in the issues report as a
   `kind='clip-empty'` row (see Outputs).
-- `edge-mosaic` MUST merge or keep every clip-detached piece in the clipped result
-  (see `docs/dev/shared.md`), recording each one with an edge
+- `edge-mosaic` MUST merge or keep every clip-detached piece in the clipped result, recording each one with an edge
   neighbour as a `kind='detached-part'` row.
 - `edge-mosaic` MUST raise if zero input features were ever assigned to any overlay feature,
   unless `merge` gap-filled at least one overlay feature or kept at least one
@@ -79,13 +78,11 @@ See [edge-match](edge_match.md) for the rules `edge-mosaic` shares with it.
 
 ## Outputs
 
-- `edge-mosaic`'s final output MUST pass the hard gate in
-  `docs/dev/shared.md` (no overlap, no gap at or below
+- `edge-mosaic`'s final output MUST pass the coverage check (no overlap, no gap at or below
   `SNAP_TOLERANCE`) before export. A wider leftover gap does not block
   export (see `docs/adr/0035`).
 - `edge-mosaic` MUST export the final merged layer.
-- `edge-mosaic` MUST also export an issues report alongside it, using the
-  shared schema in `docs/dev/shared.md`, listing every input feature dropped
+- `edge-mosaic` MUST also export an issues report alongside it, using the same columns as every other tool's issues report, listing every input feature dropped
   for an empty clip intersection, every clip-detached piece with an edge neighbour, every
   unassigned/passthrough input file,
   every gap-filled/passthrough overlay feature (when `merge` is set), and every
@@ -129,8 +126,7 @@ See [edge-match](edge_match.md) for the rules `edge-mosaic` shares with it.
   whenever more than one `input_paths` file is given; any other value MUST
   raise `ValueError` (see `docs/adr/0079`).
 - `edge-mosaic` MAY accept `match_column`/`overlay_match_column`/`input_match_column`
-  to override spatial assignment with an exact code join (see
-  `docs/dev/shared.md`, `docs/pages/3-edge/explanation/assign.md`).
+  to override spatial assignment with an exact code join (see `docs/pages/3-edge/explanation/assign.md`).
 - `edge-mosaic` MAY accept `merge: bool = False` (CLI: `--merge`, a plain
   boolean flag): `False` (default) copies no overlay columns and drops
   both an unmatched overlay feature and a whole unmatched input file; `True`
@@ -157,8 +153,7 @@ See [edge-match](edge_match.md) for the rules `edge-mosaic` shares with it.
   `prefer` (the default) preserves raising `ValueError` on a real
   collision. `prefer` MUST raise `ValueError` if given without `merge`,
   or combined with any of `overlay_include`/`overlay_exclude`/
-  `input_include`/`input_exclude` (see `docs/dev/shared.md`,
-  `docs/adr/0077`, `docs/adr/0079`, `docs/adr/0083`, `docs/adr/0088`;
+  `input_include`/`input_exclude` (see `docs/adr/0077`, `docs/adr/0079`, `docs/adr/0083`, `docs/adr/0088`;
   supersedes the input-orphan passthrough of `docs/adr/0078`).
 - `edge-mosaic` MAY opt into cascading admin-hierarchy columns via
   `fill_schema`/`--fill-schema`, right after stitching and before export
@@ -176,8 +171,7 @@ See [edge-match](edge_match.md) for the rules `edge-mosaic` shares with it.
 - `edge-mosaic` MAY accept `original_paths` (CLI: `--original`,
   repeatable and comma-separable, env `ORIGINAL_FILES`), one or more
   pre-extension originals covering the input files, in any supported
-  format or as URLs. Without them, no clip-detached piece merges (see
-  `docs/dev/shared.md`).
+  format or as URLs. Without them, no clip-detached piece merges.
 
 ## Examples
 
