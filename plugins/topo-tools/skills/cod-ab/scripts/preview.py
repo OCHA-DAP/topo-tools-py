@@ -37,6 +37,7 @@ _MAX_ZOOM = 18
 _MAX_LAT = 85.0511
 _HALF_TURN = 180
 _MIN_HALF_DEG = 0.0135
+_CLUSTER_SPAN_DEG = 0.08
 _KM2_FROM_M2 = 1e5
 _DECIMALS_BELOW_M = 10
 _SS = 2
@@ -111,6 +112,41 @@ def _bounds(geoms: list[dict]) -> tuple[tuple[float, float, float, float], bool]
     if wrap:
         lons = [lon + 360 if lon < 0 else lon for lon in lons]
     return (min(lons), min(lats), max(lons), max(lats)), wrap
+
+
+def _clusters(geoms: list[dict], *, wrap: bool) -> list[list[int]]:
+    """Group features whose padded bboxes touch, up to ~9 km across, largest first."""
+    groups = []
+    for i, geom in enumerate(geoms):
+        lons = [lon for ring in _rings(geom) for lon, *_ in ring]
+        lats = [lat for ring in _rings(geom) for _, lat, *_ in ring]
+        if wrap:
+            lons = [lon + 360 if lon < 0 else lon for lon in lons]
+        k = max(math.cos(math.radians(sum(lats) / len(lats))), 0.05)
+        pad_x = _MIN_HALF_DEG / k
+        box = (
+            min(lons) - pad_x,
+            min(lats) - _MIN_HALF_DEG,
+            max(lons) + pad_x,
+            max(lats) + _MIN_HALF_DEG,
+        )
+        groups.append((box, [i]))
+    merged = True
+    while merged:
+        merged = False
+        for a in range(len(groups)):
+            for b in range(a + 1, len(groups)):
+                (ax0, ay0, ax1, ay1), (bx0, by0, bx1, by1) = groups[a][0], groups[b][0]
+                box = (min(ax0, bx0), min(ay0, by0), max(ax1, bx1), max(ay1, by1))
+                k = max(math.cos(math.radians((box[1] + box[3]) / 2)), 0.05)
+                span = max((box[2] - box[0]) * k, box[3] - box[1])
+                if _overlaps(groups[a][0], groups[b][0]) and span <= _CLUSTER_SPAN_DEG:
+                    groups[a] = (box, groups[a][1] + groups.pop(b)[1])
+                    merged = True
+                    break
+            if merged:
+                break
+    return sorted((idx for _, idx in groups), key=len, reverse=True)
 
 
 def _frame(
@@ -224,6 +260,10 @@ def _tag(img: Image.Image, text: str, *, bottom: bool, size: int) -> None:
     draw.text((x + 6, y + 3), text, fill=(0, 0, 0), font=font)
 
 
+def _overlaps(a: tuple[float, ...], b: tuple[float, ...]) -> bool:
+    return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
+
+
 def _panel(source: str, view: _View, layers: dict) -> Image.Image:
     """One base layer with units, highlights and labels drawn over it."""
     img = _basemap(source, view)
@@ -232,8 +272,13 @@ def _panel(source: str, view: _View, layers: dict) -> Image.Image:
     )
     draw = ImageDraw.Draw(img)
     font = _font(_LABEL_PX)
+    placed: list[tuple[float, float, float, float]] = []
     for text, lon, lat in layers["labels"]:
         x, y = view.px(lon, lat)
+        box = draw.textbbox((x, y), text, font=font, anchor="mm", stroke_width=3)
+        if any(_overlaps(box, other) for other in placed):
+            continue
+        placed.append(box)
         draw.text(
             (x, y),
             text,
@@ -313,6 +358,10 @@ def issues(args: argparse.Namespace) -> None:
     ).fetchall()
     if not rows:
         log.info("No %s rows in %s", args.kind, args.issues)
+    (total,) = con.execute(
+        f"SELECT count(*) FROM read_parquet({_sql_str(args.issues)}) WHERE kind = ?",
+        [args.kind],
+    ).fetchone()
     stem = args.issues.stem.removesuffix("_issues")
     for rank, (geojson, area, width) in enumerate(rows, 1):
         geom = json.loads(geojson)
@@ -320,7 +369,7 @@ def issues(args: argparse.Namespace) -> None:
         view = _view(_frame(bbox), wrap=wrap)
         cx, cy = (bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2
         header = (
-            f"{stem}  {args.kind} {rank} of {len(rows)}  {_measure(area, width)}  "
+            f"{stem}  {args.kind} {rank} of {total}  {_measure(area, width)}  "
             f"centre {(cx + 180) % 360 - 180:.4f}, {cy:.4f}"
         )
         layers = {
@@ -345,14 +394,26 @@ def features(args: argparse.Namespace) -> None:
     if not rows:
         sys.exit(f"No features in {args.layer} match: {args.where}")
     geoms = [json.loads(row[0]) for row in rows]
-    bbox, wrap = _bounds(geoms)
-    view = _view(_frame(bbox), wrap=wrap)
-    layers = {
-        "units": _units(con, args.units, view),
-        "highlights": geoms,
-        "labels": [(text, lon, lat) for _, text, lon, lat in rows if text],
-    }
-    _sheet(view, layers, args.title or f"{args.layer.stem}: {args.where}", args.out)
+    _, wrap = _bounds(geoms)
+    title = args.title or f"{args.layer.stem}: {len(rows)} features"
+    groups = _clusters(geoms, wrap=wrap) if args.cluster else [list(range(len(rows)))]
+    for n, idx in enumerate(groups[: args.top], 1):
+        bbox, _ = _bounds([geoms[i] for i in idx])
+        view = _view(_frame(bbox), wrap=wrap)
+        layers = {
+            "units": _units(con, args.units, view),
+            "highlights": [geoms[i] for i in idx],
+            "labels": [rows[i][1:] for i in idx if rows[i][1]],
+        }
+        if not args.cluster:
+            _sheet(view, layers, title, args.out)
+            continue
+        cx, cy = (bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2
+        header = (
+            f"{title}  cluster {n} of {len(groups)} ({len(idx)} features)  "
+            f"centre {(cx + 180) % 360 - 180:.4f}, {cy:.4f}"
+        )
+        _sheet(view, layers, header, args.out.with_name(f"{args.out.stem}_{n:02d}.png"))
 
 
 def basemap(args: argparse.Namespace) -> None:
@@ -403,7 +464,13 @@ def main() -> None:
     f.add_argument("--where", required=True, help="DuckDB SQL filter on the layer")
     f.add_argument("--label", help="column drawn as each feature's label")
     f.add_argument("--units", type=Path, help="layer drawn as context outlines")
-    f.add_argument("--title", help="header text (default: layer and filter)")
+    f.add_argument("--title", help="header text (default: layer and feature count)")
+    f.add_argument(
+        "--cluster",
+        action="store_true",
+        help="write {out}_NN.png per cluster of nearby features in place of {out}",
+    )
+    f.add_argument("--top", type=int, help="largest clusters to write (default: all)")
     f.set_defaults(func=features)
     b = sub.add_parser("basemap", help="base layer PNGs plus a JSON sidecar for a bbox")
     for name in ("xmin", "ymin", "xmax", "ymax"):

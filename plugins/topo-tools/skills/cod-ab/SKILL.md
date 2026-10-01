@@ -165,9 +165,31 @@ PNGs using the JSON sidecar's pixel mapping and font, never by importing
    `{iso3}` in any case. When none does, ask whether the whole file is
    this country (then drop the `WHERE`), or which column and value select
    it; when matching columns select different features, ask which:
-   `COPY (SELECT * FROM '00_shared/{admin0}.parquet' WHERE trim(upper("{column}"::VARCHAR)) = upper('{iso3}')) TO '02_working/{iso3}/{version}/03_edge_matching/{iso3}_admin0.parquet' (FORMAT PARQUET, COMPRESSION ZSTD, GEOPARQUET_VERSION 'V2')`.
-   Render the edge-matched output's largest gaps with
-   `preview.py issues {issues} 03_edge_matching/previews/ --units {output}`
+   `COPY (SELECT * FROM '00_shared/{admin0}.parquet' WHERE trim(upper("{column}"::VARCHAR)) = upper('{iso3}')) TO '02_working/{iso3}/{version}/03_edge_matching/{iso3}_admin0.parquet' (FORMAT PARQUET, COMPRESSION ZSTD, COMPRESSION_LEVEL 15, GEOPARQUET_VERSION 'V2')`.
+
+   After `edge-match`, measure each stage 2 unit's area inside the
+   reference admin0 with DuckDB (`spatial` loaded,
+   `SET geometry_always_xy = true`, `ST_Area_Spheroid`). A unit with none
+   inside is dropped (their count matches the issues file's `clip-empty`
+   rows); one with under half inside is partly cut. Dropping units is a
+   defect: when any unit is dropped, stop and report
+
+   - the dropped units' count and names
+   - every parent unit, at each coarser level, whose units were all
+     dropped (grouped by its code column, or its name column when it has
+     no codes)
+   - the partly cut units' count, as information
+   - the total area before and after
+   - each cluster of dropped units (number, unit count, centre, parent
+     names) with its PNG path, rendered by
+     `preview.py features {stage 2 file} 03_edge_matching/previews/{iso3}_dropped.png --cluster --label {first name column} --where "ST_Area(ST_Intersection(geometry, (SELECT ST_Union_Agg(geometry) FROM read_parquet('{admin0}')))) = 0"`
+
+   Then ask whether to continue without these units, or rerun stage 3
+   with a different admin0 the user puts in `00_shared/` (never propose
+   one). Continue only on an explicit answer to continue, and ask again
+   when resuming at stage 4 before `04_codes/` has output. Render the
+   output's largest `gap` and `detached-part` rows with
+   `preview.py issues {issues} 03_edge_matching/previews/ --units {output} --kind {kind}`
    and check them against both base layers before accepting the output.
 4. [Codes](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/4-codes/how-to.md)
 
