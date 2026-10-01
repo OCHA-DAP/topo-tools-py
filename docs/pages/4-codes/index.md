@@ -24,7 +24,7 @@ one where it doesn't.
     ---
 
     Task-oriented. Reconcile a release against the previous one with
-    `code-update`, or start codes from scratch with `code-refactor` for
+    `code-update`, or start codes from scratch with `code-create` for
     a first release.
 
     [:octicons-arrow-right-24: How-to](how-to.md)
@@ -33,10 +33,10 @@ one where it doesn't.
 
     ---
 
-    Information-oriented. What `code-refactor`, `code-update` and
+    Information-oriented. What `code-create`, `code-update` and
     `change` do, with their options and outputs.
 
-    [:octicons-arrow-right-24: Reference](reference/code_refactor.md)
+    [:octicons-arrow-right-24: Reference](reference/code_create.md)
 
 -   :material-lightbulb-on-outline:{ .lg .middle } **Explanation**
 

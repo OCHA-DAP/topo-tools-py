@@ -4,7 +4,7 @@ import duckdb
 import pytest
 from click.testing import CliRunner
 
-from topo_tools.api.code_refactor import code_refactor
+from topo_tools.api.code_create import code_create
 from topo_tools.api.code_update import code_update
 from topo_tools.cli.main import cli
 
@@ -467,7 +467,7 @@ def test_level_count_mismatch_raises(tmp_path):
 def test_custom_format_round_trip_detected_from_old_codes(
     tmp_path, min_width, level1, level2
 ):
-    """code-update auto-detects a code-refactor-produced custom delimiter/width."""
+    """code-update auto-detects a code-create-produced custom delimiter/width."""
     raw_rows = [
         {
             "adm1_code": "P1",
@@ -489,7 +489,7 @@ def test_custom_format_round_trip_detected_from_old_codes(
     _write_synthetic(raw_path, raw_rows)
 
     old_coded_path = tmp_path / "old_coded.parquet"
-    code_refactor(
+    code_create(
         raw_path, old_coded_path, root_code="AA", delimiter="-", min_width=min_width
     )
 

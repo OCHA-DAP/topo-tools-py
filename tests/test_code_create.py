@@ -1,10 +1,10 @@
-"""Portability + naming tests for the code_refactor() tool."""
+"""Portability + naming tests for the code_create() tool."""
 
 import duckdb
 import pytest
 from click.testing import CliRunner
 
-from topo_tools.api.code_refactor import code_refactor
+from topo_tools.api.code_create import code_create
 from topo_tools.cli.main import cli
 
 _MIN_WIDTH = 3
@@ -44,7 +44,7 @@ def _fetch(path, columns: str, order_by: str):
 
 
 def test_cli_help():
-    result = CliRunner().invoke(cli, ["code-refactor", "--help"])
+    result = CliRunner().invoke(cli, ["code-create", "--help"])
     assert result.exit_code == 0
     assert "Cold-start a hierarchical code" in result.output
 
@@ -81,7 +81,7 @@ def test_gadm_style_cold_start_admin0_passthrough(tmp_path):
     _write_synthetic(input_path, rows)
 
     output_path = tmp_path / "admin2_coded.parquet"
-    code_refactor(input_path, output_path, root_code="AFG", delimiter=".", min_width=3)
+    code_create(input_path, output_path, root_code="AFG", delimiter=".", min_width=3)
 
     result = _fetch(output_path, "GID_0, GID_1, NAME_1, GID_2, NAME_2", "GID_1, GID_2")
     assert result == [
@@ -117,7 +117,7 @@ def test_word_per_level_naming(tmp_path):
     _write_synthetic(input_path, rows)
 
     output_path = tmp_path / "states_coded.parquet"
-    code_refactor(input_path, output_path, root_code="USA", delimiter=".", min_width=3)
+    code_create(input_path, output_path, root_code="USA", delimiter=".", min_width=3)
 
     result = _fetch(output_path, "state_code, county_code, county_name", "county_code")
     assert result == [
@@ -149,7 +149,7 @@ def test_explicit_code_name_field_overrides_ambiguous_auto_detection(tmp_path):
     _write_synthetic(input_path, rows)
 
     output_path = tmp_path / "ambiguous_coded.parquet"
-    code_refactor(
+    code_create(
         input_path,
         output_path,
         root_code="AFG",
@@ -184,7 +184,7 @@ def test_overflow_writes_four_digit_code_and_issues_row(tmp_path):
 
     output_path = tmp_path / "overflow_coded.parquet"
     issues_path = tmp_path / "overflow_issues.csv"
-    code_refactor(
+    code_create(
         input_path,
         output_path,
         issues_path,
@@ -230,7 +230,7 @@ def test_disputed_territory_root_code_is_opaque(tmp_path):
     _write_synthetic(input_path, rows)
 
     output_path = tmp_path / "kosovo_coded.parquet"
-    code_refactor(input_path, output_path, root_code="XKO", delimiter=".", min_width=3)
+    code_create(input_path, output_path, root_code="XKO", delimiter=".", min_width=3)
 
     result = _fetch(output_path, "region_code, region_name", "region_code")
     assert result == [
@@ -263,7 +263,7 @@ def test_custom_delimiter_and_width(tmp_path):
     _write_synthetic(input_path, _TWO_LEVEL_ROWS)
 
     output_path = tmp_path / "custom_coded.parquet"
-    code_refactor(input_path, output_path, root_code="AA", delimiter="-", min_width=2)
+    code_create(input_path, output_path, root_code="AA", delimiter="-", min_width=2)
 
     codes = {r[0] for r in _fetch(output_path, "adm1_code", "adm1_code")}
     assert codes == {"AA-01", "AA-02"}
@@ -276,7 +276,7 @@ def test_mismatched_code_name_field_raises(tmp_path):
     input_path = tmp_path / "one.parquet"
     _write_synthetic(input_path, rows)
     with pytest.raises(ValueError, match="must be given together"):
-        code_refactor(
+        code_create(
             input_path,
             root_code="AA",
             delimiter=".",
@@ -332,13 +332,13 @@ def test_trailing_name_only_level_raises(tmp_path):
     input_path = tmp_path / "leaf.parquet"
     _write_synthetic(input_path, rows)
     with pytest.raises(ValueError, match="no existing code column"):
-        code_refactor(input_path, root_code="AA", delimiter=".", min_width=3)
+        code_create(input_path, root_code="AA", delimiter=".", min_width=3)
 
 
 def test_default_output_path(tmp_path):
     input_path = tmp_path / "leaf.parquet"
     _write_synthetic(input_path, _TWO_LEVEL_ROWS)
-    code_refactor(input_path, root_code="AA", delimiter=".", min_width=3)
+    code_create(input_path, root_code="AA", delimiter=".", min_width=3)
     assert input_path.with_stem(input_path.stem + "_coded").exists()
 
 
@@ -349,7 +349,7 @@ def test_steps(tmp_path):
     output_path = tmp_path / "steps_out.parquet"
     work_dir = tmp_path / "work"
     for step in ("inputs", "levels", "assign", "outputs"):
-        code_refactor(
+        code_create(
             input_path,
             output_path,
             root_code="AA",
@@ -373,7 +373,7 @@ def test_cli_error_on_existing_output(tmp_path):
     result = CliRunner().invoke(
         cli,
         [
-            "code-refactor",
+            "code-create",
             str(input_path),
             str(output_path),
             "--root-code",
@@ -415,7 +415,7 @@ def test_supplemental_grouping_raises(tmp_path):
     input_path = tmp_path / "blocks.parquet"
     _write_synthetic(input_path, rows)
     with pytest.raises(ValueError, match=r"\['adm2_name'\] group units like a level"):
-        code_refactor(input_path, root_code="AA", delimiter=".", min_width=3)
+        code_create(input_path, root_code="AA", delimiter=".", min_width=3)
 
 
 def _source_coded_rows(adm3_codes=("0101", "0102", "0201", "0202")):
@@ -444,7 +444,7 @@ _TEMPLATES = {"code_field": "adm{n}_code", "name_field": "adm{n}_name"}
 def test_embed_concatenates_source_codes_without_delimiter(tmp_path):
     input_path, output_path = tmp_path / "in.parquet", tmp_path / "out.parquet"
     _write_synthetic(input_path, _source_coded_rows())
-    code_refactor(
+    code_create(
         input_path,
         output_path,
         root_code="BH",
@@ -465,7 +465,7 @@ def test_embed_raises_on_mixed_length_codes_without_delimiter(tmp_path):
     input_path = tmp_path / "in.parquet"
     _write_synthetic(input_path, _source_coded_rows(("101", "0102", "0201", "0202")))
     with pytest.raises(ValueError, match="vary in length"):
-        code_refactor(
+        code_create(
             input_path,
             root_code="BH",
             delimiter="",
@@ -479,15 +479,13 @@ def test_empty_delimiter_requires_embed(tmp_path):
     input_path = tmp_path / "in.parquet"
     _write_synthetic(input_path, _source_coded_rows())
     with pytest.raises(ValueError, match="single character"):
-        code_refactor(
-            input_path, root_code="BH", delimiter="", min_width=2, **_TEMPLATES
-        )
+        code_create(input_path, root_code="BH", delimiter="", min_width=2, **_TEMPLATES)
 
 
 def test_copy_keeps_source_codes_in_numbered_siblings(tmp_path):
     input_path, output_path = tmp_path / "in.parquet", tmp_path / "out.parquet"
     _write_synthetic(input_path, _source_coded_rows())
-    code_refactor(
+    code_create(
         input_path,
         output_path,
         root_code="BHR",
@@ -521,7 +519,7 @@ def test_min_width_per_level_and_auto(tmp_path):
         ("auto", ("BHR.1", "BHR.1.1", "BHR.1.1.1")),
     ]:
         output_path = tmp_path / f"out_{min_width}.parquet"
-        code_refactor(
+        code_create(
             input_path,
             output_path,
             root_code="BHR",
@@ -539,6 +537,6 @@ def test_min_width_list_must_match_level_count(tmp_path):
     input_path = tmp_path / "in.parquet"
     _write_synthetic(input_path, _source_coded_rows())
     with pytest.raises(ValueError, match="3 level"):
-        code_refactor(
+        code_create(
             input_path, root_code="BHR", delimiter=".", min_width="2,3", **_TEMPLATES
         )

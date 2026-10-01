@@ -13,7 +13,7 @@ title: "code-update"
 
 - `code-update` MUST resolve OLD's and NEW's own per-level code/name
   columns independently, each via the same explicit-pair-or-structural-
-  fallback contract `code-refactor` uses (`docs/pages/4-codes/reference/code_refactor.md`):
+  fallback contract `code-create` uses (`docs/pages/4-codes/reference/code_create.md`):
   `name_field_a`/`code_field_a` (or structural auto-detection) for OLD,
   `name_field_b`/`code_field_b` (or structural auto-detection) for NEW.
 - `code-update` MUST raise `ValueError` ("no existing code column to
@@ -37,7 +37,7 @@ title: "code-update"
   field itself is `None`, an explicitly given field is never overridden by
   detection. An explicit `min_width` MAY be one width, a comma list with
   exactly one width per level (coarsest first), or `auto`, as in
-  `code-refactor`; a detected one is per level when OLD's levels differ.
+  `code-create`; a detected one is per level when OLD's levels differ.
 
 ## Dissolve
 
@@ -100,7 +100,7 @@ parent codes:
   MUST be collapsed into one value, joined with `"+"` when genuinely
   mixed.
 - A `'new'`-outcome row's `code_outcome` MUST be overwritten to
-  `'overflow'` (reusing `code-refactor`'s own `10 ** width - 1` capacity
+  `'overflow'` (reusing `code-create`'s own `10 ** width - 1` capacity
   rule, never under `auto`) when its parent's total
   retained-plus-new child count at that level exceeds capacity; `reason`
   MUST be overwritten to state the overflow.

@@ -1,11 +1,11 @@
-"""Exports the refactored output, plus an overflow issues report when non-empty."""
+"""Exports the coded output, plus an overflow issues report when non-empty."""
 
 from pathlib import Path
 
 from duckdb import DuckDBPyConnection
 
 from topo_tools.core.code import TABLE_COPY_OPTS, CodeFormat
-from topo_tools.core.code_refactor._02_levels import Level
+from topo_tools.core.code_create._02_levels import Level
 from topo_tools.core.io import add_csv_bom, export_geometry_table
 
 

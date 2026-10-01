@@ -4,11 +4,11 @@ from logging import getLogger
 from pathlib import Path
 
 from topo_tools.core.code import TABLE_COPY_OPTS, CodeFormat, resolve_code_format
-from topo_tools.core.code_refactor import _01_inputs as inputs
-from topo_tools.core.code_refactor import _02_levels as levels_stage
-from topo_tools.core.code_refactor import _03_assign as assign_stage
-from topo_tools.core.code_refactor import _04_outputs as outputs
-from topo_tools.core.code_refactor._constants import SOURCE_CODES
+from topo_tools.core.code_create import _01_inputs as inputs
+from topo_tools.core.code_create import _02_levels as levels_stage
+from topo_tools.core.code_create import _03_assign as assign_stage
+from topo_tools.core.code_create import _04_outputs as outputs
+from topo_tools.core.code_create._constants import SOURCE_CODES
 from topo_tools.core.duckdb_utils import (
     maybe_export_debug_tables,
     pipeline_connection,
@@ -47,7 +47,7 @@ def _resolve_format(
     )
 
 
-def code_refactor(  # noqa: PLR0913
+def code_create(  # noqa: PLR0913
     input_path: str | Path,
     output_path: str | Path | None = None,
     issues_path: str | Path | None = None,
@@ -96,7 +96,7 @@ def code_refactor(  # noqa: PLR0913
         raise ValueError(msg)
     check_overwrite(issues_path, overwrite=overwrite)
 
-    name = input_basename(input_path).replace(".", "_") + "_code_refactor"
+    name = input_basename(input_path).replace(".", "_") + "_code_create"
 
     with (
         resolve_tmp_dir(tmp_dir, debug=debug) as tmp_dir_path,

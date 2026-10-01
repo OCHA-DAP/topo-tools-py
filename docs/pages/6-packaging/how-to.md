@@ -17,6 +17,6 @@ Writes one `release/admin{n}.parquet` per detected level,
 `release/points.parquet` (one label point per admin unit), and
 `release/lines.parquet` (the deduplicated boundary network).
 
-`topo-clean`, `edge-match`, and `code-refactor` each write an issues file
+`topo-clean`, `edge-match`, and `code-create` each write an issues file
 only when they find something to report; load one as a map layer, not
 just a table, to see exactly which features it touched.

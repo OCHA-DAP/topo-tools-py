@@ -52,8 +52,8 @@ in sync.
   and `core.edge_mosaic` themselves MUST NOT depend on `core.schema_fill`
   or `core.schema_map` (see `docs/adr/0095`).
 - `core.code` (the shared code-format/cascade/rewrite primitive) MUST NOT
-  depend on `code-refactor` or `code-update`.
-- `code-refactor` and `code-update` MAY depend on `schema_map`'s
+  depend on `code-create` or `code-update`.
+- `code-create` and `code-update` MAY depend on `schema_map`'s
   `name_field`/`code_field`/level-detection helpers; `schema_map` MUST NOT
   depend on either.
 - `code-update` MAY depend on `core.dissolve`'s stage function directly;
@@ -102,7 +102,7 @@ in sync.
 ## CSV outputs
 
 - Every CSV a tool writes (`schema-map`'s crosswalk, `change`'s changelog,
-  `code-refactor`'s issues, `code-update`'s changelog) MUST be UTF-8 with a
+  `code-create`'s issues, `code-update`'s changelog) MUST be UTF-8 with a
   byte-order mark, so spreadsheet apps detect the encoding.
 
 ## Coverage-topology checks
@@ -328,7 +328,7 @@ supplied and it yields at least one row (see `docs/pages/3-edge/reference/edge_c
 
 ## Hierarchical code format and retention
 
-`code-refactor` and `code-update` (`docs/pages/4-codes/reference/code_refactor.md`,
+`code-create` and `code-update` (`docs/pages/4-codes/reference/code_create.md`,
 `docs/pages/4-codes/reference/code_update.md`) share one `CodeFormat` primitive
 (`core.code`, `root_code`/`delimiter`/`min_width`, no default values) and
 its supporting functions:

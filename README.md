@@ -26,7 +26,7 @@ Full documentation: <https://ocha-dap.github.io/topo-tools-py/>
 | **edge-clip** | clip an input layer to an overlay layer |
 | **edge-stitch** | close seams in a tiled layer |
 | **change** | classify changes between two polygon layer versions |
-| **code-refactor** | assign a fresh hierarchical code, ranked per parent |
+| **code-create** | assign a fresh hierarchical code, ranked per parent |
 | **code-update** | carry codes over from an old layer to a new one |
 | **package** | dissolve, label, and line-ify a layer in one call |
 | **package-polygons** | dissolve a layer into coarser admin levels |

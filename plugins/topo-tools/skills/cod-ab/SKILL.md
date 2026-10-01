@@ -95,7 +95,7 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
    and, where produced, its issues file, is the audit trail, no separate
    report file. A stage counts as complete only when its defining output
    exists, not just an issues file (a stage that ran
-   `topo-clean`/`edge-match`/`code-refactor` and stopped at the issues
+   `topo-clean`/`edge-match`/`code-create` and stopped at the issues
    file, without writing the tool's own `OUTPUT_FILE`, is in progress,
    not done: resume there, don't skip past it):
 
@@ -118,7 +118,7 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
    p-code/name values via DuckDB. Use the deepest file/layer as the base,
    the only one carried past stage 1 (every ancestor level is derived from it by
    dissolve in stage 6), and the country's ISO2 code as stage 4's
-   `--root-code` under the legacy p-code scheme (`code-refactor` only, when
+   `--root-code` under the legacy p-code scheme (`code-create` only, when
    `00a_old/` is absent). State both before
    continuing, with the base's name, feature count, and why it qualifies.
    Ask the user to pick a shallower base only if the deepest one looks
@@ -195,7 +195,7 @@ PNGs using the JSON sidecar's pixel mapping and font, never by importing
 4. [Codes](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/4-codes/how-to.md)
 
    Use the base-level file in `00a_old/` as `code-update`'s OLD file.
-   When `00a_old/` is absent, use `code-refactor` instead. Code the
+   When `00a_old/` is absent, use `code-create` instead. Code the
    stage 2 file in place of the stage 3 output when the user chose to
    code the full geometry first.
 5. [Names](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/5-names/index.md)

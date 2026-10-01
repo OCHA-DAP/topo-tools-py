@@ -69,14 +69,14 @@ nav = [
     { "change tutorial" = "4-codes/change-tutorial.md" },
     { "How-to" = "4-codes/how-to.md" },
     { "Reference" = [
-      "4-codes/reference/code_refactor.md",
+      "4-codes/reference/code_create.md",
       "4-codes/reference/code_update.md",
       "4-codes/reference/change.md",
     ] },
     { "Explanation" = [
       { "Overview" = "4-codes/explanation/overview.md" },
       "4-codes/explanation/code.md",
-      "4-codes/explanation/code_refactor.md",
+      "4-codes/explanation/code_create.md",
       "4-codes/explanation/code_update.md",
       "4-codes/explanation/change.md",
     ] },

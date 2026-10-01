@@ -4,8 +4,8 @@ from duckdb import DuckDBPyConnection
 
 from topo_tools.core.admin_columns import next_free_sibling
 from topo_tools.core.code import CodeFormat, assign_new_codes
-from topo_tools.core.code_refactor._02_levels import Level
-from topo_tools.core.code_refactor._constants import SOURCE_CODES
+from topo_tools.core.code_create._02_levels import Level
+from topo_tools.core.code_create._constants import SOURCE_CODES
 
 
 def _copy_source_codes(

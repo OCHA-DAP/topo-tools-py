@@ -8,10 +8,10 @@ it against a new delivery of the same boundary.
 
 ## Assign a fresh code
 
-`code-refactor` ranks each level's units under their parent and assigns
+`code-create` ranks each level's units under their parent and assigns
 a fresh sequential code in a chosen format:
 
-    topo-tools code-refactor admin2.geojson admin2_coded.geojson \
+    topo-tools code-create admin2.geojson admin2_coded.geojson \
       --root-code AFG --delimiter . --min-width 3
 
 ## Reconcile against a new delivery
@@ -28,7 +28,7 @@ Add `--link-by-code` (plus `--code-column-a`/`--code-column-b`) if both
 layers share a separate stable source identifier, to link a relocated
 unit that spatial overlap alone would misclassify.
 
-See the [`code-refactor`](reference/code_refactor.md) and
+See the [`code-create`](reference/code_create.md) and
 [`code-update`](reference/code_update.md) references, and the
 [`code` explanation](explanation/code.md), for the code format and
 retention policy.

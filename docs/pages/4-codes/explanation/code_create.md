@@ -1,17 +1,17 @@
 ---
 status: draft
-title: "code-refactor"
+title: "code-create"
 ---
 
-`code-refactor` cold-starts a hierarchical code on any flat, finest-level
+`code-create` cold-starts a hierarchical code on any flat, finest-level
 input: no existing code column is assumed, only a hierarchy embedded as
 columns (the same shape `package-polygons`/`schema-fill` expect). Four
-stages, each a numbered module in `topo_tools/core/code_refactor/`.
+stages, each a numbered module in `topo_tools/core/code_create/`.
 
 ## `_01_inputs`: load
 
 Loads and reprojects the one input via `core.io.read_and_reproject()`.
-`code-refactor` never coverage-cleans: it rewrites attribute columns only,
+`code-create` never coverage-cleans: it rewrites attribute columns only,
 geometry is untouched throughout the whole pipeline.
 
 ## `_02_levels`: resolve, don't assume
@@ -23,8 +23,8 @@ structural auto-detection (`detect_level_columns_or_single()` +
 `verify_functional_cluster()`) takes over. Zero levels detected raises
 `ValueError`, since a hierarchy that can't be located at all has nothing
 for the tool to rank. A resolved level with no code column at all (only a
-name, `has_code=False`, see `docs/adr/0106`) also raises `ValueError`: `code-
-refactor` only ever overwrites an existing column's values, it never
+name, `has_code=False`, see `docs/adr/0106`) also raises `ValueError`:
+`code-create` only ever overwrites an existing column's values, it never
 creates one, so a codeless level needs `--code-field` pointed at a real
 column before it can be ranked at all.
 
@@ -82,7 +82,7 @@ doesn't leave a misleading old report behind.
 
 ## Table naming
 
-Stages share one DuckDB connection under `f"{input_basename}_code_refactor"`
+Stages share one DuckDB connection under `f"{input_basename}_code_create"`
 as their own `name`, distinct from any `code-update` run against a
 related file (which uses its own `name`, scoped per NEW input), so the two
 tools never collide on the same `tmp_dir`.

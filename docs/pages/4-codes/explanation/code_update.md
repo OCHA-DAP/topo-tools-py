@@ -14,8 +14,8 @@ in `topo_tools/core/code_update/`.
 OLD and NEW are loaded, reprojected, and coverage-cleaned independently
 (`core.io.read_reproject_and_clean()`). Their per-level code/name columns
 are then resolved independently too, each via the identical explicit-
-pair-or-structural-fallback contract `code-refactor` uses
-(`docs/pages/4-codes/explanation/code_refactor.md`): `--code-field-a`/`--name-field-a`
+pair-or-structural-fallback contract `code-create` uses
+(`docs/pages/4-codes/explanation/code_create.md`): `--code-field-a`/`--name-field-a`
 for OLD, `--code-field-b`/`--name-field-b` for NEW. A resolved level with
 no code column at all (only a name, `has_code=False`, see
 `docs/adr/0106`) raises `ValueError`: neither side's resolution ever
@@ -87,7 +87,7 @@ under that identity.
 Every relationship class reduces to one of two things happening to a
 unit's code: it's **retained** (rewritten under a possibly-new parent
 prefix, never re-ranked) or it's **replaced** (assigned fresh through the
-same batched `assign_new_codes()` call `code-refactor` itself uses).
+same batched `assign_new_codes()` call `code-create` itself uses).
 
 `unchanged` and `renamed` are the only retained classes:
 `rewrite_child_code(old_code, new_parent_code, fmt)` reattaches the OLD

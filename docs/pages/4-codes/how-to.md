@@ -14,7 +14,7 @@ The code format, including each level's width, is detected from the
 previous release's codes. Review the changelog CSV it writes: every
 `split`, `merge`, `created` or `removed` unit gets a new or retired code.
 
-A country with no previous release starts its codes with `code-refactor`.
+A country with no previous release starts its codes with `code-create`.
 Pass `--code-field`/`--name-field` templates naming each level's columns,
 and choose what happens to the source data's own codes with
 `--source-codes`:
@@ -27,7 +27,7 @@ and choose what happens to the source data's own codes with
 
 Government codes inside the code:
 
-    topo-tools code-refactor admin3_matched.parquet admin3_coded.parquet \
+    topo-tools code-create admin3_matched.parquet admin3_coded.parquet \
       --root-code XY --delimiter '' --min-width auto --source-codes embed \
       --code-field adm{n}_code --name-field adm{n}_name
 
@@ -38,7 +38,7 @@ level's government codes differ in length.
 
 Sequential codes, government code kept alongside:
 
-    topo-tools code-refactor admin3_matched.parquet admin3_coded.parquet \
+    topo-tools code-create admin3_matched.parquet admin3_coded.parquet \
       --root-code XYZ --delimiter . --min-width 3 --source-codes copy \
       --code-field adm{n}_code --name-field adm{n}_name
 
