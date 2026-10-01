@@ -8,6 +8,7 @@ from topo_tools.core.code import CodeFormat, detect_code_format
 from topo_tools.core.schema_map._level_columns import (
     LevelColumns,
     detect_level_columns_or_single,
+    supplemental_columns,
     verify_functional_cluster,
 )
 from topo_tools.core.schema_map._levels import detect_levels
@@ -48,6 +49,14 @@ def _resolve_side(
     if not coded:
         msg = f"no admin hierarchy level detected in {table}"
         raise ValueError(msg)
+    # A skipped level would corrupt every code below it, so never guess.
+    if supplemental := supplemental_columns(conn, table):
+        msg = (
+            f"{table}: {supplemental} group units like a level but were not "
+            "detected as one; pass --code-field-a/--name-field-a or "
+            "--code-field-b/--name-field-b explicitly"
+        )
+        raise ValueError(msg)
     missing = [n for n, cols in coded if not cols.has_code]
     if missing:
         msg = (
@@ -60,10 +69,14 @@ def _resolve_side(
     columns: dict[int, str] = {}
     names: dict[int, str | None] = {}
     level_columns: dict[int, LevelColumns] = {}
+    parent: str | None = None
     for n, (_, cols) in enumerate(coded, start=1):
         canonical = cols.group_by[0]
-        verify_functional_cluster(conn, table, canonical, cols.group_by)
+        verify_functional_cluster(
+            conn, table, canonical, cols.group_by, parent_column=parent
+        )
         columns[n] = canonical
+        parent = canonical
         names[n] = cols.name_column
         level_columns[n] = cols
     return SideLevels(

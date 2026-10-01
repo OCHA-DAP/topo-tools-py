@@ -25,6 +25,12 @@ title: "code-refactor"
   overwrite") if any resolved level has no code column at all (e.g. a
   trailing finest level with only a name column, see `docs/adr/0106`),
   rather than silently skipping that level or overwriting its name column.
+- `code-refactor` MUST raise `ValueError` in structural mode ("group units like a
+  level") if detection sets any column aside as a supplemental coarser
+  grouping, and ("a coarser level merged into this one") if any member of
+  a level's group-by has over 30% fewer values than its code under each
+  parent, rather than coding a merged or skipped level (see
+  `docs/adr/0121`).
 - Every resolved level MUST be renumbered to a clean, relative `1..N`
   sequence, coarsest first; a genuinely constant coarsest column (e.g. a
   single-country file's own admin0 code) is dropped before reaching this

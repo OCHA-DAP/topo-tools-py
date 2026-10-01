@@ -7,7 +7,12 @@ from os.path import commonprefix
 from duckdb import DuckDBPyConnection
 
 from topo_tools.core.duckdb_utils import quote_identifier
-from topo_tools.core.schema_map._02_map import resolve_columns
+from topo_tools.core.schema_map._02_map import (
+    _WINNER_MAX_COLLAPSE_RATIO,
+    _combined_distinct_count,
+    resolve_columns,
+)
+from topo_tools.core.schema_map._constants import CONFIDENCE_SUPPLEMENTAL
 from topo_tools.core.schema_map._target_schema import DEFAULT_TARGET_SCHEMA
 
 _MIN_LEVELS_TO_DIFF = 2
@@ -230,6 +235,12 @@ def detect_level_columns(
     return displayed
 
 
+def supplemental_columns(conn: DuckDBPyConnection, table: str) -> list[str]:
+    """Columns detection set aside as a coarser grouping, never as a level."""
+    rows = resolve_columns(conn, table, DEFAULT_TARGET_SCHEMA)
+    return [c for c, r in rows.items() if r.note.startswith(CONFIDENCE_SUPPLEMENTAL)]
+
+
 def detect_level_codes(conn: DuckDBPyConnection, table: str) -> dict[int, str]:
     """Each level's least-collapsed column, never a bracketed/supplemental one."""
     _, codes, _, display = _resolve_levels(conn, table)
@@ -407,7 +418,11 @@ def level_family_names(
 
 
 def verify_functional_cluster(
-    conn: DuckDBPyConnection, table: str, canonical_column: str, cluster: list[str]
+    conn: DuckDBPyConnection,
+    table: str,
+    canonical_column: str,
+    cluster: list[str],
+    parent_column: str | None = None,
 ) -> None:
     """Raise ValueError if any cluster member takes >1 non-null value per group.
 
@@ -420,5 +435,29 @@ def verify_functional_cluster(
             msg = (
                 f"{table}: grouping by {cluster} fragments {canonical_column!r}; "
                 f"{other!r} takes more than one non-null value within a group"
+            )
+            raise ValueError(msg)
+    if parent_column is not None:
+        _verify_no_coarser_member(conn, table, canonical_column, cluster, parent_column)
+
+
+def _verify_no_coarser_member(
+    conn: DuckDBPyConnection,
+    table: str,
+    canonical_column: str,
+    cluster: list[str],
+    parent_column: str,
+) -> None:
+    """Raise if a member collapses the level's own units under each parent."""
+    units = _combined_distinct_count(conn, table, parent_column, canonical_column)
+    for other in cluster:
+        if other == canonical_column:
+            continue
+        values = _combined_distinct_count(conn, table, parent_column, other)
+        if 1 - values / units > _WINNER_MAX_COLLAPSE_RATIO:
+            msg = (
+                f"{table}: {other!r} ({values} values under {parent_column!r}) "
+                f"groups {canonical_column!r} ({units}), a coarser level merged "
+                "into this one; pass --code-field/--name-field explicitly"
             )
             raise ValueError(msg)
