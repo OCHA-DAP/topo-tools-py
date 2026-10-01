@@ -12,22 +12,24 @@ scale, or exercising `change` against a genuine old/new version pair.
 
 ## Layout
 
-STAC-like: `{iso3}/{latest,vNN}/{adm0..adm3,lines,points}/{original,
-extended,matched}.parquet`. Distinct `vNN` dirs are always genuinely
-different content; `latest` is whichever `vNN` is newest.
+STAC-like: `{original,extended,matched}/{iso3}/{latest,vNN}/{iso3}_admin{n}/{iso3}_admin{n}.parquet`,
+with lines and points as `{iso3}_adminlines`/`{iso3}_adminpoints` in the
+same layout. `latest` holds every layer; each `vNN` holds only the layers
+that release changed, so a given level may be absent from a given `vNN`.
 
 ## Picking a file (`edge-extend` / `edge-match` / `topo-clean`)
 
-Any single `{iso3}/{vNN}/{adm_level}/original.parquet` works. Point every
-`--output-path`/`--tmp-dir`/`--debug` export outside the catalog (the
-session scratchpad or `/tmp`), never back into `portolan/`.
+Any `original/{iso3}/{latest,vNN}/{iso3}_admin{n}/{iso3}_admin{n}.parquet`
+works. Point every `--output-path`/`--tmp-dir`/`--debug` export outside
+the catalog (the session scratchpad or `/tmp`), never back into
+`portolan/`.
 
 ## Picking a file (`package-polygons` / `package-points` / `package-lines` / `package`)
 
-`global/admin{0..4}/admin{0..4}.parquet` holds the full global dataset at
+`global/admin{1..4}/admin{1..4}.parquet` holds the full global dataset at
 each level, already carrying `adm{0..4}_pcode`/`adm{0..4}_name` columns and
 its own `adm_lvl` real-depth stamp; `global/admin4/admin4.parquet` (the
-finest, 217,223 rows) is the right single input for any of these tools,
+finest, 217,271 rows) is the right single input for any of these tools,
 combining every level's rows in one file. Structural auto-detection (the
 default, no `--name-field`/`--code-field` needed) finds every level
 regardless of naming convention, `_pcode` included. Since the file already
@@ -48,10 +50,10 @@ without local repo access.
 
 ## Picking an old/new pair (`change`)
 
-1. Browse the country's catalog (local path, or fetch `./{iso3}/catalog.json`
-   from the STAC root) and list its `vNN` dirs.
-2. Not every country/admin-level has 2+ versions yet, so confirm both `vNN`s
-   you want to compare actually exist before running `change`.
+1. List the `vNN` dirs under `original/{iso3}/` (local path, or fetch
+   `./original/{iso3}/catalog.json` from the STAC root).
+2. Confirm the level you want exists in both `vNN`s, since a `vNN` holds
+   only the layers that release changed.
 3. Run `change` with the older version as the first argument, the newer as
    the second; point every output path outside the catalog.
 

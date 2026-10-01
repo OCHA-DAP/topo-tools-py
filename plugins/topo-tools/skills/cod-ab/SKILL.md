@@ -133,17 +133,30 @@ Work through these in order, writing each stage's own output into its
 matching `02_working/{iso3}/{version}/0N_stage/` folder (the linked guides below
 use generic placeholder filenames, substitute your own paths there).
 
+Save every rendered image in its stage's `previews/` folder (e.g.
+`02_topology/previews/`) and give the user its path. To show specific
+units, run `uv run <skill-dir>/scripts/preview.py features {layer} {png} --where {sql} --label {name column}`,
+using the first name column. For any other render, run
+`preview.py basemap {xmin} {ymin} {xmax} {ymax} {stem}` and draw over its
+PNGs using the JSON sidecar's pixel mapping and font, never by importing
+`preview.py`.
+
 1. [Schema](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/1-schema/how-to.md)
 2. [Topology](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/2-topology/how-to.md)
 
    Always ask whether any large `topo-detect` gap is a lake or other
-   water body left outside every unit, showing the largest gaps (area,
-   width, PNG render) and whether `00a_old/` has the same holes. "No"
-   means `--maximum-gap-width all`; "yes" means no flag.
+   water body left outside every unit. Render the largest gaps with
+   `uv run <skill-dir>/scripts/preview.py issues {issues} 02_topology/previews/ --units {input}`,
+   read each PNG to judge water against land, and show the user each
+   gap's area, width and PNG path, plus whether `00a_old/` has the same
+   holes. "No" means `--maximum-gap-width all`; "yes" means no flag.
 3. [Edge matching](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/3-edge/how-to.md)
 
    Use `00a_old/{iso3}_admin0.parquet` as the reference admin0. When it's
-   absent, stop and ask the user which outline to fit to.
+   absent, stop and ask the user which outline to fit to. Render the
+   edge-matched output's largest gaps with
+   `preview.py issues {issues} 03_edge_matching/previews/ --units {output}`
+   and check them against both base layers before accepting the output.
 4. [Codes](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/4-codes/how-to.md)
 
    Use the base-level file in `00a_old/` as `code-update`'s OLD file.

@@ -3,6 +3,7 @@
 # dependencies = [
 #     "duckdb",
 #     "tenacity",
+#     "truststore",
 # ]
 # ///
 """Fetch the previous COD-AB release from source.coop into 00a_old/.
@@ -28,6 +29,7 @@ from http import HTTPStatus
 from pathlib import Path
 
 import duckdb
+import truststore
 from tenacity import (
     retry,
     retry_if_not_exception_type,
@@ -35,6 +37,7 @@ from tenacity import (
     wait_exponential,
 )
 
+truststore.inject_into_ssl()
 logging.basicConfig(format="%(message)s", level=logging.INFO)
 log = logging.getLogger(__name__)
 
