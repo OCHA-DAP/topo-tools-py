@@ -19,7 +19,7 @@ from pathlib import Path
 
 import duckdb
 import truststore
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 truststore.inject_into_ssl()
@@ -49,6 +49,7 @@ _SOURCES = {
         "url": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
         "zmax": 18,
         "credit": "© OpenStreetMap contributors",
+        "grey": True,
     },
     "eox": {
         "title": "EOxCloudless 2025",
@@ -61,6 +62,7 @@ _SOURCES = {
 _HIGHLIGHT = (255, 0, 200, 255)
 _HALO = (0, 0, 0, 200)
 _UNIT = (255, 255, 255, 230)
+_REFERENCE = (0, 230, 255, 255)
 
 
 def _world_px(lon: float, lat: float, z: int) -> tuple[float, float]:
@@ -82,7 +84,11 @@ def _tile(source: str, z: int, x: int, y: int) -> Image.Image:
     if not path.exists() or time.time() - path.stat().st_mtime > _CACHE_SECONDS:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(_fetch(_SOURCES[source]["url"].format(z=z, x=x, y=y)))
-    return Image.open(io.BytesIO(path.read_bytes())).convert("RGBA").convert("RGB")
+    img = Image.open(io.BytesIO(path.read_bytes())).convert("RGBA").convert("RGB")
+    # grey keeps OSM's coloured roads from competing with the highlight colours
+    return (
+        ImageOps.grayscale(img).convert("RGB") if _SOURCES[source].get("grey") else img
+    )
 
 
 def _rings(geojson: dict) -> Iterator[list]:
@@ -214,24 +220,8 @@ def _basemap(source: str, view: _View) -> Image.Image:
     return crop.resize(view.size, Image.Resampling.LANCZOS).convert("RGBA")
 
 
-def _overlay(view: _View, units: list[dict], highlights: list[dict]) -> Image.Image:
-    """Context units and highlights, drawn supersampled for anti-aliasing."""
-    big = Image.new("RGBA", (view.size[0] * _SS, view.size[1] * _SS), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(big)
-
-    def pts(ring: list) -> list[tuple[float, float]]:
-        return [
-            (x * _SS, y * _SS) for x, y in (view.px(lon, lat) for lon, lat, *_ in ring)
-        ]
-
-    for width, color in ((3, _HALO), (1, _UNIT)):
-        for geom in units:
-            for ring in _rings(geom):
-                draw.line(pts(ring), fill=color, width=width * _SS, joint="curve")
-    rings = [pts(ring) for geom in highlights for ring in _rings(geom)]
-    for width, color in ((7, _HALO), (3, _HIGHLIGHT)):
-        for ring in rings:
-            draw.line(ring, fill=color, width=width * _SS, joint="curve")
+def _markers(draw: ImageDraw.ImageDraw, rings: list[list]) -> None:
+    """Circle highlights too small to see at this zoom."""
     for ring in rings:
         xs, ys = [p[0] for p in ring], [p[1] for p in ring]
         if (
@@ -243,6 +233,31 @@ def _overlay(view: _View, units: list[dict], highlights: list[dict]) -> Image.Im
                 draw.ellipse(
                     (cx - r, cy - r, cx + r, cy + r), outline=color, width=width * _SS
                 )
+
+
+def _overlay(view: _View, layers: dict) -> Image.Image:
+    """Units, reference and highlights, drawn supersampled for anti-aliasing."""
+    big = Image.new("RGBA", (view.size[0] * _SS, view.size[1] * _SS), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(big)
+
+    def pts(ring: list) -> list[tuple[float, float]]:
+        return [
+            (x * _SS, y * _SS) for x, y in (view.px(lon, lat) for lon, lat, *_ in ring)
+        ]
+
+    for key, styles in (
+        ("units", ((3, _HALO), (1, _UNIT))),
+        ("reference", ((6, _HALO), (3, _REFERENCE))),
+    ):
+        for width, color in styles:
+            for geom in layers[key]:
+                for ring in _rings(geom):
+                    draw.line(pts(ring), fill=color, width=width * _SS, joint="curve")
+    rings = [pts(ring) for geom in layers["highlights"] for ring in _rings(geom)]
+    for width, color in ((7, _HALO), (3, _HIGHLIGHT)):
+        for ring in rings:
+            draw.line(ring, fill=color, width=width * _SS, joint="curve")
+    _markers(draw, rings)
     return big.resize(view.size, Image.Resampling.LANCZOS)
 
 
@@ -267,9 +282,7 @@ def _overlaps(a: tuple[float, ...], b: tuple[float, ...]) -> bool:
 def _panel(source: str, view: _View, layers: dict) -> Image.Image:
     """One base layer with units, highlights and labels drawn over it."""
     img = _basemap(source, view)
-    img = Image.alpha_composite(
-        img, _overlay(view, layers["units"], layers["highlights"])
-    )
+    img = Image.alpha_composite(img, _overlay(view, layers))
     draw = ImageDraw.Draw(img)
     font = _font(_LABEL_PX)
     placed: list[tuple[float, float, float, float]] = []
@@ -288,7 +301,10 @@ def _panel(source: str, view: _View, layers: dict) -> Image.Image:
             stroke_width=3,
             stroke_fill=(255, 255, 255),
         )
-    _tag(img, _SOURCES[source]["title"], bottom=False, size=15)
+    title = _SOURCES[source]["title"]
+    if layers["reference"]:
+        title += " | cyan: reference"
+    _tag(img, title, bottom=False, size=15)
     _tag(img, _SOURCES[source]["credit"], bottom=True, size=12)
     return img.convert("RGB")
 
@@ -374,6 +390,7 @@ def issues(args: argparse.Namespace) -> None:
         )
         layers = {
             "units": _units(con, args.units, view),
+            "reference": _units(con, args.reference, view),
             "highlights": [geom],
             "labels": [],
         }
@@ -402,6 +419,7 @@ def features(args: argparse.Namespace) -> None:
         view = _view(_frame(bbox), wrap=wrap)
         layers = {
             "units": _units(con, args.units, view),
+            "reference": _units(con, args.reference, view),
             "highlights": [geoms[i] for i in idx],
             "labels": [rows[i][1:] for i in idx if rows[i][1]],
         }
@@ -453,6 +471,7 @@ def main() -> None:
     p.add_argument("issues", type=Path)
     p.add_argument("out_dir", type=Path)
     p.add_argument("--units", type=Path, help="layer drawn as context outlines")
+    p.add_argument("--reference", type=Path, help="outline drawn in cyan, e.g. admin0")
     p.add_argument("--kind", default="gap")
     p.add_argument("--top", type=int, default=3)
     p.set_defaults(func=issues)
@@ -464,6 +483,7 @@ def main() -> None:
     f.add_argument("--where", required=True, help="DuckDB SQL filter on the layer")
     f.add_argument("--label", help="column drawn as each feature's label")
     f.add_argument("--units", type=Path, help="layer drawn as context outlines")
+    f.add_argument("--reference", type=Path, help="outline drawn in cyan, e.g. admin0")
     f.add_argument("--title", help="header text (default: layer and feature count)")
     f.add_argument(
         "--cluster",

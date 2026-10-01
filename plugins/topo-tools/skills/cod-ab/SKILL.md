@@ -182,21 +182,29 @@ PNGs using the JSON sidecar's pixel mapping and font, never by importing
    - the total area before and after
    - each cluster of dropped units (number, unit count, centre, parent
      names) with its PNG path, rendered by
-     `preview.py features {stage 2 file} 03_edge_matching/previews/{iso3}_dropped.png --cluster --label {first name column} --where "ST_Area(ST_Intersection(geometry, (SELECT ST_Union_Agg(geometry) FROM read_parquet('{admin0}')))) = 0"`
+     `preview.py features {stage 2 file} 03_edge_matching/previews/{iso3}_dropped.png --cluster --label {first name column} --units {stage 2 file} --reference {admin0} --where "ST_Area(ST_Intersection(geometry, (SELECT ST_Union_Agg(geometry) FROM read_parquet('{admin0}')))) = 0"`
 
-   Then ask whether to continue without these units, or rerun stage 3
-   with a different admin0 the user puts in `00_shared/` (never propose
-   one). Continue only on an explicit answer to continue, and ask again
-   when resuming at stage 4 before `04_codes/` has output. Render the
+   Then ask the user to choose: continue without these units; code the
+   full geometry first (stages 4 and 5 run on the stage 2 file); or rerun
+   stage 3 with a different admin0 the user puts in `00_shared/` (never
+   propose one). Continue only on an explicit choice, and ask again when
+   resuming at stage 4 before `04_codes/` has output. Render the
    output's largest `gap` and `detached-part` rows with
-   `preview.py issues {issues} 03_edge_matching/previews/ --units {output} --kind {kind}`
+   `preview.py issues {issues} 03_edge_matching/previews/ --units {output} --reference {admin0} --kind {kind}`
    and check them against both base layers before accepting the output.
 4. [Codes](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/4-codes/how-to.md)
 
    Use the base-level file in `00a_old/` as `code-update`'s OLD file.
-   When `00a_old/` is absent, use `code-refactor` instead.
+   When `00a_old/` is absent, use `code-refactor` instead. Code the
+   stage 2 file in place of the stage 3 output when the user chose to
+   code the full geometry first.
 5. [Names](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/5-names/index.md)
 6. [Packaging](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/6-packaging/how-to.md)
+
+   When the coded file in `04_codes/` has more units than the stage 3
+   output (the full geometry was coded first), ask whether to package it
+   as is, or rerun `edge-match` on it with the same admin0, overwriting
+   the stage 3 output, and package that.
 
 ## Candidates
 
