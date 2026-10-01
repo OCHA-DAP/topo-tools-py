@@ -171,18 +171,33 @@ CLI maps flags/env vars onto those same kwargs 1:1.
 ## Clip-detached pieces
 
 - A clip-detached piece is any polygon part of a clipped feature other than
-  the main piece of its own source part. The main piece is the one
-  overlapping that source part most, or the largest piece when none does
-  (e.g. a part `edge-match` grew entirely by extension).
-- `edge-clip`, `edge-match` and `edge-mosaic` MUST merge a clip-detached
-  piece under `DETACHED_MERGE_MAX_RATIO` (1%) of its main piece's area into
-  the feature, assigned to the same overlay feature, it shares the longest
-  edge with (ties to the lowest fid). A point contact, or a neighbour that
-  is itself a clip-detached piece, MUST NOT count as sharing an edge.
+  the kept piece of its own pre-clip part (the extended part holding the
+  piece's interior point). The kept piece is the largest piece on the
+  unit's original footprint, or the largest piece when none is.
+- A piece is on the original footprint when its interior point falls on an
+  original part of the same feature, or when at least
+  `DETACHED_MAX_ORIGINAL_SHARE` (50%) of its area is original land. An
+  original feature belongs to the pre-clip part holding its interior point.
+- `edge-clip`, `edge-match` and `edge-mosaic` MUST merge a piece under
+  `DETACHED_MERGE_MAX_RATIO` (1%) of its kept piece's area into the feature,
+  assigned to the same overlay feature, it shares the longest edge with
+  (ties to the lowest fid), when under 50% of the piece is original land or
+  when the original land clipped away beside it is at least
+  `DETACHED_MIN_NECK_RATIO` (0.1) of its area. Otherwise the piece MUST
+  stay, reported as `kept: matches original shape`.
+- Without an original layer, such a piece MUST stay, reported as
+  `kept: no original layer`. `edge-match` always uses its own
+  pre-extension input; `edge-clip` and `edge-mosaic` take one via
+  `original_path`/`original_paths` (CLI: `--original`).
+- A destination MUST be a kept piece, a single-part feature, or a piece
+  kept as too large. A point contact, or a neighbour that is any other
+  clip-detached piece, MUST NOT count as sharing an edge.
 - A piece MUST stay on its own feature when it is 1% or larger, when it
-  shares no edge with any feature, or when merging would leave the
+  shares no edge with any destination, or when merging would leave the
   receiving feature with an extra part.
-- Each piece, merged or kept, MUST be reported as a `detached-part` row.
+- A piece that shares an edge with a same-overlay feature MUST be reported
+  as a `detached-part` row, merged or kept. A piece sharing no edge with any
+  feature MUST NOT be reported.
 - In `edge-mosaic`'s per-file loop, only features from the same input file
   are candidate neighbours.
 
@@ -213,7 +228,7 @@ CLI maps flags/env vars onto those same kwargs 1:1.
   assigned overlay feature's geometry one `overlay_fid` at a time and does not
   itself validate whole-layer coverage. It MAY still produce an issues
   report (a `clip-empty` row for any input feature whose clip result was empty,
-  a `detached-part` row for each clip-detached piece, plus `code-mismatch`/`code-fallback` rows when a match column is
+  a `detached-part` row for each clip-detached piece with an edge neighbour, plus `code-mismatch`/`code-fallback` rows when a match column is
   supplied, see below).
 - `change` performs no topology hard gate at all; it is a read-only
   comparison between two inputs, not a fix.
@@ -266,12 +281,14 @@ when dropped), `reason` MUST say whether it was merged or dropped,
 reports the same kind unfixed: `fixed` false, `unit_b` and `reason` null.
 
 A `kind='detached-part'` row (see Clip-detached pieces) MUST hold the
-piece's own feature fid in `unit_a`, the receiving feature's fid in
-`unit_b` (null when kept), the piece's assigned overlay feature in
+piece's own feature fid in `unit_a`, the fid of the feature it shares the
+longest edge with in `unit_b` (the receiving feature when merged), the
+piece's assigned overlay feature in
 `overlay_fid`, and the piece itself as `geom`, with `area_m2`,
 `max_width_m` and `thinness_ratio` measured on the piece. `reason` MUST be
 one of `merged into neighbouring feature`, `kept: too large to merge`,
-`kept: no neighbour` or `kept: merge did not attach`, and `fixed` MUST be
+`kept: matches original shape`, `kept: no original layer` or
+`kept: merge did not attach`, and `fixed` MUST be
 true only for a merged piece.
 
 A tool MUST NOT write an issues file at all when the run produced zero

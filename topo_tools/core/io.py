@@ -104,7 +104,11 @@ def _auto_resolve_layer(conn: DuckDBPyConnection, path: Path | str) -> str | Non
 
 
 def reproject_select_sql(
-    conn: DuckDBPyConnection, path: Path | str, layer: str | None = None
+    conn: DuckDBPyConnection,
+    path: Path | str,
+    layer: str | None = None,
+    *,
+    make_valid: bool = True,
 ) -> str:
     """Build the read+reproject-to-EPSG:4326 SELECT for one file, as unexecuted SQL.
 
@@ -163,6 +167,12 @@ def reproject_select_sql(
         if geom_type != "GEOMETRY"
         else f'ST_Force2D(ST_MakeValid("{geom_col}"))'
     )
+    if not make_valid:
+        geom_expr = (
+            f"ST_Force2D(ST_Transform(\"{geom_col}\", 'EPSG:4326'))"
+            if geom_type != "GEOMETRY"
+            else f'ST_Force2D("{geom_col}")'
+        )
 
     # ST_MakeValid runs again after transform, since reprojection can break
     # validity; ST_Force2D drops Z/M coords downstream GEOS ops can't handle.

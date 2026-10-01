@@ -5,7 +5,9 @@ from logging import getLogger
 from duckdb import DuckDBPyConnection
 
 from topo_tools.core.constants import (
+    DETACHED_MAX_ORIGINAL_SHARE,
     DETACHED_MERGE_MAX_RATIO,
+    DETACHED_MIN_NECK_RATIO,
     SNAP_ESCALATION_MAX_STEPS,
     SNAP_ESCALATION_STEP,
     SNAP_TOLERANCE,
@@ -341,12 +343,13 @@ def merge_detached_parts(  # noqa: PLR0913 (each param is a distinct required in
     table_out: str,
     *,
     pre_clip_table: str,
-    original_table: str,
+    overlay_source: str,
+    original_table: str | None,
     issues_table: str,
 ) -> int:
-    """Merge each small clip-detached piece into its longest-edge neighbour; count them.
+    """Merge small clip-detached pieces the original layer shows as clip artefacts.
 
-    A piece is detached when it is not its own source part's main piece.
+    Without original_table every detached piece is reported, never merged.
     """
     multi = conn.execute(
         f'SELECT count(*) FROM "{table_in}" WHERE ST_NumGeometries(geom) > 1'
@@ -396,66 +399,68 @@ def merge_detached_parts(  # noqa: PLR0913 (each param is a distinct required in
         FROM (SELECT pid, fid, ST_PointOnSurface(geom) AS pt
               FROM _det_parts WHERE multi)
     """)
-    conn.execute(f"""--sql
-        CREATE OR REPLACE TABLE _det_src AS
-        WITH o AS (
-            SELECT fid, UNNEST(ST_Dump(geom)).geom AS geom FROM "{original_table}"
-            WHERE fid IN (SELECT fid FROM _det_parts WHERE multi)
-        )
-        SELECT row_number() OVER () AS sid, fid, geom, {bbox_columns_sql("geom")}
-        FROM o
+    conn.execute("""--sql
+        CREATE OR REPLACE TABLE _det_q AS
+        SELECT p.pid, p.fid, COALESCE(q.qid, -p.pid) AS qid
+        FROM _det_pts p LEFT JOIN _det_pre q
+          ON q.fid = p.fid AND q.xmin <= p.px AND q.xmax >= p.px
+         AND q.ymin <= p.py AND q.ymax >= p.py AND ST_Intersects(q.geom, p.pt)
+        QUALIFY row_number() OVER (
+            PARTITION BY p.pid ORDER BY q.qarea DESC NULLS LAST, q.qid
+        ) = 1
     """)
-    conn.execute(f"""--sql
-        CREATE OR REPLACE TABLE _det_group AS
-        WITH q AS (
-            SELECT p.pid, p.fid, COALESCE(q.qid, -p.pid) AS qid
-            FROM _det_pts p LEFT JOIN _det_pre q
-              ON q.fid = p.fid AND q.xmin <= p.px AND q.xmax >= p.px
-             AND q.ymin <= p.py AND q.ymax >= p.py AND ST_Intersects(q.geom, p.pt)
-            QUALIFY row_number() OVER (
-                PARTITION BY p.pid ORDER BY q.qarea DESC NULLS LAST, q.qid
-            ) = 1
-        ),
-        s AS (
-            SELECT p.pid, s.sid, ST_Area(ST_Intersection(p.geom, s.geom)) AS ov
-            FROM _det_parts p JOIN _det_src s
-              ON s.fid = p.fid AND s.xmin <= p.xmax AND s.xmax >= p.xmin
-             AND s.ymin <= p.ymax AND s.ymax >= p.ymin
-            WHERE p.multi
-            QUALIFY row_number() OVER (PARTITION BY p.pid ORDER BY ov DESC, s.sid)
-                = 1
-        )
-        SELECT q.pid, q.fid, q.qid,
-               CASE WHEN s.ov > {tol * tol} THEN s.sid END AS sid,
-               COALESCE(s.ov, 0) AS ov
-        FROM q LEFT JOIN s USING (pid)
-    """)
-    # Per source part, the piece overlapping it most is kept; a pre-clip part
-    # with no source overlap at all keeps its largest (extension-only) piece.
+    if original_table is None:
+        conn.execute("""--sql
+            CREATE OR REPLACE TABLE _det_group AS SELECT *, TRUE AS on_src FROM _det_q
+        """)
+    else:
+        conn.execute("""--sql
+            CREATE OR REPLACE TABLE _det_split AS
+            SELECT pid, p.fid, p.geom, p.xmin, p.xmax, p.ymin, p.ymax
+            FROM _det_parts p JOIN _det_q q USING (pid)
+            WHERE q.qid IN (SELECT qid FROM _det_q GROUP BY qid HAVING count(*) > 1)
+        """)
+        _load_owned_original(conn, original_table, "_det_split")
+        conn.execute("""--sql
+            CREATE OR REPLACE TABLE _det_probe AS
+            SELECT pid, s.fid, t.pt AS geom, t.px AS xmin, t.px AS xmax,
+                   t.py AS ymin, t.py AS ymax
+            FROM _det_split s JOIN _det_pts t USING (pid)
+        """)
+        _owned_original_parts(conn, "_det_probe", "_det_onsrc", pids_only=True)
+        # An interior point can land in a hole of a piece mostly on the source.
+        conn.execute("""--sql
+            CREATE OR REPLACE TABLE _det_probe AS
+            SELECT * FROM _det_split WHERE pid NOT IN (SELECT pid FROM _det_onsrc)
+        """)
+        _owned_original_parts(conn, "_det_probe", "_det_offsrc")
+        conn.execute(f"""--sql
+            CREATE OR REPLACE TABLE _det_group AS
+            WITH shared AS (
+                SELECT o.pid FROM _det_offsrc o JOIN _det_parts p USING (pid)
+                GROUP BY o.pid, p.area
+                HAVING sum(ST_Area(ST_CollectionExtract(
+                    ST_Intersection(p.geom, o.geom), 3
+                ))) >= {DETACHED_MAX_ORIGINAL_SHARE} * p.area
+            )
+            SELECT q.*, q.pid IN (SELECT pid FROM _det_onsrc)
+                        OR q.pid IN (SELECT pid FROM shared) AS on_src
+            FROM _det_q q
+        """)
+    # Per pre-clip part, the largest piece on the source footprint is kept, so an
+    # extension-only piece never outranks a unit's real footprint.
     conn.execute("""--sql
         CREATE OR REPLACE TABLE _det_rank AS
-        WITH base AS (
+        WITH flagged AS (
             SELECT g.*, p.area,
-                   g.sid IS NOT NULL AND row_number() OVER (
-                       PARTITION BY g.fid, g.sid ORDER BY g.ov DESC, p.area DESC, g.pid
-                   ) = 1 AS s_kept
+                   row_number() OVER (
+                       PARTITION BY g.fid, g.qid
+                       ORDER BY g.on_src DESC, p.area DESC, g.pid
+                   ) = 1 AS kept
             FROM _det_group g JOIN _det_parts p USING (pid)
-        ),
-        flagged AS (
-            SELECT *,
-                   s_kept OR (
-                       NOT bool_or(s_kept) OVER (PARTITION BY fid, qid)
-                       AND row_number() OVER (
-                           PARTITION BY fid, qid ORDER BY area DESC, pid
-                       ) = 1
-                   ) AS kept
-            FROM base
         )
         SELECT pid, area, kept,
-               CASE WHEN sid IS NOT NULL
-                    THEN max(area) FILTER (WHERE kept) OVER (PARTITION BY fid, sid)
-                    ELSE max(area) FILTER (WHERE kept) OVER (PARTITION BY fid, qid)
-                    END AS kept_area
+               max(area) FILTER (WHERE kept) OVER (PARTITION BY fid, qid) AS kept_area
         FROM flagged
     """)
     # A point contact measures about 2*tol of neighbour boundary; an edge far more.
@@ -467,7 +472,10 @@ def merge_detached_parts(  # noqa: PLR0913 (each param is a distinct required in
             FROM _det_rank r JOIN _det_parts p USING (pid)
             WHERE NOT r.kept
         ),
-        n AS (SELECT * FROM _det_parts WHERE pid NOT IN (SELECT pid FROM d)),
+        n AS (
+            SELECT * FROM _det_parts
+            WHERE pid NOT IN (SELECT pid FROM d WHERE small IS NOT FALSE)
+        ),
         pairs AS (
             SELECT s.pid, n.pid AS dest_pid, n.rnid AS dest_rnid, n.fid AS dest_fid,
                    ST_Length(ST_Intersection(
@@ -478,7 +486,6 @@ def merge_detached_parts(  # noqa: PLR0913 (each param is a distinct required in
              AND n.overlay_fid IS NOT DISTINCT FROM s.overlay_fid
              AND n.xmin <= s.xmax + {tol} AND n.xmax >= s.xmin - {tol}
              AND n.ymin <= s.ymax + {tol} AND n.ymax >= s.ymin - {tol}
-            WHERE s.small
         ),
         best AS (
             SELECT * FROM pairs WHERE contact > {10 * tol}
@@ -487,21 +494,30 @@ def merge_detached_parts(  # noqa: PLR0913 (each param is a distinct required in
         )
         SELECT d.pid, d.rnid, d.fid, d.overlay_fid, d.source_file, d.area, d.geom,
                b.dest_rnid, b.dest_fid,
-               CASE WHEN d.small IS NOT TRUE THEN 'too-large'
-                    WHEN b.dest_pid IS NULL THEN 'isolated'
+               CASE WHEN b.dest_pid IS NULL THEN 'isolated'
+                    WHEN d.small IS NOT TRUE THEN 'too-large'
                     WHEN ST_NumGeometries(ST_Union(d.geom, np.geom)) = 1
-                        THEN 'merged'
+                        THEN 'candidate'
                     ELSE 'unattached' END AS outcome
         FROM d LEFT JOIN best b USING (pid)
         LEFT JOIN _det_parts np ON np.pid = b.dest_pid
     """)
+    if original_table is None:
+        conn.execute("""--sql
+            UPDATE _det_dest SET outcome = 'no-original' WHERE outcome = 'candidate'
+        """)
+    else:
+        _classify_detached_candidates(conn, overlay_source)
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{issues_table}" AS
-        SELECT 'detached-part-' || pid AS key, 'detached-part' AS kind,
+        SELECT 'detached-part-' || fid || '-'
+                   || row_number() OVER (PARTITION BY fid ORDER BY pid) AS key,
+               'detached-part' AS kind,
                fid AS unit_a, dest_fid AS unit_b, overlay_fid::BIGINT AS overlay_fid,
                CASE outcome WHEN 'merged' THEN 'merged into neighbouring feature'
                             WHEN 'too-large' THEN 'kept: too large to merge'
-                            WHEN 'isolated' THEN 'kept: no neighbour'
+                            WHEN 'no-original' THEN 'kept: no original layer'
+                            WHEN 'lobe' THEN 'kept: matches original shape'
                             ELSE 'kept: merge did not attach' END AS reason,
                area * {m2_per_deg2} AS area_m2,
                (ST_MaximumInscribedCircle(geom)).radius * 2 * {METERS_PER_DEGREE}
@@ -512,7 +528,7 @@ def merge_detached_parts(  # noqa: PLR0913 (each param is a distinct required in
                NULL::DOUBLE AS unit_b_area_change_m2,
                NULL::DOUBLE AS filled_area_m2, outcome = 'merged' AS fixed,
                source_file, geom
-        FROM _det_dest ORDER BY pid
+        FROM _det_dest WHERE outcome <> 'isolated' ORDER BY pid
     """)
     count = conn.execute(
         "SELECT count(*) FROM _det_dest WHERE outcome = 'merged'"
@@ -540,7 +556,12 @@ def merge_detached_parts(  # noqa: PLR0913 (each param is a distinct required in
         "_det_parts",
         "_det_pre",
         "_det_pts",
-        "_det_src",
+        "_det_q",
+        "_det_probe",
+        "_det_onsrc",
+        "_det_offsrc",
+        "_det_split",
+        "_det_oparts",
         "_det_group",
         "_det_rank",
         "_det_dest",
@@ -549,6 +570,130 @@ def merge_detached_parts(  # noqa: PLR0913 (each param is a distinct required in
     if count:
         logger.info("merged %d clip-detached piece(s) in %s", count, table_in)
     return count
+
+
+def _load_owned_original(
+    conn: DuckDBPyConnection, original_table: str, probe_table: str
+) -> None:
+    """Write _det_oparts: raw original parts near a probe, with their owning fid.
+
+    Ownership is by interior point, so no key column is shared with the input.
+    """
+    tol = SNAP_TOLERANCE
+    conn.execute(f"""--sql
+        CREATE OR REPLACE TABLE _det_obox AS
+        SELECT {bbox_columns_sql("geom")} FROM "{original_table}"
+    """)
+    conn.execute(f"""--sql
+        CREATE OR REPLACE TABLE _det_ohit AS
+        SELECT DISTINCT o.xmin, o.xmax, o.ymin, o.ymax
+        FROM _det_obox o JOIN "{probe_table}" p
+          ON p.xmin - {tol} <= o.xmax AND p.xmax + {tol} >= o.xmin
+         AND p.ymin - {tol} <= o.ymax AND p.ymax + {tol} >= o.ymin
+    """)
+    # Re-reading by exact bbox streams the original and needs no stable row order.
+    conn.execute(f"""--sql
+        CREATE OR REPLACE TABLE _det_ofeat AS
+        WITH r AS (SELECT geom, {bbox_columns_sql("geom")} FROM "{original_table}")
+        SELECT row_number() OVER () AS oid, r.geom
+        FROM r SEMI JOIN _det_ohit h USING (xmin, xmax, ymin, ymax)
+    """)
+    conn.execute(f"""--sql
+        CREATE OR REPLACE TABLE _det_oparts AS
+        WITH owner AS (
+            SELECT f.oid, q.fid FROM (
+                SELECT oid, pos, ST_X(pos) AS px, ST_Y(pos) AS py
+                FROM (SELECT oid, ST_PointOnSurface(geom) AS pos FROM _det_ofeat)
+            ) f JOIN _det_pre q
+              ON q.xmin <= f.px AND q.xmax >= f.px
+             AND q.ymin <= f.py AND q.ymax >= f.py AND ST_Intersects(q.geom, f.pos)
+            QUALIFY row_number() OVER (PARTITION BY f.oid ORDER BY q.qid) = 1
+        ),
+        parts AS (
+            SELECT o.fid, UNNEST(ST_Dump(f.geom)).geom AS geom
+            FROM _det_ofeat f JOIN owner o USING (oid)
+        )
+        SELECT *, {bbox_columns_sql("geom")} FROM parts
+    """)
+    for tmp in ("_det_obox", "_det_ohit", "_det_ofeat"):
+        conn.execute(f"DROP TABLE IF EXISTS {tmp}")
+
+
+def _owned_original_parts(
+    conn: DuckDBPyConnection,
+    probe_table: str,
+    out_table: str,
+    *,
+    pids_only: bool = False,
+) -> None:
+    """Write (pid, geom) for each owned original part touching a probe, validated."""
+    select = "DISTINCT p.pid" if pids_only else "p.pid, ST_MakeValid(pp.geom) AS geom"
+    conn.execute(f"""--sql
+        CREATE OR REPLACE TABLE "{out_table}" AS
+        SELECT {select}
+        FROM "{probe_table}" p JOIN _det_oparts pp
+          ON pp.fid = p.fid AND p.xmin <= pp.xmax AND p.xmax >= pp.xmin
+         AND p.ymin <= pp.ymax AND p.ymax >= pp.ymin
+        WHERE ST_Intersects(pp.geom, p.geom)
+    """)
+
+
+def _classify_detached_candidates(
+    conn: DuckDBPyConnection, overlay_source: str
+) -> None:
+    """Mark each merge candidate in _det_dest as 'merged' or 'lobe'."""
+    tol = SNAP_TOLERANCE
+    conn.execute(f"""--sql
+        CREATE OR REPLACE TABLE _det_probe AS
+        SELECT pid, fid, geom, {bbox_columns_sql("geom")}
+        FROM (SELECT pid, fid, ST_Buffer(geom, {tol}) AS geom FROM _det_dest
+              WHERE outcome = 'candidate')
+    """)
+    _owned_original_parts(conn, "_det_probe", "_det_src")
+    # Original land the overlay clipped away beside a piece (the "neck") is
+    # large when the clip sliced across the unit, near zero for a drawn lobe.
+    conn.execute(f"""--sql
+        CREATE OR REPLACE TABLE _det_rule AS
+        WITH c AS (
+            SELECT pid, fid, overlay_fid, area, geom FROM _det_dest
+            WHERE outcome = 'candidate'
+        ),
+        su AS (
+            SELECT pid, ST_Union_Agg(geom) AS geom FROM _det_src GROUP BY pid
+        ),
+        outside AS (
+            SELECT c.pid, UNNEST(ST_Dump(ST_Difference(
+                su.geom, ST_CollectionExtract(ST_Intersection(ov.geom, ST_MakeEnvelope(
+                    ST_XMin(su.geom) - 0.01, ST_YMin(su.geom) - 0.01,
+                    ST_XMax(su.geom) + 0.01, ST_YMax(su.geom) + 0.01
+                )), 3)
+            ))).geom AS geom
+            FROM c JOIN su USING (pid) JOIN {overlay_source} ov
+              ON ov.fid = c.overlay_fid
+        ),
+        neck AS (
+            SELECT c.pid, sum(ST_Area(o.geom)) AS neck_area
+            FROM c JOIN outside o USING (pid)
+            WHERE ST_Dimension(o.geom) = 2
+              AND ST_Intersects(o.geom, ST_Buffer(c.geom, {tol}))
+            GROUP BY c.pid
+        )
+        SELECT c.pid,
+               COALESCE(ST_Area(ST_CollectionExtract(
+                   ST_Intersection(c.geom, su.geom), 3
+               )), 0) / c.area AS share,
+               COALESCE(n.neck_area, 0) / c.area AS neck
+        FROM c LEFT JOIN su USING (pid) LEFT JOIN neck n USING (pid)
+    """)
+    conn.execute(f"""--sql
+        UPDATE _det_dest d SET outcome = CASE
+            WHEN r.share < {DETACHED_MAX_ORIGINAL_SHARE}
+              OR r.neck >= {DETACHED_MIN_NECK_RATIO} THEN 'merged'
+            ELSE 'lobe' END
+        FROM _det_rule r WHERE r.pid = d.pid
+    """)
+    for tmp in ("_det_rule", "_det_probe", "_det_src"):
+        conn.execute(f"DROP TABLE IF EXISTS {tmp}")
 
 
 def micro_issues_sql(

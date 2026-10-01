@@ -1563,6 +1563,17 @@ def edge_match(  # noqa: PLR0913, PLR0917
     ),
 )
 @click.option(
+    "--original",
+    "original_files",
+    envvar="ORIGINAL_FILES",
+    multiple=True,
+    help=(
+        "Pre-extension original layer, used to decide whether a clip-detached "
+        "piece merges; without it every such piece is only reported [may be "
+        "repeated, and each value MAY be comma-separated]."
+    ),
+)
+@click.option(
     "--issues-file",
     envvar="ISSUES_FILE",
     default=None,
@@ -1627,6 +1638,7 @@ def edge_mosaic(  # noqa: PLR0913, PLR0917
     overlay_file: str,
     output_file: str | None,
     extra_inputs: tuple[str, ...],
+    original_files: tuple[str, ...],
     issues_file: str | None,
     overwrite: bool,  # noqa: FBT001
     threads: int | None,
@@ -1720,6 +1732,7 @@ def edge_mosaic(  # noqa: PLR0913, PLR0917
             name_field=name_field,
             code_field=code_field,
             depth_column=depth_column,
+            original_paths=_split_commas(original_files) or None,
         )
     except (FileExistsError, RuntimeError, ValueError) as e:
         raise click.ClickException(str(e)) from e
@@ -2272,6 +2285,16 @@ def schema_map(  # noqa: PLR0913, PLR0917
         "and each value MAY be comma-separated]."
     ),
 )
+@click.option(
+    "--original",
+    "original_file",
+    envvar="ORIGINAL_FILE",
+    default=None,
+    help=(
+        "Pre-extension original layer, used to decide whether a clip-detached "
+        "piece merges; without it every such piece is only reported."
+    ),
+)
 def edge_clip(  # noqa: PLR0913, PLR0917
     input_file: str,
     overlay_file: str,
@@ -2287,6 +2310,7 @@ def edge_clip(  # noqa: PLR0913, PLR0917
     overlay_match_column: str | None,
     input_match_column: str | None,
     carry_columns: tuple[str, ...],
+    original_file: str | None,
 ) -> None:
     """Assign each input feature to an overlay feature, then clip it to that geometry.
 
@@ -2330,6 +2354,7 @@ def edge_clip(  # noqa: PLR0913, PLR0917
             overlay_match_column=overlay_match_column,
             input_match_column=input_match_column,
             carry_columns=_split_commas(carry_columns) or None,
+            original_path=original_file,
         )
     except (FileExistsError, RuntimeError, ValueError) as e:
         raise click.ClickException(str(e)) from e

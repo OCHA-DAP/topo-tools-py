@@ -19,6 +19,7 @@ def main(  # noqa: PLR0913
     passthrough: bool = False,
     result_table: str | None = None,
     raise_if_empty: bool = True,
+    original_table: str | None = None,
 ) -> None:
     """Clip each assigned input feature to its overlay, isolated per overlay fid."""
     result_table = result_table or f"{name}_03"
@@ -42,6 +43,7 @@ def main(  # noqa: PLR0913
         tmp_dir,
         threads=threads,
         debug=debug,
+        original_table=original_table,
     )
     if not debug:
         conn.execute(f'DROP TABLE IF EXISTS "{name}_02_clip_in"')

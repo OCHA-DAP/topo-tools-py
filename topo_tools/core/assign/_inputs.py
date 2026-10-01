@@ -29,3 +29,17 @@ def load_input(
 def load_overlay(conn: DuckDBPyConnection, name: str, overlay_path: Path | str) -> None:
     """Load the overlay layer, uncleaned."""
     read_and_reproject(conn, f"{name}_overlay", overlay_path)
+
+
+def load_original(
+    conn: DuckDBPyConnection, name: str, original_paths: list[Path | str]
+) -> None:
+    """Expose the original layer's unvalidated geometry as view `{name}_original_01`."""
+    union_sql = " UNION ALL ".join(
+        f"(SELECT geom FROM ({reproject_select_sql(conn, path, make_valid=False)}))"
+        for path in original_paths
+    )
+    conn.execute(f"""--sql
+        CREATE OR REPLACE VIEW "{name}_original_01" AS
+        SELECT row_number() OVER () AS fid, geom FROM ({union_sql})
+    """)

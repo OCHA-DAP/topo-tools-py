@@ -45,8 +45,8 @@ See `docs/reference/README.md` for the MUST/SHOULD/MAY convention, and
   not treated as fatal, and MUST be recorded in the issues report as a
   `kind='clip-empty'` row (see Outputs).
 - `edge-clip` MUST merge or keep every clip-detached piece in the clipped result
-  (see `docs/reference/shared.md`), recording each as a
-  `kind='detached-part'` row.
+  (see `docs/reference/shared.md`), recording each one with an edge
+  neighbour as a `kind='detached-part'` row.
 - `edge-clip` MUST merge or drop every micro-polygon in the clipped result
   (see `docs/reference/shared.md`), recording each as a
   `kind='micro-polygon'` row.
@@ -84,6 +84,10 @@ See `docs/reference/README.md` for the MUST/SHOULD/MAY convention, and
 - `edge-clip` MAY accept `carry_columns` (CLI: `--carry-column`) to copy
   named overlay columns onto every matched input feature (see
   `docs/reference/shared.md`, `docs/adr/0077`).
+- `edge-clip` MAY accept `original_path` (CLI: `--original`, env
+  `ORIGINAL_FILE`), the input layer's pre-extension original, in any
+  supported format or as a URL. Without it, no clip-detached piece merges
+  (see `docs/reference/shared.md`).
 
 ## Examples
 

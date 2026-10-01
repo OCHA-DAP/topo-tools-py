@@ -197,12 +197,18 @@ def _detach(clipped, pre, original=None):
     load("pre", pre, "fid, overlay_fid")
     if original is not None:
         load("original", original, "fid")
+    conn.execute("""
+        CREATE TABLE overlay AS
+        SELECT p.overlay_fid AS fid, ST_Union_Agg(c.geom) AS geom
+        FROM clipped c JOIN pre p USING (fid) GROUP BY p.overlay_fid
+    """)
     count = merge_detached_parts(
         conn,
         "clipped",
         "out",
         pre_clip_table="pre",
-        original_table="original" if original is not None else "pre",
+        overlay_source="overlay",
+        original_table="original" if original is not None else None,
         issues_table="issues",
     )
     out = dict(
@@ -220,20 +226,50 @@ def test_detached_sliver_merges_into_edge_neighbour():
     count, out, issues, _ = _detach(
         [(1, _multi(MAIN_1, PIECE_1)), (2, LEFT_2)],
         [(1, 1, PRE_1), (2, 1, LEFT_2)],
+        original=[(8, PRE_1), (9, LEFT_2)],
     )
     assert count == 1
     assert out == {1: 1, 2: 1}
     assert issues == [(1, 2, "merged into neighbouring feature", True)]
 
 
-def test_detached_piece_over_ratio_is_kept_and_reported():
+def test_detached_sliver_without_original_is_only_reported():
     count, out, issues, _ = _detach(
+        [(1, _multi(MAIN_1, PIECE_1)), (2, LEFT_2)],
+        [(1, 1, PRE_1), (2, 1, LEFT_2)],
+    )
+    assert count == 0
+    assert out == {1: 2, 2: 1}
+    assert issues == [(1, 2, "kept: no original layer", False)]
+
+
+def test_detached_piece_drawn_as_original_lobe_is_kept():
+    ring = [(0, 0), (10, 0), (10, 8), (4e-4, 8), (4e-4, 9), (0.05, 9), (0.05, 9.1)]
+    ring += [(0, 9.1), (0, 0)]
+    lobe = "POLYGON((" + ", ".join(f"{x * S} {y * S}" for x, y in ring) + "))"
+    count, out, issues, _ = _detach(
+        [(1, _multi(MAIN_1, PIECE_1)), (2, LEFT_2)],
+        [(1, 1, PRE_1), (2, 1, LEFT_2)],
+        original=[(1, lobe), (2, LEFT_2)],
+    )
+    assert count == 0
+    assert out == {1: 2, 2: 1}
+    assert issues == [(1, 2, "kept: matches original shape", False)]
+
+
+def test_detached_piece_over_ratio_is_kept_and_reported():
+    count, out, issues, conn = _detach(
         [(1, _multi(MAIN_1, _rect(0, 9, 1, 10))), (2, LEFT_2)],
         [(1, 1, PRE_1), (2, 1, LEFT_2)],
     )
     assert count == 0
     assert out == {1: 2, 2: 1}
-    assert issues == [(1, None, "kept: too large to merge", False)]
+    assert issues == [(1, 2, "kept: too large to merge", False)]
+    width, thinness = conn.execute(
+        "SELECT max_width_m, thinness_ratio FROM issues"
+    ).fetchone()
+    assert width > 0
+    assert 0 < thinness <= 1
 
 
 def test_detached_ratio_is_per_original_part_not_per_feature():
@@ -246,21 +282,12 @@ def test_detached_ratio_is_per_original_part_not_per_feature():
     )
     assert count == 0
     assert out == {1: 3, 2: 1}
-    assert issues == [(1, None, "kept: too large to merge", False)]
+    assert issues == [(1, 2, "kept: too large to merge", False)]
 
 
-def test_isolated_detached_piece_is_kept_and_reported():
-    count, out, issues, conn = _detach([(1, _multi(MAIN_1, PIECE_1))], [(1, 1, PRE_1)])
-    assert (count, out, issues) == (
-        0,
-        {1: 2},
-        [(1, None, "kept: no neighbour", False)],
-    )
-    width, thinness = conn.execute(
-        "SELECT max_width_m, thinness_ratio FROM issues"
-    ).fetchone()
-    assert width > 0
-    assert 0 < thinness <= 1
+def test_isolated_detached_piece_is_kept_unreported():
+    count, out, issues, _ = _detach([(1, _multi(MAIN_1, PIECE_1))], [(1, 1, PRE_1)])
+    assert (count, out, issues) == (0, {1: 2}, [])
 
 
 def test_point_contact_is_not_a_destination():
@@ -269,11 +296,7 @@ def test_point_contact_is_not_a_destination():
         [(1, _multi(MAIN_1, PIECE_1)), (2, corner)],
         [(1, 1, PRE_1), (2, 1, corner)],
     )
-    assert (count, out, issues) == (
-        0,
-        {1: 2, 2: 1},
-        [(1, None, "kept: no neighbour", False)],
-    )
+    assert (count, out, issues) == (0, {1: 2, 2: 1}, [])
 
 
 def test_neighbour_under_another_overlay_is_not_a_destination():
@@ -281,23 +304,23 @@ def test_neighbour_under_another_overlay_is_not_a_destination():
         [(1, _multi(MAIN_1, PIECE_1)), (2, LEFT_2)],
         [(1, 1, PRE_1), (2, 2, LEFT_2)],
     )
-    assert (count, out, issues) == (
-        0,
-        {1: 2, 2: 1},
-        [(1, None, "kept: no neighbour", False)],
-    )
+    assert (count, out, issues) == (0, {1: 2, 2: 1}, [])
 
 
 def test_detached_pieces_swap_between_two_features():
     ring = [(10, 0), (20, 0), (20, 10), (10, 10), (10, 5.1), (5, 5.1), (5, 5), (10, 5)]
     pre_2 = "POLYGON((" + ", ".join(f"{x * S} {y * S}" for x, y in [*ring, ring[0]])
     pre_2 += "))"
+    notch = [(0, 0), (10, 0), (10, 5), (5, 5), (5, 5.1), (10, 5.1), (10, 10), (0, 10)]
+    orig_1 = "POLYGON((" + ", ".join(f"{x * S} {y * S}" for x, y in [*notch, notch[0]])
+    orig_1 += "))"
     count, out, issues, conn = _detach(
         [
             (1, _multi(_rect(0, 0, 10, 5), _rect(9.9, 9, 10, 9.1))),
             (2, _multi(_rect(10, 0, 20, 10), _rect(5, 5, 5.1, 5.1))),
         ],
         [(1, 1, PRE_1), (2, 1, pre_2)],
+        original=[(1, orig_1), (2, pre_2)],
     )
     assert count == len(issues)
     assert out == {1: 1, 2: 1}
@@ -308,22 +331,35 @@ def test_detached_pieces_swap_between_two_features():
 
 def test_footprint_piece_is_kept_over_larger_extension_piece():
     footprint = _rect(0, 0, 1, 1)
-    left = "POLYGON" + _rect(-1, 0, 0, 1)
+    right = "POLYGON" + _rect(20, 0, 21, 10)
     count, out, issues, conn = _detach(
-        [(1, _multi(footprint, _rect(5, 0, 20, 10))), (2, left)],
-        [(1, 1, "POLYGON" + _rect(0, 0, 20, 10)), (2, 1, left)],
-        original=[(1, "POLYGON" + footprint), (2, left)],
+        [(1, _multi(footprint, _rect(5, 0, 20, 10))), (2, right)],
+        [(1, 1, "POLYGON" + _rect(0, 0, 20, 10)), (2, 1, right)],
+        original=[(1, "POLYGON" + footprint), (2, right)],
     )
     assert count == 0
     assert out == {1: 2, 2: 1}
-    assert issues == [(1, None, "kept: too large to merge", False)]
+    assert issues == [(1, 2, "kept: too large to merge", False)]
     extension_area = pytest.approx(150 * S**2)
     assert (
         conn.execute("SELECT ST_Area(geom) FROM issues").fetchone()[0] == extension_area
     )
 
 
-def test_left_in_place_detached_piece_is_not_a_destination():
+def test_piece_mostly_on_footprint_is_kept_when_its_point_hits_a_hole():
+    big, small = _rect(5, 0, 20, 10), _rect(0, 0, 1, 1)
+    holed = f"POLYGON({_rect(0, 0, 20, 10)[1:-1]}, {_rect(12, 4.5, 13, 5.5)[1:-1]})"
+    count, out, issues, _ = _detach(
+        [(1, _multi(big, small)), (2, LEFT_2)],
+        [(1, 1, "POLYGON" + _rect(0, 0, 20, 10)), (2, 1, LEFT_2)],
+        original=[(1, holed), (2, LEFT_2)],
+    )
+    assert count == 1
+    assert out == {1: 1, 2: 1}
+    assert issues == [(1, 2, "merged into neighbouring feature", True)]
+
+
+def test_only_a_too_large_detached_piece_is_a_destination():
     count, out, issues, _ = _detach(
         [
             (1, _multi(_rect(0, 0, 10, 5), _rect(20, 0, 20.1, 0.1))),
@@ -333,13 +369,14 @@ def test_left_in_place_detached_piece_is_not_a_destination():
             (1, 1, "POLYGON" + _rect(0, 0, 30, 10)),
             (2, 1, "POLYGON" + _rect(20, 0, 50, 10)),
         ],
+        original=[
+            (1, "POLYGON" + _rect(0, 0, 10, 5)),
+            (2, "POLYGON" + _rect(40, 0, 50, 10)),
+        ],
     )
-    assert count == 0
-    assert out == {1: 2, 2: 2}
-    assert issues == [
-        (1, None, "kept: no neighbour", False),
-        (2, None, "kept: too large to merge", False),
-    ]
+    assert count == 1
+    assert out == {1: 1, 2: 2}
+    assert issues == [(1, 2, "merged into neighbouring feature", True)]
 
 
 def test_unattached_merge_is_cancelled_and_reported():
@@ -362,7 +399,7 @@ def test_genuine_multipart_input_is_left_unchanged():
     assert (count, out, issues) == (0, {1: 2}, [])
 
 
-def test_source_island_fused_by_extension_is_never_merged():
+def test_source_island_fused_by_extension_is_kept_and_reported():
     island = _rect(20.5, 0, 21, 0.5)
     right = "POLYGON" + _rect(21, 0, 22, 1)
     count, out, issues, _ = _detach(
@@ -370,7 +407,8 @@ def test_source_island_fused_by_extension_is_never_merged():
         [(1, 1, "POLYGON" + _rect(0, 0, 21, 10)), (2, 1, right)],
         original=[(1, _multi(MAIN_1, island)), (2, right)],
     )
-    assert (count, out, issues) == (0, {1: 2, 2: 1}, [])
+    assert (count, out) == (0, {1: 2, 2: 1})
+    assert issues == [(1, 2, "kept: matches original shape", False)]
 
 
 def test_extension_only_sliver_merges_into_edge_neighbour():
@@ -390,6 +428,7 @@ def test_large_area_detached_piece_under_ratio_merges():
     count, out, issues, _ = _detach(
         [(1, _multi(main, piece)), (2, left)],
         [(1, 1, "POLYGON" + _rect(0, 0, 10, 10, scale=1)), (2, 1, left)],
+        original=[(1, "POLYGON" + _rect(0, 0, 10, 10, scale=1)), (2, left)],
     )
     assert count == 1
     assert out == {1: 1, 2: 1}

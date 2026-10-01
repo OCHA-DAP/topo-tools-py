@@ -84,8 +84,8 @@ tools.
   real `overlay_fid`'s clip subprocess fails, aborting the whole run rather than
   dropping just that group.
 - `edge-match` MUST merge or keep every clip-detached piece in the clipped result
-  (see `docs/reference/shared.md`), recording each as a
-  `kind='detached-part'` row.
+  (see `docs/reference/shared.md`), recording each one with an edge
+  neighbour as a `kind='detached-part'` row.
 
 ## Stitching
 
@@ -104,7 +104,7 @@ tools.
 - `edge-match` MUST also export an issues report alongside it, using the shared
   schema in `docs/reference/shared.md`, listing every dropped input feature, every
   input feature belonging to a dropped group, every input feature dropped for an empty
-  clip intersection, every clip-detached piece, every passthrough input feature and gap-filled overlay feature
+  clip intersection, every clip-detached piece with an edge neighbour, every passthrough input feature and gap-filled overlay feature
   (`merge` set only), and every leftover gap wider than `SNAP_TOLERANCE`,
   so a human can audit what didn't make it into the output or what may
   need review.

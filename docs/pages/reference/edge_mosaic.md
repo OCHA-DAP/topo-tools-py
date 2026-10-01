@@ -66,8 +66,8 @@ tools.
   not treated as fatal, and MUST be recorded in the issues report as a
   `kind='clip-empty'` row (see Outputs).
 - `edge-mosaic` MUST merge or keep every clip-detached piece in the clipped result
-  (see `docs/reference/shared.md`), recording each as a
-  `kind='detached-part'` row.
+  (see `docs/reference/shared.md`), recording each one with an edge
+  neighbour as a `kind='detached-part'` row.
 - `edge-mosaic` MUST raise if zero input features were ever assigned to any overlay feature,
   unless `merge` gap-filled at least one overlay feature or kept at least one
   unmatched input file as passthrough (see Configuration).
@@ -88,7 +88,7 @@ tools.
 - `edge-mosaic` MUST export the final merged layer.
 - `edge-mosaic` MUST also export an issues report alongside it, using the
   shared schema in `docs/reference/shared.md`, listing every input feature dropped
-  for an empty clip intersection, every clip-detached piece, every
+  for an empty clip intersection, every clip-detached piece with an edge neighbour, every
   unassigned/passthrough input file,
   every gap-filled/passthrough overlay feature (when `merge` is set), and every
   leftover gap wider than `SNAP_TOLERANCE`, so a human can audit what
@@ -175,6 +175,11 @@ tools.
   itself, while `merge`'s own gap-fill (`fill_unmatched_overlays()`, see
   `docs/adr/0083`) fills a per-overlay geometry-coverage gap left by the
   mosaic; the two compose freely (see `docs/adr/0095`).
+- `edge-mosaic` MAY accept `original_paths` (CLI: `--original`,
+  repeatable and comma-separable, env `ORIGINAL_FILES`), one or more
+  pre-extension originals covering the input files, in any supported
+  format or as URLs. Without them, no clip-detached piece merges (see
+  `docs/reference/shared.md`).
 
 ## Examples
 

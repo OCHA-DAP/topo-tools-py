@@ -100,7 +100,8 @@ def main(  # noqa: PLR0913 (each param is a distinct required input)
         table_out,
         table_out,
         pre_clip_table=table_in,
-        original_table=original_table or table_in,
+        overlay_source=overlay_source,
+        original_table=original_table,
         issues_table=f"{table_out}_detached",
     )
 

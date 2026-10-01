@@ -87,12 +87,16 @@ the full empirical detail.
 Clipping an extended feature to its overlay feature can cut one of its parts
 into several pieces, e.g. where the overlay edge crosses a thin tip.
 `_engine.main()` finishes with `core.coverage.merge_detached_parts`, which
-groups each piece by the source part it overlaps most, keeps that part's
-main piece, and merges any piece under 1% of it into the neighbour it
-shares the longest edge with. `edge-match` passes its pre-extension
-`{name}_input_01` as the source, so an extension-only piece never outranks
-a unit's real footprint. The rows land in `{table_out}_detached`, which
-each tool's outputs stage adds to its issues report.
+groups each piece by the pre-clip part holding its interior point and
+keeps that part's largest piece on the original footprint. A piece under
+1% of it merges into the neighbour it shares the longest edge with, unless
+the original drew it that way: mostly original land, with almost no
+original land clipped away beside it. `edge-match` uses its pre-extension
+`{name}_input_01` as the original; `edge-clip` and `edge-mosaic` need
+`--original`, and without it only report such pieces. A piece with no
+edge neighbour is never changed and isn't reported. The rows land in
+`{table_out}_detached`, which each tool's outputs stage adds to its issues
+report.
 
 ## Hard-fail on the first bad overlay fid
 

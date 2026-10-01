@@ -6,7 +6,7 @@ from ._column_selection import (
     validate_merge_flags,
 )
 from ._gap_fill import fill_unmatched_overlays
-from ._inputs import load_input, load_overlay
+from ._inputs import load_input, load_original, load_overlay
 from ._many import assign_many
 from ._one import assign_one, input_bbox_extent, prepare_overlay_tiles
 
@@ -16,6 +16,7 @@ __all__ = [
     "fill_unmatched_overlays",
     "input_bbox_extent",
     "load_input",
+    "load_original",
     "load_overlay",
     "prepare_overlay_tiles",
     "resolve_column_selection",

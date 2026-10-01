@@ -286,7 +286,8 @@ def test_match_overrides_spatial_and_reports_mismatch(tmp_path):
     assert kinds == ["code-mismatch"]
 
 
-def test_clip_merges_detached_sliver_into_neighbour(tmp_path):
+@pytest.mark.parametrize("with_original", [True, False])
+def test_clip_merges_detached_sliver_only_with_original(tmp_path, with_original):
     overlays_path = tmp_path / "parents.parquet"
     _write_overlays(
         overlays_path,
@@ -311,7 +312,14 @@ def test_clip_merges_detached_sliver_into_neighbour(tmp_path):
     )
     output_path = tmp_path / "out.parquet"
     issues_path = tmp_path / "issues.parquet"
-    clip(input_path, overlays_path, output_path, issues_path, overwrite=True)
+    clip(
+        input_path,
+        overlays_path,
+        output_path,
+        issues_path,
+        overwrite=True,
+        original_path=input_path if with_original else None,
+    )
 
     with duckdb.connect() as conn:
         conn.execute("LOAD spatial")
@@ -322,9 +330,11 @@ def test_clip_merges_detached_sliver_into_neighbour(tmp_path):
         issues = conn.execute(
             f"SELECT kind, unit_a, unit_b, fixed FROM '{issues_path}'"
         ).fetchall()
-    assert [(i, n) for i, n, _ in rows] == [(1, 1), (2, 1)]
-    assert rows[1][2] == pytest.approx(50.005e-6, abs=1e-15)
-    assert issues == [("detached-part", 1, 2, True)]
+    parts = 1 if with_original else 2
+    assert [(i, n) for i, n, _ in rows] == [(1, parts), (2, 1)]
+    if with_original:
+        assert rows[1][2] == pytest.approx(50.005e-6, abs=1e-15)
+    assert issues == [("detached-part", 1, 2, with_original)]
 
 
 def test_match_falls_back_when_code_unmatched(tmp_path):
