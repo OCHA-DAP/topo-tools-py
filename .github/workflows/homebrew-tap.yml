@@ -8,6 +8,9 @@ on:
 jobs:
   update-homebrew-tap:
     runs-on: macos-latest
+    outputs:
+      bumped: ${{ steps.pypi.outputs.version != steps.tap.outputs.version }}
+      branch: bump-topo-tools-${{ steps.pypi.outputs.version }}
     steps:
       - name: Checkout topo-tools-py
         uses: actions/checkout@v7
@@ -76,15 +79,51 @@ jobs:
           git -C "$workdir" \
             -c user.name="github-actions[bot]" \
             -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-            commit -am "duckdb: pin to prebuilt macOS universal2 wheel"
+            commit -am "duckdb: pin to prebuilt macOS universal2 and manylinux wheels"
 
           git -C "$workdir" push origin "HEAD:$branch"
 
-      - name: Merge Homebrew formula bump PR
+      - name: Install and test bump branch
         if: steps.pypi.outputs.version != steps.tap.outputs.version
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+        run: |
+          set -euo pipefail
+          tap="$(brew --repository OCHA-DAP/topo-tools)"
+          git -C "$tap" fetch origin "bump-topo-tools-${{ steps.pypi.outputs.version }}"
+          git -C "$tap" checkout -f -B "bump-topo-tools-${{ steps.pypi.outputs.version }}" FETCH_HEAD
+          brew install --build-from-source OCHA-DAP/topo-tools/topo-tools
+          brew test OCHA-DAP/topo-tools/topo-tools
+
+  test-linux:
+    needs: update-homebrew-tap
+    if: needs.update-homebrew-tap.outputs.bumped == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Homebrew
+        uses: Homebrew/actions/setup-homebrew@main
+
+      - name: Install and test bump branch
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+        run: |
+          set -euo pipefail
+          brew tap OCHA-DAP/topo-tools
+          tap="$(brew --repository OCHA-DAP/topo-tools)"
+          git -C "$tap" fetch origin "${{ needs.update-homebrew-tap.outputs.branch }}"
+          git -C "$tap" checkout -f -B "${{ needs.update-homebrew-tap.outputs.branch }}" FETCH_HEAD
+          brew install --build-from-source OCHA-DAP/topo-tools/topo-tools
+          brew test OCHA-DAP/topo-tools/topo-tools
+
+  merge:
+    needs: [update-homebrew-tap, test-linux]
+    if: needs.update-homebrew-tap.outputs.bumped == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Merge Homebrew formula bump PR
         env:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
           gh pr merge --squash --delete-branch \
             --repo OCHA-DAP/homebrew-topo-tools \
-            "bump-topo-tools-${{ steps.pypi.outputs.version }}"
+            "${{ needs.update-homebrew-tap.outputs.branch }}"

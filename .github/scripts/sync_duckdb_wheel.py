@@ -2,14 +2,18 @@
 """Rewrite the `duckdb` resource block in a Homebrew formula to point at the
 prebuilt macOS universal2 wheel for whichever duckdb version `brew
 bump-formula-pr` most recently pinned as the sdist resource, instead of the
-sdist tarball (which requires compiling duckdb's C++ core with cmake/ninja).
+sdist tarball (which requires compiling duckdb's C++ core with cmake/ninja),
+and repin the `on_linux` `duckdb-linux` blocks to that version's manylinux
+x86_64/aarch64 wheels, which `brew bump-formula-pr` never rewrites.
 
 Usage: sync_duckdb_wheel.py <path-to-formula.rb>
 
 Exits non-zero (leaving the file untouched) if:
   - no `resource "duckdb" do ... end` block is found,
   - a duckdb version can't be parsed out of it,
-  - PyPI has no cp314 macosx universal2 wheel for that exact version.
+  - either `duckdb-linux` block (on_intel, on_arm) is missing,
+  - PyPI has no single cp314 macosx universal2, manylinux x86_64 or manylinux
+    aarch64 wheel for that exact version.
 
 A non-zero exit is intentional and fails the CI job: it leaves the tap's
 formula-bump PR open and unmerged for a human to look at, rather than
@@ -29,11 +33,38 @@ PYTHON_TAG = "cp314"
 
 RESOURCE_RE = re.compile(r'(  resource "duckdb" do\n)(.*?\n)(  end\n)', re.DOTALL)
 VERSION_RE = re.compile(r"duckdb-([0-9][\w.]*)\.tar\.gz")
+LINUX_ARCHES = {"on_intel": "x86_64", "on_arm": "aarch64"}
+
+
+def linux_block_re(arch_block: str) -> re.Pattern[str]:
+    return re.compile(
+        rf'(    {arch_block} do\n      resource "duckdb-linux" do\n)(.*?\n)(      end\n)',
+        re.DOTALL,
+    )
 
 
 def fail(message: str) -> None:
     print(f"::error::{message}", file=sys.stderr)
     sys.exit(1)
+
+
+def find_wheel(
+    urls: list[dict], pattern: str, label: str, hint: str
+) -> tuple[str, str]:
+    wheel_re = re.compile(pattern)
+    candidates = [
+        entry
+        for entry in urls
+        if entry.get("packagetype") == "bdist_wheel"
+        and wheel_re.match(entry.get("filename", ""))
+    ]
+    if not candidates:
+        fail(f"no {label} found on PyPI. {hint}")
+    if len(candidates) > 1:
+        fail(f"multiple matching {label} found, refusing to guess: {candidates}")
+    wheel = candidates[0]
+    print(f"resolved {label}: {wheel['url']}")
+    return wheel["url"], wheel["digests"]["sha256"]
 
 
 def main() -> None:
@@ -61,35 +92,42 @@ def main() -> None:
     with urllib.request.urlopen(api_url, timeout=30) as response:
         data = json.load(response)
 
-    wheel_re = re.compile(
-        rf"^duckdb-{re.escape(version)}-{PYTHON_TAG}-{PYTHON_TAG}-macosx_[0-9_]+_universal2\.whl$"
+    urls = data.get("urls", [])
+    wheel_url, wheel_sha256 = find_wheel(
+        urls,
+        rf"^duckdb-{re.escape(version)}-{PYTHON_TAG}-{PYTHON_TAG}-macosx_[0-9_]+_universal2\.whl$",
+        f"{PYTHON_TAG} macOS universal2 wheel for duckdb=={version}",
+        "PyPI's duckdb wheel matrix may have changed shape (e.g. split arm64/x86_64 "
+        "wheels instead of universal2); this script needs a human to update it. "
+        "Leaving the sdist resource block in place -- `brew install` will now fail "
+        "closed (no cmake/ninja) until this is fixed.",
     )
-    candidates = [
-        entry
-        for entry in data.get("urls", [])
-        if entry.get("packagetype") == "bdist_wheel"
-        and wheel_re.match(entry.get("filename", ""))
-    ]
-    if not candidates:
-        fail(
-            f"no {PYTHON_TAG} macOS universal2 wheel found for duckdb=={version} on PyPI. "
-            "PyPI's duckdb wheel matrix may have changed shape (e.g. split arm64/x86_64 "
-            "wheels instead of universal2); this script needs a human to update it. "
-            "Leaving the sdist resource block in place -- `brew install` will now fail "
-            "closed (no cmake/ninja) until this is fixed."
-        )
-    if len(candidates) > 1:
-        fail(
-            f"multiple matching wheels found for duckdb=={version}, refusing to guess: {candidates}"
-        )
-
-    wheel = candidates[0]
-    wheel_url = wheel["url"]
-    wheel_sha256 = wheel["digests"]["sha256"]
-    print(f"resolved wheel: {wheel_url}")
 
     new_block = f'  resource "duckdb" do\n    url "{wheel_url}"\n    sha256 "{wheel_sha256}"\n  end\n'
     new_contents = contents[: match.start()] + new_block + contents[match.end() :]
+
+    for arch_block, arch in LINUX_ARCHES.items():
+        linux_match = linux_block_re(arch_block).search(new_contents)
+        if not linux_match:
+            fail(
+                f'could not find an `{arch_block} do resource "duckdb-linux" do ... end` block'
+            )
+        linux_url, linux_sha256 = find_wheel(
+            urls,
+            rf"^duckdb-{re.escape(version)}-{PYTHON_TAG}-{PYTHON_TAG}-manylinux[\w.]*_{arch}\.whl$",
+            f"{PYTHON_TAG} manylinux {arch} wheel for duckdb=={version}",
+            "PyPI's duckdb Linux wheel tags may have changed; this script needs a human "
+            "to update it.",
+        )
+        linux_block = (
+            f'{linux_match.group(1)}        url "{linux_url}"\n'
+            f'        sha256 "{linux_sha256}"\n{linux_match.group(3)}'
+        )
+        new_contents = (
+            new_contents[: linux_match.start()]
+            + linux_block
+            + new_contents[linux_match.end() :]
+        )
 
     if new_contents == contents:
         fail("rewrite produced no change; refusing to no-op silently")
@@ -98,7 +136,8 @@ def main() -> None:
         f.write(new_contents)
 
     print(
-        f"Patched {formula_path}: duckdb resource now points at the {PYTHON_TAG} universal2 wheel."
+        f"Patched {formula_path}: duckdb resources now point at the {PYTHON_TAG} "
+        "universal2 and manylinux wheels."
     )
 
 
