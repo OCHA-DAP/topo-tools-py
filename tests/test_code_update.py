@@ -457,7 +457,16 @@ def test_level_count_mismatch_raises(tmp_path):
         )
 
 
-def test_custom_format_round_trip_detected_from_old_codes(tmp_path):
+@pytest.mark.parametrize(
+    ("min_width", "level1", "level2"),
+    [
+        (2, {"AA-01", "AA-02"}, {"AA-01-01", "AA-01-02", "AA-02-01"}),
+        ("1,3", {"AA-1", "AA-2"}, {"AA-1-001", "AA-1-002", "AA-2-001"}),
+    ],
+)
+def test_custom_format_round_trip_detected_from_old_codes(
+    tmp_path, min_width, level1, level2
+):
     """code-update auto-detects a code-refactor-produced custom delimiter/width."""
     raw_rows = [
         {
@@ -480,7 +489,9 @@ def test_custom_format_round_trip_detected_from_old_codes(tmp_path):
     _write_synthetic(raw_path, raw_rows)
 
     old_coded_path = tmp_path / "old_coded.parquet"
-    code_refactor(raw_path, old_coded_path, root_code="AA", delimiter="-", min_width=2)
+    code_refactor(
+        raw_path, old_coded_path, root_code="AA", delimiter="-", min_width=min_width
+    )
 
     new_path = tmp_path / "new.parquet"
     _write_synthetic(new_path, raw_rows)
@@ -491,8 +502,8 @@ def test_custom_format_round_trip_detected_from_old_codes(tmp_path):
 
     level1_codes = {r[0] for r in _fetch(output_path, "adm1_code", "adm1_code")}
     level2_codes = {r[0] for r in _fetch(output_path, "adm2_code", "adm2_code")}
-    assert level1_codes == {"AA-01", "AA-02"}
-    assert level2_codes == {"AA-01-01", "AA-01-02", "AA-02-01"}
+    assert level1_codes == level1
+    assert level2_codes == level2
 
     rows = _read_changelog(changelog_path)
     assert all(r["relationship_class"] == "unchanged" for r in rows)

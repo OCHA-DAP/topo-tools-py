@@ -12,6 +12,7 @@ from topo_tools.core.code import (
     next_available_integer,
     parent_prefix,
     parse_code,
+    parse_min_width,
     resolve_code_format,
     rewrite_child_code,
 )
@@ -81,6 +82,7 @@ def test_assign_new_codes_ranks_gappy_nonnumeric_duplicated_source():
             sort_columns=["sort_col"],
             code_column="code_col",
             fmt=_FMT,
+            level=1,
         )
         codes = [r[0] for r in conn.execute("SELECT code_col FROM t").fetchall()]
     assert sorted(codes) == ["AFG.001", "AFG.002", "AFG.003", "AFG.004"]
@@ -108,6 +110,7 @@ def test_assign_new_codes_overflow_no_repad_of_first_999():
             sort_columns=["sort_col"],
             code_column="code_col",
             fmt=CodeFormat(root_code="BRA", delimiter=".", min_width=_MIN_WIDTH),
+            level=1,
         )
         by_rank = dict(conn.execute("SELECT sort_col, code_col FROM t").fetchall())
     assert by_rank[1] == "BRA.001"
@@ -135,6 +138,7 @@ def test_assign_new_codes_continues_from_existing_codes():
             sort_columns=["sort_col"],
             code_column="code_col",
             fmt=_FMT,
+            level=1,
             existing_codes=["AFG.001", "AFG.005"],
         )
         by_rank = dict(conn.execute("SELECT sort_col, code_col FROM t").fetchall())
@@ -176,3 +180,57 @@ def test_detect_code_format_disputed_territory_root_is_opaque():
         conn.executemany("INSERT INTO t VALUES (?)", [("XKO.001",), ("XKO.002",)])
         fmt = detect_code_format(conn, "t", "code")
     assert fmt.root_code == "XKO"
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [(3, 3), ("3", 3), ("2,2,4", (2, 2, 4)), ([2, 3], (2, 3)), ("AUTO", "auto")],
+)
+def test_parse_min_width_forms(value, expected):
+    assert parse_min_width(value) == expected
+
+
+@pytest.mark.parametrize("value", ["0", "2,x", "", [2, 0]])
+def test_parse_min_width_rejects(value):
+    with pytest.raises(ValueError, match="min_width"):
+        parse_min_width(value)
+
+
+def test_code_format_width_per_level_and_count_check():
+    fmt = CodeFormat(root_code="AFG", delimiter=".", min_width=(2, 4))
+    assert (fmt.width(1), fmt.width(2)) == (2, 4)
+    assert CodeFormat("AFG", ".", "auto").width(1) is None
+    with pytest.raises(ValueError, match="2 widths"):
+        fmt.check_level_count(3)
+
+
+def test_assign_new_codes_auto_width_fits_widest_tail_and_retained():
+    with duckdb.connect() as conn:
+        conn.execute(
+            "CREATE TABLE t (id_col INTEGER, parent_code VARCHAR, code_col VARCHAR)"
+        )
+        rows = [(i, "AFG.01", None) for i in range(12)] + [(12, "AFG.02", None)]
+        conn.executemany("INSERT INTO t VALUES (?, ?, ?)", rows)
+        assign_new_codes(
+            conn,
+            "t",
+            id_column="id_col",
+            parent_column="parent_code",
+            sort_columns=["id_col"],
+            code_column="code_col",
+            fmt=CodeFormat(root_code="AFG", delimiter=".", min_width="auto"),
+            level=2,
+            existing_codes=["AFG.02.001"],
+        )
+        codes = dict(conn.execute("SELECT id_col, code_col FROM t").fetchall())
+    assert codes[0] == "AFG.01.001"
+    assert codes[11] == "AFG.01.012"
+    assert codes[12] == "AFG.02.002"
+
+
+def test_detect_code_format_per_level_widths():
+    with duckdb.connect() as conn:
+        conn.execute("CREATE TABLE t (code VARCHAR)")
+        codes = ["AFG.01.001", "AFG.01.002", "AFG.02.001"]
+        conn.executemany("INSERT INTO t VALUES (?)", [(c,) for c in codes])
+        assert detect_code_format(conn, "t", "code").min_width == (2, 3)

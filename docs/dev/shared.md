@@ -335,17 +335,21 @@ its supporting functions:
 
 - `resolve_code_format(root_code, delimiter, min_width)` MUST raise
   `ValueError` unless `root_code` is non-empty, `delimiter` is exactly one
-  character, and `min_width` is positive. `root_code` MUST NOT be
+  character (or empty, when the caller allows it), and `min_width` is one
+  positive width, a comma list of positive widths, or `auto`. `root_code` MUST NOT be
   shape-checked otherwise; a disputed-territory or other non-ISO3 string
   works identically to an ISO3 one.
 - `assign_new_codes()` MUST always rank rows per parent into a fresh
   sequential integer before formatting; it MUST NOT reformat or pass
   through a raw source value as-is, since that value may be non-numeric,
   gappy, or duplicated across siblings.
-- A parent whose live/assigned child count exceeds `10 ** min_width - 1`
-  MUST NOT have its already-assigned, lower-numbered children's codes
-  repadded; an overflowing child's own tail component MUST simply grow
-  past `min_width` instead (`lpad` truncates an over-width string, unlike
+- `CodeFormat.check_level_count()` MUST raise `ValueError` when a
+  per-level `min_width` list doesn't have exactly one width per numbered
+  level.
+- A parent whose live/assigned child count exceeds `10 ** width - 1` (its
+  level's fixed width; `auto` never overflows) MUST NOT have its
+  already-assigned, lower-numbered children's codes repadded; an overflowing child's own tail component MUST simply grow
+  past the width instead (`lpad` truncates an over-width string, unlike
   Python's `zfill`, so the target width is widened to the tail's own
   length first).
 - `next_available_integer()` MUST derive a parent's next unused integer
@@ -356,8 +360,8 @@ its supporting functions:
 - `detect_code_format()` MUST infer `delimiter` as the single
   non-alphanumeric character common to every sampled code, `root_code` as
   the shared first delimiter-split component, and `min_width` as the
-  **mode** (most common), not the min or max, width pooled across every
-  non-root component of every sampled code; it MUST raise `ValueError` if
+  **mode** (most common), not the min or max, width at each level's
+  component position, one width if every level agrees; it MUST raise `ValueError` if
   any of the three can't be confidently inferred, never falling back to a
   hardcoded literal.
 - `rewrite_child_code(old_code, new_parent_code, fmt)` MUST reattach

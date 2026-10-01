@@ -4,12 +4,8 @@ from pathlib import Path
 
 from duckdb import DuckDBPyConnection
 
-from topo_tools.core.code import (
-    TABLE_COPY_OPTS,
-    CodeFormat,
-    last_component,
-    parent_prefix,
-)
+from topo_tools.core.code import TABLE_COPY_OPTS, CodeFormat
+from topo_tools.core.code_refactor._02_levels import Level
 from topo_tools.core.io import add_csv_bom, export_geometry_table
 
 
@@ -18,8 +14,9 @@ def main(  # noqa: PLR0913
     table: str,
     dest: Path,
     *,
-    levels: dict[int, str],
+    levels: dict[int, Level],
     fmt: CodeFormat,
+    source_codes: str = "replace",
     issues_dest: Path | None = None,
     debug: bool = False,
 ) -> None:
@@ -27,53 +24,56 @@ def main(  # noqa: PLR0913
     export_geometry_table(conn, table, dest)
 
     if issues_dest is not None:
-        _write_overflow_issues(conn, table, levels, fmt, issues_dest)
+        _write_overflow_issues(conn, table, levels, fmt, source_codes, issues_dest)
 
     if not debug:
         conn.execute(f'DROP TABLE IF EXISTS "{table}"')
 
 
-def _write_overflow_issues(
+def _write_overflow_issues(  # noqa: PLR0913, PLR0917
     conn: DuckDBPyConnection,
     table: str,
-    levels: dict[int, str],
+    levels: dict[int, Level],
     fmt: CodeFormat,
+    source_codes: str,
     issues_dest: Path,
 ) -> None:
-    """Group each level's codes by parent, flag any group over min_width capacity."""
-    capacity = 10**fmt.min_width - 1
+    """Group each numbered level's codes by parent, flag any over min_width capacity."""
     rows: list[tuple[str, int, str, str, int, int, str]] = []
-    for level, code_column in levels.items():
-        if level == 0:
+    parent_sql = f"'{fmt.root_code}'"
+    for level in sorted(n for n in levels if n >= 1):
+        code_column = levels[level].code
+        width = fmt.width(level)
+        if width is None or (source_codes == "embed" and not levels[level].seeded):
+            parent_sql = f'"{code_column}"'
             continue
-        codes = [
-            r[0]
-            for r in conn.execute(
-                f'SELECT DISTINCT "{code_column}" FROM "{table}"'
-            ).fetchall()
-        ]
-        by_parent: dict[str, list[str]] = {}
-        for code in codes:
-            by_parent.setdefault(parent_prefix(code, fmt), []).append(code)
-        for parent_code, children in by_parent.items():
-            if len(children) <= capacity:
-                continue
-            assigned_code = max(children, key=lambda c: int(last_component(c, fmt)))
-            reason = (
-                f"{len(children)} children exceeds {capacity} "
-                f"at min_width={fmt.min_width}"
-            )
+        capacity = 10**width - 1
+        groups = conn.execute(
+            f"""--sql
+            SELECT {parent_sql}, COUNT(DISTINCT "{code_column}"),
+                   max(struct_pack(
+                       l := length("{code_column}"), c := "{code_column}"
+                   )).c
+            FROM "{table}"
+            GROUP BY 1
+            HAVING COUNT(DISTINCT "{code_column}") > ?
+            """,
+            [capacity],
+        ).fetchall()
+        for parent_code, count, assigned_code in groups:
+            reason = f"{count} children exceeds {capacity} at min_width={width}"
             rows.append(
                 (
                     "digit-overflow",
                     level,
                     parent_code,
                     assigned_code,
-                    len(children),
-                    fmt.min_width,
+                    count,
+                    width,
                     reason,
                 )
             )
+        parent_sql = f'"{code_column}"'
 
     if not rows:
         issues_dest.unlink(missing_ok=True)

@@ -12,7 +12,6 @@ from topo_tools.core.io import add_csv_bom, export_geometry_table
 
 def _flag_overflow(changelog: list[ChangeRow], fmt: CodeFormat) -> None:
     """Mark 'new'-outcome rows as 'overflow' when their parent's child count spills."""
-    capacity = 10**fmt.min_width - 1
     by_parent: dict[tuple[int, str], list[ChangeRow]] = {}
     for row in changelog:
         if row.code_outcome not in ("new", "retained") or row.new_code is None:
@@ -20,11 +19,12 @@ def _flag_overflow(changelog: list[ChangeRow], fmt: CodeFormat) -> None:
         parent_code = parent_prefix(row.new_code, fmt)
         by_parent.setdefault((row.level, parent_code), []).append(row)
     for (level, parent_code), rows in by_parent.items():
-        if len(rows) <= capacity:
+        width = fmt.width(level)
+        if width is None or len(rows) <= 10**width - 1:
             continue
         reason = (
             f"{len(rows)} children under {parent_code} at level {level} exceeds "
-            f"{capacity} at min_width={fmt.min_width}"
+            f"{10**width - 1} at min_width={width}"
         )
         for row in rows:
             if row.code_outcome == "new":

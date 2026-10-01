@@ -283,6 +283,7 @@ def main(  # noqa: C901, PLR0913, PLR0915
             sort_columns=["fid_key"],
             code_column="code_val",
             fmt=fmt,
+            level=n,
             existing_codes=retained_codes,
         )
         assigned = dict(

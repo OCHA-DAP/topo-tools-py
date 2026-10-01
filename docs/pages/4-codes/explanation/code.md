@@ -18,12 +18,17 @@ organization's own convention, not hardcoded to COD-AB's (see
 class CodeFormat:
     root_code: str
     delimiter: str
-    min_width: int
+    min_width: int | tuple[int, ...] | Literal["auto"]
 ```
 
 No field has a default value. `resolve_code_format(root_code, delimiter,
 min_width)` is a thin validating constructor, not a defaults-filling one:
-non-empty root, single-character delimiter, positive `min_width`.
+non-empty root, single-character delimiter, and `min_width` parsed by
+`parse_min_width()` from one positive width (`3`), one per level, coarsest
+first (`"2,2,4"`), or `"auto"`. `fmt.width(level)` returns a level's width
+(`None` under `auto`); `fmt.check_level_count(count)` raises when a
+per-level list doesn't have one width per numbered level (see
+`docs/adr/0123`).
 `root_code` is opaque everywhere, never shape-checked, so a disputed-
 territory prefix (`XKO`, or any user-assigned string) works identically to
 an ISO3 one.
@@ -31,7 +36,7 @@ an ISO3 one.
 ## Cascade: ranking, not reformatting
 
 `assign_new_codes(conn, table, *, id_column, parent_column, sort_columns,
-code_column, fmt, existing_codes=None)` is the one function both tools use
+code_column, fmt, level, existing_codes=None)` is the one function both tools use
 to actually mint new codes. It never reformats a raw source value in
 place: rows are ranked per `parent_column` group by `sort_columns`
 (`ROW_NUMBER() OVER (PARTITION BY parent_column ORDER BY sort_columns)`),
@@ -55,8 +60,10 @@ under the same textual prefix) or isn't numeric, and returns
 
 `lpad` truncates an over-width string (unlike Python's `zfill`, which
 never shortens), so `assign_new_codes()` widens its own target width to
-`GREATEST(min_width, LENGTH(tail))` before padding. A parent's 1000th
-child (at the default `min_width=3`, capacity `10**3 - 1 = 999`) gets a
+`GREATEST(width, LENGTH(tail))` before padding, `width` being the level's
+own. Under `auto`, `width` is the widest tail at that level, retained
+codes included, so every new code at the level shares one length. A
+parent's 1000th child (at width 3, capacity `10**3 - 1 = 999`) gets a
 4-digit tail; every child ranked below it keeps its own already-assigned
 3-digit code untouched, no whole-parent repad. `code-refactor` and
 `code-update` each independently detect and report this condition in
@@ -78,8 +85,8 @@ distinct, non-null), rather than requiring a caller to state it:
   `code_column` isn't actually this dataset's own root-anchored hierarchy
   column.
 - **`min_width`**: the **mode** (most common), not the min or max, of
-  every non-root component's width, pooled across every level present in
-  the column (one number for the whole format, not one per level). This
+  the component widths at each level's position, one width when every
+  level agrees, else one per level. This
   specifically avoids an overflow-widened tail at one parent (see above)
   skewing the detected width for every other, non-overflowed parent.
 

@@ -1021,14 +1021,26 @@ def change(  # noqa: PLR0913, PLR0917
 @click.argument("issues_file", envvar="ISSUES_FILE", required=False, default=None)
 @click.option("--root-code", envvar="ROOT_CODE", required=True, help="Root code value.")
 @click.option(
-    "--delimiter", envvar="DELIMITER", required=True, help="Single-character delimiter."
+    "--delimiter",
+    envvar="DELIMITER",
+    required=True,
+    help="Single-character delimiter; empty ('') only with --source-codes embed.",
 )
 @click.option(
     "--min-width",
     envvar="MIN_WIDTH",
-    type=int,
     required=True,
-    help="Zero-pad floor for each code's own tail component.",
+    help="Zero-pad floor per level: one width (3), one per level, coarsest "
+    "first (2,2,4), or auto (the digits each level needs).",
+)
+@click.option(
+    "--source-codes",
+    envvar="SOURCE_CODES",
+    type=click.Choice(["replace", "embed", "copy"]),
+    default="replace",
+    show_default=True,
+    help="Each level's existing code: replace it, embed it as the level's own "
+    "component, or copy it to a numbered sibling column before replacing it.",
 )
 @click.option(
     "--name-field",
@@ -1080,7 +1092,8 @@ def code_refactor(  # noqa: PLR0913, PLR0917
     issues_file: str | None,
     root_code: str,
     delimiter: str,
-    min_width: int,
+    min_width: str,
+    source_codes: str,
     name_field: str | None,
     code_field: str | None,
     overwrite: bool,  # noqa: FBT001
@@ -1106,6 +1119,12 @@ def code_refactor(  # noqa: PLR0913, PLR0917
       # Explicit code/name columns, when auto-detection is ambiguous
       topo-tools code-refactor admin2.geojson --root-code AFG --delimiter . \\
         --min-width 3 --code-field adm{n}_code --name-field adm{n}_name
+
+    \b
+      # Source codes kept inside the code, no delimiter (AF01, AF0101, ...)
+      topo-tools code-refactor admin2.geojson --root-code AF --delimiter '' \\
+        --min-width 2 --source-codes embed --code-field adm{n}_code \\
+        --name-field adm{n}_name
     """
     logger.info("--debug=%s", debug)
     try:
@@ -1116,6 +1135,7 @@ def code_refactor(  # noqa: PLR0913, PLR0917
             root_code=root_code,
             delimiter=delimiter,
             min_width=min_width,
+            source_codes=source_codes,
             name_field=name_field,
             code_field=code_field,
             threads=threads,
@@ -1148,9 +1168,9 @@ def code_refactor(  # noqa: PLR0913, PLR0917
 @click.option(
     "--min-width",
     envvar="MIN_WIDTH",
-    type=int,
     default=None,
-    help="Zero-pad floor; auto-detected off OLD's own codes if omitted.",
+    help="Zero-pad floor per level: 3, 2,2,4 or auto; detected off OLD's own "
+    "codes if omitted.",
 )
 @click.option(
     "--name-field-a",
@@ -1282,7 +1302,7 @@ def code_update(  # noqa: PLR0913, PLR0917
     changelog_file: str | None,
     root_code: str | None,
     delimiter: str | None,
-    min_width: int | None,
+    min_width: str | None,
     name_field_a: str | None,
     code_field_a: str | None,
     name_field_b: str | None,

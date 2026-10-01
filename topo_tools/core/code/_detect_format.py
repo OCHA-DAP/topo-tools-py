@@ -4,7 +4,7 @@ from collections import Counter
 
 from duckdb import DuckDBPyConnection
 
-from topo_tools.core.code._code_format import CodeFormat
+from topo_tools.core.code._code_format import CodeFormat, MinWidth
 
 _SAMPLE_LIMIT = 10_000
 
@@ -58,15 +58,16 @@ def _detect_root(codes: list[str], delimiter: str, code_column: str) -> str:
     return next(iter(roots))
 
 
-def _detect_min_width(codes: list[str], delimiter: str, code_column: str) -> int:
-    """Pool every non-root component's own width across every sampled code."""
-    widths = [
-        len(part)
-        for code in codes
-        if delimiter in code
-        for part in code.split(delimiter)[1:]
-    ]
-    if not widths:
+def _detect_min_width(codes: list[str], delimiter: str, code_column: str) -> MinWidth:
+    """Take each level's most common component width; one int if all levels agree."""
+    by_level: list[Counter] = []
+    for code in codes:
+        for i, part in enumerate(code.split(delimiter)[1:]):
+            if i == len(by_level):
+                by_level.append(Counter())
+            by_level[i][len(part)] += 1
+    if not by_level:
         msg = f"no delimited components found in {code_column!r} to measure width from"
         raise ValueError(msg)
-    return Counter(widths).most_common(1)[0][0]
+    widths = tuple(counts.most_common(1)[0][0] for counts in by_level)
+    return widths[0] if len(set(widths)) == 1 else widths

@@ -1,7 +1,12 @@
 """Shared hierarchical-code primitive: format, detection, cascade, rewrite."""
 
 from topo_tools.core.code._cascade import assign_new_codes
-from topo_tools.core.code._code_format import CodeFormat, resolve_code_format
+from topo_tools.core.code._code_format import (
+    CodeFormat,
+    MinWidth,
+    parse_min_width,
+    resolve_code_format,
+)
 from topo_tools.core.code._codes import (
     build_code,
     last_component,
@@ -16,6 +21,7 @@ from topo_tools.core.code._rewrite import rewrite_child_code
 __all__ = [
     "TABLE_COPY_OPTS",
     "CodeFormat",
+    "MinWidth",
     "assign_new_codes",
     "build_code",
     "detect_code_format",
@@ -23,6 +29,7 @@ __all__ = [
     "next_available_integer",
     "parent_prefix",
     "parse_code",
+    "parse_min_width",
     "resolve_code_format",
     "rewrite_child_code",
 ]

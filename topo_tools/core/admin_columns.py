@@ -13,6 +13,14 @@ def sibling_name(column: str, index: int) -> str:
     return f"{column}_{index}" if column[-1:].isdigit() else f"{column}{index}"
 
 
+def next_free_sibling(column: str, taken: set[str]) -> str:
+    """Column's lowest-numbered sibling name not already in taken."""
+    n = 1
+    while sibling_name(column, n) in taken:
+        n += 1
+    return sibling_name(column, n)
+
+
 def field_prefix(template: str) -> str:
     """Return a `{n}`-templated field's prefix, e.g. "adm" from "adm{n}_pcode"."""
     return template.split("{n}", maxsplit=1)[0]

@@ -6,6 +6,7 @@ from duckdb import DuckDBPyConnection
 
 from topo_tools.core.admin_columns import (
     canonical_order,
+    next_free_sibling,
     sibling_name,
     template_families,
 )
@@ -47,13 +48,6 @@ def join_hierarchy_columns(
             for c in level.identity_columns
         }
     return [c for c in columns if c in selected]
-
-
-def _next_free_name(column: str, taken: set[str]) -> str:
-    n = 1
-    while sibling_name(column, n) in taken:
-        n += 1
-    return sibling_name(column, n)
 
 
 def _output_order(
@@ -108,7 +102,7 @@ def main(conn: DuckDBPyConnection, name: str, schema: TargetSchema | None) -> No
         """).fetchone()[0]
         if not differs:
             continue
-        sibling = _next_free_name(column, taken)
+        sibling = next_free_sibling(column, taken)
         taken.add(sibling)
         logger.warning(
             "schema-join: %d input row(s) differ from the join layer on %r; "

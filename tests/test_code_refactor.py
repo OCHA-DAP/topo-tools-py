@@ -416,3 +416,129 @@ def test_supplemental_grouping_raises(tmp_path):
     _write_synthetic(input_path, rows)
     with pytest.raises(ValueError, match=r"\['adm2_name'\] group units like a level"):
         code_refactor(input_path, root_code="AA", delimiter=".", min_width=3)
+
+
+def _source_coded_rows(adm3_codes=("0101", "0102", "0201", "0202")):
+    units = [
+        ("51", "North", "Hidd", adm3_codes[0]),
+        ("51", "North", "Adhari", adm3_codes[1]),
+        ("52", "South", "Zallaq", adm3_codes[2]),
+        ("52", "South", "Askar", adm3_codes[3]),
+    ]
+    return [
+        {
+            "adm1_code": c1,
+            "adm1_name": n1,
+            "adm2_name": n2,
+            "adm3_code": c3,
+            "adm3_name": c3.lstrip("0"),
+            "wkt": f"POLYGON(({i} 0, {i + 1} 0, {i + 1} 1, {i} 1, {i} 0))",
+        }
+        for i, (c1, n1, n2, c3) in enumerate(units)
+    ]
+
+
+_TEMPLATES = {"code_field": "adm{n}_code", "name_field": "adm{n}_name"}
+
+
+def test_embed_concatenates_source_codes_without_delimiter(tmp_path):
+    input_path, output_path = tmp_path / "in.parquet", tmp_path / "out.parquet"
+    _write_synthetic(input_path, _source_coded_rows())
+    code_refactor(
+        input_path,
+        output_path,
+        root_code="BH",
+        delimiter="",
+        min_width=2,
+        source_codes="embed",
+        **_TEMPLATES,
+    )
+    assert _fetch(output_path, "adm1_code, adm2_code, adm3_code", "adm3_code") == [
+        ("BH51", "BH5101", "BH51010102"),
+        ("BH51", "BH5102", "BH51020101"),
+        ("BH52", "BH5201", "BH52010202"),
+        ("BH52", "BH5202", "BH52020201"),
+    ]
+
+
+def test_embed_raises_on_mixed_length_codes_without_delimiter(tmp_path):
+    input_path = tmp_path / "in.parquet"
+    _write_synthetic(input_path, _source_coded_rows(("101", "0102", "0201", "0202")))
+    with pytest.raises(ValueError, match="vary in length"):
+        code_refactor(
+            input_path,
+            root_code="BH",
+            delimiter="",
+            min_width=2,
+            source_codes="embed",
+            **_TEMPLATES,
+        )
+
+
+def test_empty_delimiter_requires_embed(tmp_path):
+    input_path = tmp_path / "in.parquet"
+    _write_synthetic(input_path, _source_coded_rows())
+    with pytest.raises(ValueError, match="single character"):
+        code_refactor(
+            input_path, root_code="BH", delimiter="", min_width=2, **_TEMPLATES
+        )
+
+
+def test_copy_keeps_source_codes_in_numbered_siblings(tmp_path):
+    input_path, output_path = tmp_path / "in.parquet", tmp_path / "out.parquet"
+    _write_synthetic(input_path, _source_coded_rows())
+    code_refactor(
+        input_path,
+        output_path,
+        root_code="BHR",
+        delimiter=".",
+        min_width=3,
+        source_codes="copy",
+        **_TEMPLATES,
+    )
+    assert _fetch(
+        output_path,
+        "adm1_code, adm1_code1, adm2_code, adm3_code, adm3_code1",
+        "adm3_code",
+    ) == [
+        ("BHR.001", "51", "BHR.001.001", "BHR.001.001.001", "0102"),
+        ("BHR.001", "51", "BHR.001.002", "BHR.001.002.001", "0101"),
+        ("BHR.002", "52", "BHR.002.001", "BHR.002.001.001", "0202"),
+        ("BHR.002", "52", "BHR.002.002", "BHR.002.002.001", "0201"),
+    ]
+    columns = [
+        r[0] for r in duckdb.sql(f"DESCRIBE SELECT * FROM '{output_path}'").fetchall()
+    ]
+    for code in ("adm1_code", "adm3_code"):
+        assert columns.index(f"{code}1") == columns.index(code) + 1
+
+
+def test_min_width_per_level_and_auto(tmp_path):
+    input_path = tmp_path / "in.parquet"
+    _write_synthetic(input_path, _source_coded_rows())
+    for min_width, expected in [
+        ("1,2,3", ("BHR.1", "BHR.1.01", "BHR.1.01.001")),
+        ("auto", ("BHR.1", "BHR.1.1", "BHR.1.1.1")),
+    ]:
+        output_path = tmp_path / f"out_{min_width}.parquet"
+        code_refactor(
+            input_path,
+            output_path,
+            root_code="BHR",
+            delimiter=".",
+            min_width=min_width,
+            **_TEMPLATES,
+        )
+        assert (
+            _fetch(output_path, "adm1_code, adm2_code, adm3_code", "adm3_code")[0]
+            == expected
+        )
+
+
+def test_min_width_list_must_match_level_count(tmp_path):
+    input_path = tmp_path / "in.parquet"
+    _write_synthetic(input_path, _source_coded_rows())
+    with pytest.raises(ValueError, match="3 level"):
+        code_refactor(
+            input_path, root_code="BHR", delimiter=".", min_width="2,3", **_TEMPLATES
+        )
