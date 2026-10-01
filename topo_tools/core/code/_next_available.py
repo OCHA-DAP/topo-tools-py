@@ -13,7 +13,7 @@ def next_available_integer(
         if not code.startswith(prefix):
             continue
         tail = code[len(prefix) :]
-        if fmt.delimiter in tail:
+        if fmt.delimiter and fmt.delimiter in tail:
             continue
         try:
             n = int(tail)

@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted.
+Superseded by ADR-0126 (new codes start above every OLD code, retired ones included).
 
 ## Context
 

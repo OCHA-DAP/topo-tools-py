@@ -7,7 +7,10 @@ from duckdb import DuckDBPyConnection
 from topo_tools.core.code import (
     CodeFormat,
     detect_code_format,
+    detect_undelimited_format,
+    has_delimiter,
     parse_min_width,
+    seed_code_from_names,
 )
 from topo_tools.core.schema_map._level_columns import (
     LevelColumns,
@@ -37,13 +40,27 @@ def _resolve_side(
     table: str,
     name_field: str | None,
     code_field: str | None,
+    *,
+    seed_missing_codes: bool = False,
 ) -> SideLevels:
     """Resolve one side's per-level code/name columns, structural or explicit."""
     schema = resolve_explicit_target_schema(name_field, code_field)
     if schema is not None:
-        levels = detect_levels(conn, table, schema)
+        # Level 0 is the root itself, never recoded.
+        levels = [
+            n
+            for n in detect_levels(
+                conn, table, schema, require_codes=not seed_missing_codes
+            )
+            if n >= 1
+        ]
         columns = {n: schema.code_field.format(n=n) for n in levels}
         names = {n: schema.name_field.format(n=n) for n in levels}
+        present = {r[0] for r in conn.execute(f'DESCRIBE "{table}"').fetchall()}
+        for n in levels:
+            if columns[n] not in present:
+                name = names[n] if names[n] in present else None
+                seed_code_from_names(conn, table, n, columns[n], name)
         return SideLevels(
             columns=columns, names=names, schema=schema, level_columns=None
         )
@@ -103,7 +120,9 @@ def main(  # noqa: PLR0913
 ) -> tuple[SideLevels, SideLevels, CodeFormat]:
     """Resolve OLD/NEW per-level columns; detect (or accept an override for) fmt."""
     side_a = _resolve_side(conn, old_table, name_field_a, code_field_a)
-    side_b = _resolve_side(conn, new_table, name_field_b, code_field_b)
+    side_b = _resolve_side(
+        conn, new_table, name_field_b, code_field_b, seed_missing_codes=True
+    )
 
     if sorted(side_a.columns) != sorted(side_b.columns):
         msg = (
@@ -115,7 +134,13 @@ def main(  # noqa: PLR0913
 
     if root_code is None or delimiter is None or min_width is None:
         finest = max(side_a.columns)
-        detected = detect_code_format(conn, old_table, side_a.columns[finest])
+        if delimiter == "" or (
+            delimiter is None
+            and not has_delimiter(conn, old_table, side_a.columns[finest])
+        ):
+            detected = detect_undelimited_format(conn, old_table, side_a.columns)
+        else:
+            detected = detect_code_format(conn, old_table, side_a.columns[finest])
     fmt = CodeFormat(
         root_code=root_code if root_code is not None else detected.root_code,
         delimiter=delimiter if delimiter is not None else detected.delimiter,
@@ -123,5 +148,8 @@ def main(  # noqa: PLR0913
             parse_min_width(min_width) if min_width is not None else detected.min_width
         ),
     )
+    if fmt.delimiter == "" and fmt.min_width == "auto":
+        msg = "min_width auto needs a delimiter; without one, widths must match OLD's"
+        raise ValueError(msg)
     fmt.check_level_count(len(side_a.columns))
     return side_a, side_b, fmt

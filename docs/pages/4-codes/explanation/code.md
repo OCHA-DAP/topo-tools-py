@@ -52,9 +52,13 @@ gappy, or duplicated across siblings (a real GADM `GID_1` looks like
 skips a tail that still contains the delimiter (a nested, deeper code
 under the same textual prefix) or isn't numeric, and returns
 `max(found) + 1`, or `1` if nothing matches. It only ever looks at the
-`existing_codes` list it's given, never a persisted registry; see
-`docs/adr/0102` for the accepted correctness trade-off this implies for
-`code-update`.
+`existing_codes` list it's given, never a persisted registry.
+`code-update` seeds the next available number with every OLD code at that
+level, retained or retired, so a code is never reissued within or across
+consecutive releases; a code retired two or more releases back isn't
+tracked (see `docs/adr/0126`). With an empty delimiter, `parse_code()`
+splits a code by `root_code` and each level's width instead, so
+`next_available_integer()` accepts only a tail of exactly that width.
 
 ## Overflow: width grows, it never repads
 

@@ -19,7 +19,10 @@ title: "code-update"
 - `code-update` MUST raise `ValueError` ("no existing code column to
   overwrite") if either side resolves a level with no code column at all
   (e.g. a trailing finest level with only a name column, see
-  `docs/adr/0106`), rather than silently skipping that level.
+  `docs/adr/0106`), rather than silently skipping that level. With
+  explicit templates, a level-0 code column MUST be left untouched, and a
+  NEW level with a name column but no code column MUST get one seeded from
+  its names.
 - `code-update` MUST raise `ValueError` in structural mode on either side
   ("group units like a level") if detection sets any column aside as a
   supplemental coarser grouping, and ("a coarser level merged into this
@@ -38,6 +41,13 @@ title: "code-update"
   detection. An explicit `min_width` MAY be one width, a comma list with
   exactly one width per level (coarsest first), or `auto`, as in
   `code-create`; a detected one is per level when OLD's levels differ.
+- When OLD's finest codes contain no non-alphanumeric character, or
+  `delimiter=''` is given, `code-update` MUST detect the format from OLD's
+  per-level code columns instead (`detect_undelimited_format()`):
+  `root_code` as level 1's shared leading non-digit run, and one width per
+  level from the length each level adds to its parent's code, raising
+  `ValueError` on a missing root or mixed widths. `min_width='auto'` with
+  an empty delimiter MUST raise `ValueError`.
 
 ## Dissolve
 
@@ -81,18 +91,21 @@ parent codes:
 | `relationship_class` | outcome |
 |---|---|
 | `unchanged`, `renamed` | code retained: `rewrite_child_code()` reattaches the OLD code's own tail onto the unit's (possibly new) parent prefix |
-| `modified`, `relocated` | new code assigned under the re-derived parent; `predecessor_code` is the one linked OLD code |
+| `modified` | without a delimiter, code retained as for `unchanged`; with one, as for `relocated` |
+| `relocated` | new code assigned under the re-derived parent; `predecessor_code` is the one linked OLD code |
 | `created` | new code assigned; `predecessor_code` is `NULL` |
 | `split` (1 OLD to N NEW) | each NEW unit gets its own new code; all share one `predecessor_code`, the one OLD code |
 | `merge` (N OLD to 1 NEW) | the one NEW unit gets one new code; `predecessor_code` is `NULL` on that geometry row (a scalar can't hold N predecessors; full lineage lives in the changelog, see Outputs) |
 | `complex` (N OLD to M NEW) | each NEW unit gets its own new code, one shared next-available scope per level; `predecessor_code` is `NULL` on every geometry row, same reasoning as `merge` |
-| `removed` | no NEW-side output row; the OLD code is excluded from output and from this run's own next-available computation |
+| `removed` | no NEW-side output row; the OLD code is excluded from output, and no new code reuses it |
 
-- A parent's next available integer MUST be derived only from codes
-  currently retained (`unchanged`/`renamed`) this same run, at this same
-  level, never a persisted registry. A code retired this run MAY be
-  immediately reused by an unrelated new/split/merge/created unit at the
-  same level in the same run (see `docs/adr/0102`).
+- A new code MUST be numbered above every code its parent had at that
+  level in OLD, retired codes included, so no OLD code is ever issued to a
+  different unit (see `docs/adr/0126`).
+- A `modified` unit MUST keep its code (outcome `retained`, reason
+  `geometry modified, code retained (lenient: codes without a delimiter)`)
+  when the format has no delimiter, and MUST get a new code when it has
+  one.
 - `match_method` MUST be that one pair's own `change`-assigned value
   (`"spatial"` or `"identity"`) for a cluster spanning exactly one old/new
   pair; for a cluster spanning multiple linked pairs (`merge`, `complex`,

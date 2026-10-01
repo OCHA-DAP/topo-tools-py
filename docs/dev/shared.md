@@ -355,9 +355,10 @@ its supporting functions:
   empty delimiter, the overflow MUST raise `ValueError` instead.
 - `next_available_integer()` MUST derive a parent's next unused integer
   only from a given list of currently-live codes, never a persisted
-  registry; a code no longer in that list (retired, or never included) MAY
-  be immediately reused for an unrelated unit at the same parent (see
-  `docs/adr/0102`).
+  registry. `code-update` MUST pass every OLD code at that level, retained
+  or retired, so a code is never reissued within or across consecutive
+  releases; a code retired two or more releases back isn't tracked (see
+  `docs/adr/0126`).
 - `detect_code_format()` MUST infer `delimiter` as the single
   non-alphanumeric character common to every sampled code, `root_code` as
   the shared first delimiter-split component, and `min_width` as the

@@ -29,6 +29,63 @@ def detect_code_format(
     return CodeFormat(root_code=root_code, delimiter=delimiter, min_width=min_width)
 
 
+def has_delimiter(conn: DuckDBPyConnection, table: str, code_column: str) -> bool:
+    """Return whether any sampled code in code_column has a non-alphanumeric char."""
+    return (
+        conn.execute(f"""--sql
+        SELECT bool_or(regexp_matches("{code_column}"::VARCHAR, '[^A-Za-z0-9]'))
+        FROM (
+            SELECT DISTINCT "{code_column}" FROM "{table}"
+            WHERE "{code_column}" IS NOT NULL LIMIT {_SAMPLE_LIMIT}
+        )
+    """).fetchone()[0]
+        is True
+    )
+
+
+def detect_undelimited_format(
+    conn: DuckDBPyConnection, table: str, level_columns: dict[int, str]
+) -> CodeFormat:
+    """Infer root and per-level widths from one code column per level, no delimiter."""
+    levels = sorted(level_columns)
+    roots = {
+        r[0]
+        for r in conn.execute(f"""--sql
+            SELECT DISTINCT regexp_extract("{level_columns[levels[0]]}"::VARCHAR,
+                                           '^[^0-9]*')
+            FROM "{table}" WHERE "{level_columns[levels[0]]}" IS NOT NULL
+        """).fetchall()
+    }
+    if len(roots) != 1 or not next(iter(roots)):
+        msg = (
+            f"{level_columns[levels[0]]!r} does not share one non-numeric root "
+            f"(found {sorted(roots)}); pass --root-code explicitly"
+        )
+        raise ValueError(msg)
+    root_code = next(iter(roots))
+    widths = []
+    parent_sql = str(len(root_code))
+    for n in levels:
+        column = level_columns[n]
+        found = [
+            r[0]
+            for r in conn.execute(f"""--sql
+                SELECT DISTINCT length("{column}"::VARCHAR) - {parent_sql}
+                FROM "{table}" WHERE "{column}" IS NOT NULL
+            """).fetchall()
+        ]
+        if len(found) != 1 or found[0] < 1:
+            msg = (
+                f"level {n} ({column!r}) codes add {sorted(found)} characters to "
+                "their parent's; without a delimiter each level needs one width"
+            )
+            raise ValueError(msg)
+        widths.append(found[0])
+        parent_sql = f'length("{column}"::VARCHAR)'
+    min_width = widths[0] if len(set(widths)) == 1 else tuple(widths)
+    return CodeFormat(root_code=root_code, delimiter="", min_width=min_width)
+
+
 def _detect_delimiter(codes: list[str], code_column: str) -> str:
     """Find the single non-alphanumeric character common to every sampled code."""
     candidates: set[str] | None = None
