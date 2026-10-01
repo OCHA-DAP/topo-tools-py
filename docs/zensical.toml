@@ -117,6 +117,7 @@ generator = false
 draft = "Draft, not yet reviewed"
 
 [project.theme]
+custom_dir = "overrides"
 language = "en"
 favicon = "assets/images/icon.png"
 logo = "assets/images/icon.png"

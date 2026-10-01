@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{# Show the site name once when a page's title is the site name itself #}
+{% block htmltitle %}
+  {% set title = page.meta.title if page.meta and page.meta.title else page.title | striptags %}
+  {% if title and title != config.site_name %}
+    <title>{{ title }} - {{ config.site_name }}</title>
+  {% else %}
+    <title>{{ config.site_name }}</title>
+  {% endif %}
+{% endblock %}
