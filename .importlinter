@@ -296,16 +296,16 @@ type = forbidden
 source_modules =
     topo_tools.core.code
 forbidden_modules =
-    topo_tools.core.code_refactor
+    topo_tools.core.code_create
     topo_tools.core.code_update
 
-[importlinter:contract:code_refactor-and-code_update-may-use-schema_map-not-reverse]
-name = code_refactor/code_update may depend on schema_map; schema_map must not depend on either
+[importlinter:contract:code_create-and-code_update-may-use-schema_map-not-reverse]
+name = code_create/code_update may depend on schema_map; schema_map must not depend on either
 type = forbidden
 source_modules =
     topo_tools.core.schema_map
 forbidden_modules =
-    topo_tools.core.code_refactor
+    topo_tools.core.code_create
     topo_tools.core.code_update
 
 [importlinter:contract:code_update-may-use-dissolve-not-reverse]
@@ -362,7 +362,7 @@ source_modules =
 forbidden_modules =
     topo_tools.core.assign
     topo_tools.core.change
-    topo_tools.core.code_refactor
+    topo_tools.core.code_create
     topo_tools.core.code_update
     topo_tools.core.code
     topo_tools.core.dissolve

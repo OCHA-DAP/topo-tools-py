@@ -6,7 +6,7 @@ from pathlib import Path
 import duckdb
 import pytest
 
-from topo_tools.api.code_refactor import code_refactor
+from topo_tools.api.code_create import code_create
 from topo_tools.api.edge_match import match
 from topo_tools.api.package import package
 from topo_tools.api.package_polygons import package_polygons
@@ -52,7 +52,7 @@ def pipeline(tmp_path):
     clean(mapped_path, topo_path, issues_path, maximum_gap_width="all")
 
     coded_path = tmp_path / "district_coded.parquet"
-    code_refactor(topo_path, coded_path, root_code="TT", delimiter=".", min_width=2)
+    code_create(topo_path, coded_path, root_code="TT", delimiter=".", min_width=2)
 
     return tmp_path, coded_path
 
@@ -89,7 +89,7 @@ def test_topo_clean_fixes_one_gap_and_one_overlap(pipeline):
     assert all(r[0] for r in _rows(issues_path, "fixed"))
 
 
-def test_code_refactor_assigns_nested_codes(pipeline):
+def test_code_create_assigns_nested_codes(pipeline):
     _, coded_path = pipeline
     rows = dict(_rows(coded_path, "adm2_name, adm2_code"))
     assert rows["Riverside"] == "TT.02.04"

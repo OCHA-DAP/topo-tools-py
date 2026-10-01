@@ -18,7 +18,7 @@ from topo_tools.api import schema_join as _schema_join
 from topo_tools.api import schema_map as _schema_map
 from topo_tools.api import topo_clean as _topo_clean
 from topo_tools.api import topo_detect as _topo_detect
-from topo_tools.api.code_refactor import code_refactor as _code_refactor
+from topo_tools.api.code_create import code_create as _code_create
 from topo_tools.api.code_update import code_update as _code_update
 from topo_tools.api.package_lines import package_lines as _package_lines
 from topo_tools.api.package_points import package_points as _package_points
@@ -1015,7 +1015,7 @@ def change(  # noqa: PLR0913, PLR0917
         raise click.ClickException(str(e)) from e
 
 
-@cli.command(name="code-refactor")
+@cli.command(name="code-create")
 @click.argument("input_file", envvar="INPUT_FILE")
 @click.argument("output_file", envvar="OUTPUT_FILE", required=False, default=None)
 @click.argument("issues_file", envvar="ISSUES_FILE", required=False, default=None)
@@ -1086,7 +1086,7 @@ def change(  # noqa: PLR0913, PLR0917
     default=None,
     help="Run only one named stage.",
 )
-def code_refactor(  # noqa: PLR0913, PLR0917
+def code_create(  # noqa: PLR0913, PLR0917
     input_file: str,
     output_file: str | None,
     issues_file: str | None,
@@ -1112,23 +1112,23 @@ def code_refactor(  # noqa: PLR0913, PLR0917
     \b
     Examples:
       # Default naming, levels auto-detected structurally
-      topo-tools code-refactor admin2.geojson --root-code AFG --delimiter . \\
+      topo-tools code-create admin2.geojson --root-code AFG --delimiter . \\
         --min-width 3
 
     \b
       # Explicit code/name columns, when auto-detection is ambiguous
-      topo-tools code-refactor admin2.geojson --root-code AFG --delimiter . \\
+      topo-tools code-create admin2.geojson --root-code AFG --delimiter . \\
         --min-width 3 --code-field adm{n}_code --name-field adm{n}_name
 
     \b
       # Source codes kept inside the code, no delimiter (AF01, AF0101, ...)
-      topo-tools code-refactor admin2.geojson --root-code AF --delimiter '' \\
+      topo-tools code-create admin2.geojson --root-code AF --delimiter '' \\
         --min-width 2 --source-codes embed --code-field adm{n}_code \\
         --name-field adm{n}_name
     """
     logger.info("--debug=%s", debug)
     try:
-        _code_refactor(
+        _code_create(
             input_file,
             Path(output_file) if output_file is not None else None,
             Path(issues_file) if issues_file is not None else None,

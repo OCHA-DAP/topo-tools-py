@@ -11,7 +11,7 @@ governing which tool may depend on which are in `docs/dev/shared.md`).
 Tools are named `{group}-{verb}`: **edge** (boundary-fitting between layers),
 **topo** (single-layer topology defects), **schema** (column crosswalking),
 and **package** (cartographic derivatives for web maps); `change` and bare
-`package` stand alone for now, as do `code-refactor` and `code-update`. Four
+`package` stand alone for now, as do `code-create` and `code-update`. Four
 are primitives, each standalone AND reused internally by the composite tools
 below them:
 
@@ -30,7 +30,7 @@ below them:
 - **schema-map**: maps a source-column → target-schema crosswalk by inferring the admin hierarchy structurally (cardinality/containment, never column names) and classifying code vs. name by value shape, deterministically, no LLM, then renames/drops columns per it into a `_mapped` copy, writing the crosswalk CSV beside it. `--csv` applies a hand-edited crosswalk instead (columns in its row order), `--map-only` writes only the crosswalk (see `docs/adr/0116`). See `docs/pages/1-schema/explanation/schema_map.md`.
 - **schema-fill**: stamps a new `adm_lvl` column (overridable via `--depth-column`) with each row's real depth, then cascades each admin-hierarchy column down to that depth, pinned per row so a genuine NULL at a row's own real depth is never backfilled from a shallower ancestor; levels derived structurally by default, or via an explicit `--name-field`/`--code-field` pair; run against an already-clipped/stitched layer, then `package-polygons` to dissolve every level normally. See `docs/pages/1-schema/explanation/schema_fill.md`.
 - **schema-join**: copies a join layer's admin-hierarchy columns onto each input feature it overlaps most (`core.assign`'s `assign_many`, per-feature plurality), never touching geometry; a shared column that differs is kept on the input feature with the join feature's values added as the next free numbered sibling (`adm2_name1`), never raised on or overwritten (see `docs/adr/0109`); writes `no-overlap`/`low-overlap`/`value-mismatch` issue rows. See `docs/pages/1-schema/explanation/schema_join.md`.
-- **code-refactor**: cold-starts a hierarchical code on a flat, finest-level input, levels resolved structurally by default (or via an explicit `--name-field`/`--code-field` pair), each level's units ranked under their parent and assigned a fresh sequential code in a configurable `--root-code`/`--delimiter`/`--min-width` format (`--min-width` one width, one per level, or `auto`, see `docs/adr/0123`; `core.code`, a shared leaf), with `--source-codes replace|embed|copy` discarding, embedding, or copying each level's existing source code (see `docs/adr/0122`). See `docs/pages/4-codes/explanation/code_refactor.md`, `docs/pages/4-codes/explanation/code.md`.
+- **code-create**: cold-starts a hierarchical code on a flat, finest-level input, levels resolved structurally by default (or via an explicit `--name-field`/`--code-field` pair), each level's units ranked under their parent and assigned a fresh sequential code in a configurable `--root-code`/`--delimiter`/`--min-width` format (`--min-width` one width, one per level, or `auto`, see `docs/adr/0123`; `core.code`, a shared leaf), with `--source-codes replace|embed|copy` discarding, embedding, or copying each level's existing source code (see `docs/adr/0122`). See `docs/pages/4-codes/explanation/code_create.md`, `docs/pages/4-codes/explanation/code.md`.
 - **code-update**: reconciles an already-coded OLD layer against an uncoded NEW candidate, classifying every unit via `core.change`'s own engine and applying a changelog-driven retention policy (retain/replace/retire) per unit, cascading a changed parent's new code prefix down to every unchanged/renamed descendant. Format (`root_code`/`delimiter`/`min_width`, the width per level) auto-detects off OLD's own existing codes unless overridden. See `docs/pages/4-codes/explanation/code_update.md`, `docs/pages/4-codes/explanation/code.md`.
 
 ## Deployment Targets
@@ -53,7 +53,7 @@ are the one exception, see `docs/pages/3-edge/explanation/edge_match.md`). Three
 each with a specific job (mirroring `geoparquet-io`'s `core`/`api`/`cli`
 split):
 
-- `topo_tools/core/{edge_extend,assign,edge_clip,edge_stitch,topo_detect,dissolve,schema_fill,schema_join,package_polygons,package_points,package_lines,edge_match,edge_mosaic,topo_clean,change,code_refactor,code_update}/`:
+- `topo_tools/core/{edge_extend,assign,edge_clip,edge_stitch,topo_detect,dissolve,schema_fill,schema_join,package_polygons,package_points,package_lines,edge_match,edge_mosaic,topo_clean,change,code_create,code_update}/`:
   stage implementations. `core.edge_match`/`core.edge_mosaic` call
   `core.edge_clip`/`core.edge_stitch` stage functions directly (not through
   their own `api.*()`), the same pattern `core.edge_match` uses to call
@@ -75,14 +75,14 @@ split):
   but MAY be imported by `core.schema_fill`, `core.schema_join`,
   `core.dissolve`, `core.package_polygons`, `core.package_points`,
   `core.package_lines`,
-  `core.code_refactor`, and `core.code_update` specifically (the
+  `core.code_create`, and `core.code_update` specifically (the
   `name_field`/`code_field`/level-detection mechanism,
   `core/schema_map/_levels.py`, `core/schema_map/_level_columns.py`), never
   the reverse (see `docs/adr/0075`,
   `docs/adr/0092`); `schema-fill` does not call `core.dissolve` itself, a
   caller runs `package-polygons` separately after filling (see
   `docs/pages/1-schema/explanation/schema_fill.md`).
-- `topo_tools/api/{edge_extend,edge_clip,edge_stitch,topo_detect,schema_map,schema_fill,schema_join,package_polygons,package_points,package_lines,package,edge_match,edge_mosaic,topo_clean,change,code_refactor,code_update}.py`:
+- `topo_tools/api/{edge_extend,edge_clip,edge_stitch,topo_detect,schema_map,schema_fill,schema_join,package_polygons,package_points,package_lines,package,edge_match,edge_mosaic,topo_clean,change,code_create,code_update}.py`:
   public API functions; each chains its own tool's stages for exactly one
   file (or file pair) per call, except `edge-mosaic`'s and `edge-match`'s
   input roles, which MAY span multiple files (see
@@ -210,8 +210,8 @@ uv run topo-tools change old.geojson new.geojson
 uv run topo-tools schema-map example.geojson
 uv run topo-tools schema-map example.geojson --csv example_crosswalk.csv
 
-# Run the code-refactor tool (cold-start a hierarchical code, ranked per parent)
-uv run topo-tools code-refactor admin2.geojson --root-code AFG --delimiter . --min-width 3
+# Run the code-create tool (cold-start a hierarchical code, ranked per parent)
+uv run topo-tools code-create admin2.geojson --root-code AFG --delimiter . --min-width 3
 
 # Run the code-update tool (reconcile an already-coded OLD layer against an uncoded NEW candidate)
 uv run topo-tools code-update admin1_old.geojson admin1_new.geojson

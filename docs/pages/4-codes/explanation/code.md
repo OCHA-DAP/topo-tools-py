@@ -3,8 +3,8 @@ status: draft
 title: "code"
 ---
 
-`core.code` is the shared primitive behind `code-refactor` and
-`code-update` (`docs/pages/4-codes/explanation/code_refactor.md`,
+`core.code` is the shared primitive behind `code-create` and
+`code-update` (`docs/pages/4-codes/explanation/code_create.md`,
 `docs/pages/4-codes/explanation/code_update.md`): a neutral leaf, like `core.assign` or
 `core.dissolve`, with no `api.*()`/CLI of its own. It carries every piece
 of format/cascade/rewrite logic a hierarchical code needs, generic to any
@@ -65,7 +65,7 @@ own. Under `auto`, `width` is the widest tail at that level, retained
 codes included, so every new code at the level shares one length. A
 parent's 1000th child (at width 3, capacity `10**3 - 1 = 999`) gets a
 4-digit tail; every child ranked below it keeps its own already-assigned
-3-digit code untouched, no whole-parent repad. `code-refactor` and
+3-digit code untouched, no whole-parent repad. `code-create` and
 `code-update` each independently detect and report this condition in
 their own outputs stage (own issues report / changelog `overflow`
 outcome, see their own explanation docs), `core.code` itself has no

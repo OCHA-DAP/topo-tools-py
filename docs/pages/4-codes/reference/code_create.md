@@ -1,27 +1,27 @@
 ---
 status: draft
-title: "code-refactor"
+title: "code-create"
 ---
 
 ## Inputs
 
-- `code-refactor` MUST read the one input and reproject it to EPSG:4326 via
+- `code-create` MUST read the one input and reproject it to EPSG:4326 via
   `core.io.read_and_reproject()`. It takes exactly one flat input at the
   finest level, hierarchy embedded as columns (the same shape
   `schema-fill`/`package-polygons` expect).
 
 ## Level resolution
 
-- `code-refactor` MUST resolve each level's own code column either via an
+- `code-create` MUST resolve each level's own code column either via an
   explicit `name_field`/`code_field` pair (each an `{n}`-template, given
   together or not at all, raising `ValueError` if only one is given, the
   same contract `schema-map`/`package-polygons` use), or, when both are
   omitted, via structural auto-detection
   (`core.schema_map.detect_level_columns_or_single()`, cardinality/
   containment only, no naming convention assumed).
-- `code-refactor` MUST raise `ValueError` ("no admin hierarchy level
+- `code-create` MUST raise `ValueError` ("no admin hierarchy level
   detected") if structural auto-detection finds zero levels.
-- In structural mode, `code-refactor` MUST raise `ValueError` ("no existing
+- In structural mode, `code-create` MUST raise `ValueError` ("no existing
   code column to overwrite") if any resolved level has no code column at all
   (e.g. a trailing finest level with only a name column, see
   `docs/adr/0106`), rather than silently skipping that level or overwriting
@@ -29,7 +29,7 @@ title: "code-refactor"
 - With an explicit `name_field`/`code_field` pair, a level with a name
   column but no code column MUST get a code column seeded from its names; a
   level with neither MUST raise `ValueError`.
-- `code-refactor` MUST raise `ValueError` in structural mode ("group units like a
+- `code-create` MUST raise `ValueError` in structural mode ("group units like a
   level") if detection sets any column aside as a supplemental coarser
   grouping, and ("a coarser level merged into this one") if any member of
   a level's group-by has over 30% fewer values than its code under each
@@ -40,7 +40,7 @@ title: "code-refactor"
   single-country file's own admin0 code) is dropped before reaching this
   step and never becomes a level.
 - A source column that never resolves into a level (including a constant
-  admin0-shaped one) MUST be left completely untouched: `code-refactor`
+  admin0-shaped one) MUST be left completely untouched: `code-create`
   never stamps `root_code` into its own output column, it's used only as
   the literal parent for level 1's own assignment.
 
@@ -48,7 +48,7 @@ title: "code-refactor"
 
 - `source_codes` MUST be one of `replace` (default), `embed`, `copy`.
 - Under `replace` and `copy`, for each resolved level `1..N`, ascending,
-  `code-refactor` MUST rank that level's own distinct code-column values
+  `code-create` MUST rank that level's own distinct code-column values
   under their immediately-coarser level's already-assigned code (or
   `root_code`, for level 1), sorted by their own raw, pre-assignment value,
   and overwrite the column in place with a freshly assigned, sequential,
@@ -79,11 +79,11 @@ title: "code-refactor"
 
 ## Outputs
 
-- `code-refactor` MUST export the finest-level table, every resolved
+- `code-create` MUST export the finest-level table, every resolved
   level's code column overwritten in place, as the main output, same
   format as the input. It performs no topology hard gate: geometry is
   never modified, only attribute columns are rewritten.
-- `code-refactor` MAY write an issues report when `issues_path` is given
+- `code-create` MAY write an issues report when `issues_path` is given
   and a numbered level (any level with a fixed width, except a
   source-coded one under `embed`) has a parent over overflow capacity; it MUST delete any
   stale file already at that path when the run produces zero overflow
@@ -91,9 +91,9 @@ title: "code-refactor"
   `assigned_code` (the overflowing parent's highest code), `child_count`,
   `min_width` (that level's width), `reason`.
 
-## Configuration (`api.code_refactor.code_refactor()` / CLI)
+## Configuration (`api.code_create.code_create()` / CLI)
 
-- `code-refactor` MUST process exactly one input file per call.
+- `code-create` MUST process exactly one input file per call.
 - `root_code`, `delimiter`, and `min_width` MUST all be given explicitly
   (no default), validated via `core.code.resolve_code_format()`:
   `root_code` non-empty, `delimiter` exactly one character, or empty under
@@ -108,7 +108,7 @@ title: "code-refactor"
   `_issues` stem suffix and a `.csv` extension. It MUST be one of
   `core.code.TABLE_COPY_OPTS`'s extensions (a tabular format; the issues
   report has no geometry column), raising `ValueError` otherwise.
-- `code-refactor` MUST raise `FileExistsError` for `output_path` or
+- `code-create` MUST raise `FileExistsError` for `output_path` or
   `issues_path` if either already exists and overwriting wasn't requested.
 - `step`, if given, MUST be one of `inputs`, `levels`, `assign`, `outputs`;
   any other value MUST raise `ValueError`.
@@ -117,11 +117,11 @@ title: "code-refactor"
 
 ### Example 1: structural auto-detection, no code column exists yet
 
-    topo-tools code-refactor admin2.geojson --root-code AFG --delimiter . --min-width 3
+    topo-tools code-create admin2.geojson --root-code AFG --delimiter . --min-width 3
 
 ### Example 2: explicit level columns, ambiguous auto-detection
 
-    topo-tools code-refactor admin2.geojson --root-code AFG --delimiter . --min-width 3 \
+    topo-tools code-create admin2.geojson --root-code AFG --delimiter . --min-width 3 \
       --code-field adm{n}_code --name-field adm{n}_name
 
 ### Example 3: overflow issues report
@@ -129,18 +129,18 @@ title: "code-refactor"
 Writes `admin2_coded.geojson` and, only if any parent exceeds `10 **
 min_width - 1` children, `admin2_coded_issues.csv`:
 
-    topo-tools code-refactor admin2.geojson admin2_coded.geojson --root-code AFG --delimiter . --min-width 3
+    topo-tools code-create admin2.geojson admin2_coded.geojson --root-code AFG --delimiter . --min-width 3
 
 ### Example 4: source codes embedded without a delimiter
 
-    topo-tools code-refactor admin3.geojson --root-code XY --delimiter '' --min-width auto \
+    topo-tools code-create admin3.geojson --root-code XY --delimiter '' --min-width auto \
       --source-codes embed --code-field adm{n}_code --name-field adm{n}_name
 
 ### Example 5: source codes kept in sibling columns
 
-    topo-tools code-refactor admin3.geojson --root-code XYZ --delimiter . --min-width 3 \
+    topo-tools code-create admin3.geojson --root-code XYZ --delimiter . --min-width 3 \
       --source-codes copy --code-field adm{n}_code --name-field adm{n}_name
 
 ### Example 6: one width per level
 
-    topo-tools code-refactor admin3.geojson --root-code XYZ --delimiter . --min-width 2,3,4
+    topo-tools code-create admin3.geojson --root-code XYZ --delimiter . --min-width 2,3,4
