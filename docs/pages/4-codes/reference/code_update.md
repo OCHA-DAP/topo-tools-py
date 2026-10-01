@@ -35,7 +35,9 @@ title: "code-update"
   finest-level code column, whenever any of the three is omitted; each
   field independently falls back to the detected value only when that
   field itself is `None`, an explicitly given field is never overridden by
-  detection.
+  detection. An explicit `min_width` MAY be one width, a comma list with
+  exactly one width per level (coarsest first), or `auto`, as in
+  `code-refactor`; a detected one is per level when OLD's levels differ.
 
 ## Dissolve
 
@@ -98,8 +100,8 @@ parent codes:
   MUST be collapsed into one value, joined with `"+"` when genuinely
   mixed.
 - A `'new'`-outcome row's `code_outcome` MUST be overwritten to
-  `'overflow'` (reusing `code-refactor`'s own `10 ** min_width - 1`
-  capacity rule) when its parent's total
+  `'overflow'` (reusing `code-refactor`'s own `10 ** width - 1` capacity
+  rule, never under `auto`) when its parent's total
   retained-plus-new child count at that level exceeds capacity; `reason`
   MUST be overwritten to state the overflow.
 

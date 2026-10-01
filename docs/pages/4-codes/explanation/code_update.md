@@ -29,7 +29,8 @@ would otherwise silently misalign levels by depth.
 `core.code.detect_code_format()` runs against OLD's own resolved
 **finest** level, never level 0: a root-only value like `AFG` has no
 delimiter occurrence to infer anything from, while the finest level gives
-the richest sample for both delimiter/root detection and the width mode.
+the richest sample for both delimiter/root detection and each level's width
+mode.
 Each of `root_code`/`delimiter`/`min_width` falls back to the detected
 value independently, only when that field itself wasn't explicitly given;
 an explicit value is never overridden by detection, even if detection

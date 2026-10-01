@@ -15,11 +15,15 @@ def level_prefix(schema: TargetSchema) -> str:
 
 
 def detect_levels(
-    conn: DuckDBPyConnection, table: str, schema: TargetSchema
+    conn: DuckDBPyConnection,
+    table: str,
+    schema: TargetSchema,
+    *,
+    require_codes: bool = True,
 ) -> list[int]:
     """Return level 1..N present in table, plus level 0 if its own code column exists.
 
-    Raises ValueError if a level in 1..N lacks its own code column, or none is found.
+    Raises ValueError if a level in 1..N lacks its code (or name, if not require_codes).
     """
     columns = {row[0] for row in conn.execute(f'DESCRIBE "{table}"').fetchall()}
     prefix = level_prefix(schema)
@@ -35,6 +39,7 @@ def detect_levels(
         n
         for n in range(1, max_level + 1)
         if schema.code_field.format(n=n) not in columns
+        and (require_codes or schema.name_field.format(n=n) not in columns)
     ]
     if missing:
         cols = [schema.code_field.format(n=n) for n in missing]

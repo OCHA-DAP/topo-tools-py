@@ -20,6 +20,7 @@ def assign_new_codes(  # noqa: PLR0913
     sort_columns: list[str],
     code_column: str,
     fmt: CodeFormat,
+    level: int,
     existing_codes: list[str] | None = None,
 ) -> None:
     """Assign each row in table a new sequential code within its own parent group."""
@@ -45,6 +46,16 @@ def assign_new_codes(  # noqa: PLR0913
         f'INSERT INTO "{base_table}" VALUES (?, ?)', list(base_by_parent.items())
     )
 
+    width = fmt.width(level)
+    if width is None:
+        # auto: pad every tail at this level to the widest one, retained included.
+        existing_width = max(
+            (len(c.rsplit(fmt.delimiter, 1)[-1]) for c in existing_codes), default=1
+        )
+        width_sql = f"GREATEST({existing_width}, MAX(LENGTH(tail)) OVER ())"
+    else:
+        width_sql = str(width)
+
     order_sql = ", ".join(f'"{c}" NULLS LAST' for c in sort_columns)
     ranked_table = f"{table}_code_ranked"
     # lpad truncates a too-long string (unlike Python's zfill); widen the
@@ -66,7 +77,7 @@ def assign_new_codes(  # noqa: PLR0913
         SELECT
             id_value,
             parent_code || {_sql_literal(fmt.delimiter)} ||
-            lpad(tail, CAST(GREATEST({fmt.min_width}, LENGTH(tail)) AS INTEGER), '0')
+            lpad(tail, CAST(GREATEST({width_sql}, LENGTH(tail)) AS INTEGER), '0')
             AS new_code
         FROM numbered
     """)

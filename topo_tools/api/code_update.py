@@ -118,7 +118,7 @@ def code_update(  # noqa: C901, PLR0913, PLR0915
     *,
     root_code: str | None = None,
     delimiter: str | None = None,
-    min_width: int | None = None,
+    min_width: int | str | None = None,
     name_field_a: str | None = None,
     code_field_a: str | None = None,
     name_field_b: str | None = None,

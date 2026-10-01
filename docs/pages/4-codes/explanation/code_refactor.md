@@ -55,12 +55,15 @@ parent code to already exist, so level 2 can't be assigned until level
 no way to parallelize or reorder the levels the way `package-polygons`'s
 independent dissolves can.
 
-Every source value is re-ranked into a fresh integer before formatting,
-never passed through as-is (see `docs/adr/0104`): a raw hierarchy column
-(a GADM `GID_1` like `AFG.1_1`, or a plain integer with gaps) is rarely
-clean enough to zero-pad directly, and even when it happens to look
-clean, nothing guarantees it's unique or gap-free across every sibling
-group in the file.
+Under `replace` and `copy`, every source value is re-ranked into a fresh
+integer before formatting, never passed through as-is (see
+`docs/adr/0104`): a raw hierarchy column (a GADM `GID_1` like `AFG.1_1`,
+or a plain integer with gaps) is rarely clean enough to zero-pad
+directly, and even when it happens to look clean, nothing guarantees it's
+unique or gap-free across every sibling group in the file. Under `embed`,
+a source-coded level's values pass through unchanged instead (see
+`docs/adr/0122`), checked for missing values and, without a delimiter,
+for a single length.
 
 ## `_04_outputs`: export plus overflow reporting
 
@@ -68,13 +71,14 @@ The finest-level table, every resolved level's code column now
 overwritten in place, is exported as the main output via
 `export_geometry_table()`, same format as the input.
 
-`_write_overflow_issues()` groups distinct assigned codes per level by
-their own parent prefix, flags any group whose count exceeds `10 **
-min_width - 1`, and reports the parent's own highest-tail-integer
-assigned code alongside the count. A run with zero overflow rows deletes
-any stale issues file already sitting at `issues_path`
-(`.unlink(missing_ok=True)`), so a re-run after fixing an overflowing
-input doesn't leave a misleading old report behind.
+`_write_overflow_issues()` groups distinct assigned codes per level by their
+parent level's assigned code, skipping a source-coded level under `embed`
+and any level under `auto`, flags any group whose count exceeds
+`10 ** width - 1` for that level's width, and reports the
+parent's highest assigned code alongside the count. A run with zero overflow
+rows deletes any stale issues file already sitting at `issues_path`
+(`.unlink(missing_ok=True)`), so a re-run after fixing an overflowing input
+doesn't leave a misleading old report behind.
 
 ## Table naming
 

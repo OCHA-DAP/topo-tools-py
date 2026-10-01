@@ -4,7 +4,11 @@ from dataclasses import dataclass
 
 from duckdb import DuckDBPyConnection
 
-from topo_tools.core.code import CodeFormat, detect_code_format
+from topo_tools.core.code import (
+    CodeFormat,
+    detect_code_format,
+    parse_min_width,
+)
 from topo_tools.core.schema_map._level_columns import (
     LevelColumns,
     detect_level_columns_or_single,
@@ -95,7 +99,7 @@ def main(  # noqa: PLR0913
     code_field_b: str | None,
     root_code: str | None,
     delimiter: str | None,
-    min_width: int | None,
+    min_width: int | str | None,
 ) -> tuple[SideLevels, SideLevels, CodeFormat]:
     """Resolve OLD/NEW per-level columns; detect (or accept an override for) fmt."""
     side_a = _resolve_side(conn, old_table, name_field_a, code_field_a)
@@ -115,6 +119,9 @@ def main(  # noqa: PLR0913
     fmt = CodeFormat(
         root_code=root_code if root_code is not None else detected.root_code,
         delimiter=delimiter if delimiter is not None else detected.delimiter,
-        min_width=min_width if min_width is not None else detected.min_width,
+        min_width=(
+            parse_min_width(min_width) if min_width is not None else detected.min_width
+        ),
     )
+    fmt.check_level_count(len(side_a.columns))
     return side_a, side_b, fmt

@@ -3,11 +3,12 @@
 from logging import getLogger
 from pathlib import Path
 
-from topo_tools.core.code import TABLE_COPY_OPTS, resolve_code_format
+from topo_tools.core.code import TABLE_COPY_OPTS, CodeFormat, resolve_code_format
 from topo_tools.core.code_refactor import _01_inputs as inputs
 from topo_tools.core.code_refactor import _02_levels as levels_stage
 from topo_tools.core.code_refactor import _03_assign as assign_stage
 from topo_tools.core.code_refactor import _04_outputs as outputs
+from topo_tools.core.code_refactor._constants import SOURCE_CODES
 from topo_tools.core.duckdb_utils import (
     maybe_export_debug_tables,
     pipeline_connection,
@@ -32,6 +33,20 @@ _STEP_TABLES = {
 }
 
 
+def _resolve_format(
+    root_code: str, delimiter: str, min_width: int | str, source_codes: str
+) -> CodeFormat:
+    if source_codes not in SOURCE_CODES:
+        msg = f"source_codes must be one of {SOURCE_CODES}, got {source_codes!r}"
+        raise ValueError(msg)
+    return resolve_code_format(
+        root_code,
+        delimiter,
+        min_width,
+        allow_empty_delimiter=source_codes == "embed",
+    )
+
+
 def code_refactor(  # noqa: PLR0913
     input_path: str | Path,
     output_path: str | Path | None = None,
@@ -39,7 +54,8 @@ def code_refactor(  # noqa: PLR0913
     *,
     root_code: str,
     delimiter: str,
-    min_width: int,
+    min_width: int | str,
+    source_codes: str = "replace",
     name_field: str | None = None,
     code_field: str | None = None,
     threads: int | None = None,
@@ -50,13 +66,14 @@ def code_refactor(  # noqa: PLR0913
 ) -> None:
     """Cold-start a hierarchical code on one input file, ranked per parent.
 
-    Omitting name_field/code_field triggers structural auto-detection.
+    Omitting name_field/code_field triggers structural auto-detection; source_codes
+    replaces, embeds, or copies each level's existing code.
     """
     if step is not None and step not in _STEP_ORDER:
         msg = f"step must be one of {_STEP_ORDER}, got {step!r}"
         raise ValueError(msg)
 
-    fmt = resolve_code_format(root_code, delimiter, min_width)
+    fmt = _resolve_format(root_code, delimiter, min_width, source_codes)
     input_path = resolve_input_path(input_path)
     output_path = (
         Path(output_path)
@@ -88,7 +105,7 @@ def code_refactor(  # noqa: PLR0913
         ) as conn,
     ):
         logger.info("starting: %s", name)
-        levels: dict[int, str] = {}
+        levels: dict[int, levels_stage.Level] = {}
         for s in _STEP_ORDER:
             if step and step != s:
                 continue
@@ -102,7 +119,13 @@ def code_refactor(  # noqa: PLR0913
                 levels = levels or levels_stage.main(
                     conn, f"{name}_01", name_field, code_field
                 )
-                assign_stage.main(conn, f"{name}_01", levels=levels, fmt=fmt)
+                assign_stage.main(
+                    conn,
+                    f"{name}_01",
+                    levels=levels,
+                    fmt=fmt,
+                    source_codes=source_codes,
+                )
             elif s == "outputs":
                 levels = levels or levels_stage.main(
                     conn, f"{name}_01", name_field, code_field
@@ -113,6 +136,7 @@ def code_refactor(  # noqa: PLR0913
                     output_path,
                     levels=levels,
                     fmt=fmt,
+                    source_codes=source_codes,
                     issues_dest=issues_path,
                     debug=debug,
                 )
