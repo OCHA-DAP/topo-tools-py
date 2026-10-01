@@ -7,8 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-01
+
+### Added
+
+- `edge-clip`, `edge-match` and `edge-mosaic` merge a small clip-detached
+  piece (under 1% of its source part's main piece) into the same-overlay
+  feature it shares the longest edge with, when the pre-extension original
+  doesn't draw it as part of the unit. `edge-match` checks against its own
+  input; `edge-clip` and `edge-mosaic` take the original via a new
+  `--original` option and, without it, only report such pieces. Every
+  piece, merged or kept, is a `detached-part` row in the issues report.
+
 ### Changed
 
+- COD-AB how-to and skill: stage 3 fits to the previous release's outline,
+  dissolved from its admin1 in source.coop's matched catalog
+  (`hdx/cod-ab/matched`), and stops to ask when there is no previous
+  release. The how-to notes that the cleaning step can shift interior
+  edges.
+- The docs site is named Topology Tools, uses the web app's icon and
+  links to the web app.
 - Docs are grouped by the six COD-AB release phases (schema, topology,
   edge matching, codes, names, packaging), each holding its how-to step,
   tutorial, reference and explanation pages. The shared rules, topology
@@ -672,7 +691,8 @@ Initial release: four tools, CLI + Python API for each.
   unit as unchanged/renamed/modified/relocated/split/merge/complex/created/
   removed, via spatial overlap and optional code/name identity linking.
 
-[Unreleased]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.10.2...HEAD
+[Unreleased]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.10.2...v0.11.0
 [0.10.2]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.10.1...v0.10.2
 [0.10.1]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.9.0...v0.10.0
