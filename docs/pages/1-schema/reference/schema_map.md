@@ -56,7 +56,11 @@ membership either; every candidate column's own values are relationally
 tested against every other candidate column's values, never its name.
 Value shape (`_looks_code_shaped()`, majority of non-null values
 containing a digit) MUST only be consulted as a fallback for the `code`
-vs. `name` role of a chain column once its level is already resolved. See
+vs. `name` role of a chain column once its level is already resolved.
+When a level has no name and two or more code-shaped columns that don't
+embed the parent, the target schema's `name_field`/`code_field` text in a
+column's name MAY break the tie, as long as one code remains (see
+`docs/adr/0121`). See
 `docs/pages/1-schema/explanation/schema_map.md` and `docs/adr/0064`, `docs/adr/0066` for the
 empirical justification.
 

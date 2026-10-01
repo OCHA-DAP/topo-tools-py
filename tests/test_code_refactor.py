@@ -387,3 +387,32 @@ def test_cli_error_on_existing_output(tmp_path):
     )
     assert result.exit_code != 0
     assert "output already exists" in result.output
+
+
+def test_supplemental_grouping_raises(tmp_path):
+    """A name-only level whose names repeat across parents stops structural coding."""
+    units = [
+        ("A", "North", "X", "0101", "101"),
+        ("A", "North", "X", "0102", "102"),
+        ("A", "North", "Y", "0103", "103"),
+        ("A", "North", "Z", "0104", "104"),
+        ("B", "South", "Y", "0201", "201"),
+        ("B", "South", "Z", "0202", "202"),
+        ("B", "South", "W", "0203", "203"),
+        ("B", "South", "W", "0204", "204"),
+    ]
+    rows = [
+        {
+            "adm1_code": a1,
+            "adm1_name": n1,
+            "adm2_name": n2,
+            "adm3_code": c3,
+            "adm3_name": n3,
+            "wkt": f"POLYGON(({i} 0, {i + 1} 0, {i + 1} 1, {i} 1, {i} 0))",
+        }
+        for i, (a1, n1, n2, c3, n3) in enumerate(units)
+    ]
+    input_path = tmp_path / "blocks.parquet"
+    _write_synthetic(input_path, rows)
+    with pytest.raises(ValueError, match=r"\['adm2_name'\] group units like a level"):
+        code_refactor(input_path, root_code="AA", delimiter=".", min_width=3)

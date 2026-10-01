@@ -31,6 +31,7 @@ logger = getLogger(__name__)
 _EXCLUDED_COLUMNS = {"fid", "geom", "source_file"}
 
 _CODE_SHAPE_MAJORITY = 0.5
+_MIN_TIED_CODES = 2
 
 # A same-role bracket winner above this collapse ratio is a coarser
 # grouping (ADR-0065), not a same-level translation variant (ADR-0076).
@@ -764,6 +765,30 @@ def _fully_populated(conn: DuckDBPyConnection, table: str, column: str) -> bool:
     return total == populated
 
 
+def _role_markers(template: str, other: str) -> list[str]:
+    """Literal parts of template's own text that other's template lacks."""
+    other_parts = set(other.split("{n}"))
+    return [p for p in template.split("{n}") if p and p not in other_parts]
+
+
+def _break_shape_tie(
+    roles: dict[str, str], embeds_parent: dict[str, bool], schema: TargetSchema
+) -> None:
+    """Name a nameless level's shape-only codes by the schema's own role markers."""
+    shape_only = [c for c in roles if roles[c] == "code" and not embeds_parent[c]]
+    if "name" in roles.values() or len(shape_only) < _MIN_TIED_CODES:
+        return
+    name_markers = _role_markers(schema.name_field, schema.code_field)
+    code_markers = _role_markers(schema.code_field, schema.name_field)
+    named = [
+        c
+        for c in shape_only
+        if any(m in c for m in name_markers) and not any(m in c for m in code_markers)
+    ]
+    if len(named) < len(shape_only):
+        roles.update(dict.fromkeys(named, "name"))
+
+
 def _assign_chain_roles(  # noqa: PLR0913, PLR0917
     conn: DuckDBPyConnection,
     table: str,
@@ -799,6 +824,7 @@ def _assign_chain_roles(  # noqa: PLR0913, PLR0917
             else "name"
             for c in cols
         }
+        _break_shape_tie(roles, embeds_parent, schema)
         parent_code = parent_cols[0] if parent_cols else None
         for role, template in (
             ("code", schema.code_field),

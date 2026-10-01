@@ -399,3 +399,44 @@ def test_group_families_by_level_word_based_anchor(conn):
     families = group_families_by_level(conn, "t_01", level_columns)
     code_family = next(f for f in families.values() if set(f.values()) & {"state_code"})
     assert set(code_family.values()) == {"state_code", "county_code"}
+
+
+def test_detect_level_columns_digit_only_name_breaks_tie_by_schema_marker(conn):
+    conn.execute("""--sql
+        CREATE TABLE t_01 AS
+        SELECT * FROM (VALUES
+            ('51', 'North', '0101', '101'), ('51', 'North', '0102', '102'),
+            ('51', 'North', '0103', '103'), ('52', 'South', '0201', '201'),
+            ('52', 'South', '0202', '202'), ('52', 'South', '0203', '203')
+        ) AS v(adm1_code, adm1_name, adm2_code, adm2_name)
+    """)
+    level = detect_level_columns(conn, "t_01")[2]
+    assert level.group_by[0] == "adm2_code"
+    assert level.name_column == "adm2_name"
+
+
+def test_verify_functional_cluster_raises_on_coarser_member_under_parent(conn):
+    conn.execute("""--sql
+        CREATE TABLE t_01 AS
+        SELECT * FROM (VALUES
+            ('P1', 'c1', 'g1'), ('P1', 'c2', 'g1'),
+            ('P1', 'c3', 'g2'), ('P1', 'c4', 'g2')
+        ) AS v(parent, code, extra)
+    """)
+    with pytest.raises(ValueError, match="coarser level merged"):
+        verify_functional_cluster(
+            conn, "t_01", "code", ["code", "extra"], parent_column="parent"
+        )
+
+
+def test_verify_functional_cluster_passes_on_duplicate_name_under_parent(conn):
+    conn.execute("""--sql
+        CREATE TABLE t_01 AS
+        SELECT * FROM (VALUES
+            ('P1', 'c1', 'n1'), ('P1', 'c2', 'n2'),
+            ('P1', 'c3', 'n3'), ('P1', 'c4', 'n3')
+        ) AS v(parent, code, extra)
+    """)
+    verify_functional_cluster(
+        conn, "t_01", "code", ["code", "extra"], parent_column="parent"
+    )

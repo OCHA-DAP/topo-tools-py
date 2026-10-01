@@ -20,6 +20,12 @@ title: "code-update"
   overwrite") if either side resolves a level with no code column at all
   (e.g. a trailing finest level with only a name column, see
   `docs/adr/0106`), rather than silently skipping that level.
+- `code-update` MUST raise `ValueError` in structural mode on either side
+  ("group units like a level") if detection sets any column aside as a
+  supplemental coarser grouping, and ("a coarser level merged into this
+  one") if any member of a level's group-by has over 30% fewer values than
+  its code under each parent, rather than coding a merged or skipped level
+  (see `docs/adr/0121`).
 - `code-update` MUST raise `ValueError` ("level mismatch") if OLD's and
   NEW's resolved level counts differ, before any dissolve/classify stage
   runs: a real level-count change needs a human decision, not an automatic

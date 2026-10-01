@@ -4,6 +4,7 @@ from duckdb import DuckDBPyConnection
 
 from topo_tools.core.schema_map._level_columns import (
     detect_level_columns_or_single,
+    supplemental_columns,
     verify_functional_cluster,
 )
 from topo_tools.core.schema_map._levels import detect_levels
@@ -29,6 +30,13 @@ def main(
     if not coded:
         msg = f"no admin hierarchy level detected in {table}"
         raise ValueError(msg)
+    # A skipped level would corrupt every code below it, so never guess.
+    if supplemental := supplemental_columns(conn, table):
+        msg = (
+            f"{table}: {supplemental} group units like a level but were not "
+            "detected as one; pass --code-field/--name-field explicitly"
+        )
+        raise ValueError(msg)
     missing = [n for n, cols in coded if not cols.has_code]
     if missing:
         msg = (
@@ -38,8 +46,12 @@ def main(
         raise ValueError(msg)
 
     result: dict[int, str] = {}
+    parent: str | None = None
     for n, (_, cols) in enumerate(coded, start=1):
         canonical = cols.group_by[0]
-        verify_functional_cluster(conn, table, canonical, cols.group_by)
+        verify_functional_cluster(
+            conn, table, canonical, cols.group_by, parent_column=parent
+        )
         result[n] = canonical
+        parent = canonical
     return result
