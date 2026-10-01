@@ -118,9 +118,7 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
    p-code/name values via DuckDB. Use the deepest file/layer as the base,
    the only one carried past stage 1 (every ancestor level is derived from it by
    dissolve in stage 6), and the country's ISO2 code as stage 4's
-   `--root-code` under the legacy p-code scheme (`code-create` only, when
-   `00a_old/` is absent). State both before
-   continuing, with the base's name, feature count, and why it qualifies.
+   `--root-code`. State both before continuing, with the base's name, feature count, and why it qualifies.
    Ask the user to pick a shallower base only if the deepest one looks
    partial or low quality (doesn't cover the whole country, has missing
    codes/names, or far fewer units than its parent level implies; judge
@@ -194,10 +192,20 @@ PNGs using the JSON sidecar's pixel mapping and font, never by importing
    and check them against both base layers before accepting the output.
 4. [Codes](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/4-codes/how-to.md)
 
-   Use the base-level file in `00a_old/` as `code-update`'s OLD file.
-   When `00a_old/` is absent, use `code-create` instead. Code the
-   stage 2 file in place of the stage 3 output when the user chose to
-   code the full geometry first.
+   Show a few code values from each level of the file to code, and ask
+   whether they are government codes to use as the source of truth. Then:
+
+   - Yes: `code-create --root-code {ISO2} --delimiter '' --min-width auto --source-codes embed`
+     with `--code-field`/`--name-field` templates naming each level's
+     columns. Ignore `00a_old/`.
+   - No, with `00a_old/`: `code-update`, with the base-level file in
+     `00a_old/` as OLD.
+   - No, without `00a_old/`: `code-create --root-code {ISO2} --delimiter '' --min-width auto`,
+     adding `--source-codes copy` when the codes are another
+     organisation's IDs.
+
+   Code the stage 2 file in place of the stage 3 output when the user
+   chose to code the full geometry first.
 5. [Names](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/5-names/index.md)
 6. [Packaging](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/6-packaging/how-to.md)
 
