@@ -7,11 +7,16 @@ on:
       - "docs/**"
       - "plugins/**"
       - ".github/workflows/docs.yml"
+  pull_request:
+    paths:
+      - "docs/**"
+      - "plugins/**"
+      - ".github/workflows/docs.yml"
   workflow_dispatch:
 
 concurrency:
-  group: pages
-  cancel-in-progress: false
+  group: ${{ github.event_name == 'pull_request' && format('docs-{0}', github.ref) || 'pages' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -23,6 +28,7 @@ jobs:
       - uses: astral-sh/setup-uv@v7
       - run: uv sync --group docs
       - uses: actions/configure-pages@v6
+        if: github.event_name != 'pull_request'
       - working-directory: docs
         run: uv run zensical build --clean
       - name: Build git-free plugin archive
@@ -70,11 +76,13 @@ jobs:
           args: --offline --no-progress --root-dir /tmp/lychee-root 'docs/site/**/*.html'
           lycheeVersion: v0.24.2
       - uses: actions/upload-pages-artifact@v5
+        if: github.event_name != 'pull_request'
         with:
           path: docs/site
 
   deploy:
     needs: build
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       pages: write

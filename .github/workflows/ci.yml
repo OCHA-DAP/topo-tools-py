@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
 
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('ci-{0}', github.ref) || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -39,8 +43,12 @@ jobs:
           fetch-depth: 2
       - id: diff
         run: |
-          if [ "${{ github.event_name }}" != pull_request ] ||
-            git diff --name-only HEAD^1 HEAD |
+          base=HEAD^1
+          if [ "${{ github.event_name }}" = push ]; then
+            base="${{ github.event.before }}"
+            git fetch -q --depth=1 origin "$base" || base=
+          fi
+          if [ -z "$base" ] || git diff --name-only "$base" HEAD |
             grep -qE '^(topo_tools/|tests/|pyproject\.toml$|uv\.lock$|\.github/workflows/ci\.yml$)'; then
             echo code=true >> "$GITHUB_OUTPUT"
           fi
