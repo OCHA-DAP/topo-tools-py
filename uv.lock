@@ -711,13 +711,12 @@ wheels = [
 
 [[package]]
 name = "topo-tools"
-version = "0.10.2"
+version = "0.11.0"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
     { name = "duckdb" },
     { name = "psutil" },
-    { name = "pyyaml" },
 ]
 
 [package.dev-dependencies]
@@ -737,7 +736,6 @@ requires-dist = [
     { name = "click" },
     { name = "duckdb", specifier = ">=1.5.6" },
     { name = "psutil" },
-    { name = "pyyaml", specifier = ">=6.0.3" },
 ]
 
 [package.metadata.requires-dev]
