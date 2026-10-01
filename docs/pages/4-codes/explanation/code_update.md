@@ -34,7 +34,11 @@ mode.
 Each of `root_code`/`delimiter`/`min_width` falls back to the detected
 value independently, only when that field itself wasn't explicitly given;
 an explicit value is never overridden by detection, even if detection
-would have inferred something different.
+would have inferred something different. When OLD's finest codes have no
+non-alphanumeric character (`has_delimiter()`), or `delimiter=''` is given,
+`detect_undelimited_format()` runs against every OLD level column instead:
+a code without a delimiter can only be split by width, and each level's
+width is the length it adds to its parent's code.
 
 ## `_03_dissolve`: independent per side, per level
 
@@ -89,26 +93,25 @@ unit's code: it's **retained** (rewritten under a possibly-new parent
 prefix, never re-ranked) or it's **replaced** (assigned fresh through the
 same batched `assign_new_codes()` call `code-create` itself uses).
 
-`unchanged` and `renamed` are the only retained classes:
-`rewrite_child_code(old_code, new_parent_code, fmt)` reattaches the OLD
+`unchanged` and `renamed` are retained, and so is `modified` when the
+format has no delimiter: such codes carry no promise that the area is
+identical, and keeping a 1:1 match's code avoids churn from re-digitising.
+Retained codes go through
+`rewrite_child_code(old_code, new_parent_code, fmt)`, which reattaches the OLD
 code's own tail onto the (possibly new) parent prefix, a no-op
 reconstruction when the parent didn't change and a genuine prefix
 cascade when it did. This one function is what lets a `modified` parent's
 untouched descendants inherit its new prefix without re-ranking or
 touching their own tail integers or sibling order at all.
 
-Every other class (`modified`, `relocated`, `created`, `split`, `merge`,
-`complex`) funnels into one shared per-level batch: every new-code
+Every other class (`modified` with a delimiter, `relocated`, `created`,
+`split`, `merge`, `complex`) funnels into one shared per-level batch: every new-code
 request for that level, regardless of which relationship class produced
 it, is collected into a single staging table and assigned in one
-`assign_new_codes()` call, seeded with `existing_codes=retained_codes`
-(this level's own just-computed retained set) so a freshly assigned code
-can never collide with one a sibling just kept. This is also why a code
-retired this run (a `merge`'s two old codes, a `removed` unit's own code)
-can be immediately reused by an unrelated new/split/merge/created unit at
-the same level in the same run: nothing outside `retained_codes` is
-reserved, matching `core.code`'s own live-codes-only reuse behavior (see
-`docs/adr/0102`).
+`assign_new_codes()` call, seeded with this level's retained codes plus
+every OLD code at that level, retained or retired, so a code is never
+reissued within or across consecutive releases; a code retired two or
+more releases back isn't tracked (see `docs/adr/0126`).
 
 `match_method` is collapsed per cluster via `_reduce_match_methods()`:
 a cluster spanning exactly one old/new pair keeps that pair's own value

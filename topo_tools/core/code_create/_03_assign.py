@@ -3,7 +3,7 @@
 from duckdb import DuckDBPyConnection
 
 from topo_tools.core.admin_columns import next_free_sibling
-from topo_tools.core.code import CodeFormat, assign_new_codes
+from topo_tools.core.code import CodeFormat, assign_new_codes, seed_code_from_names
 from topo_tools.core.code_create._02_levels import Level
 from topo_tools.core.code_create._constants import SOURCE_CODES
 
@@ -30,20 +30,6 @@ def _copy_source_codes(
         f'CREATE OR REPLACE TABLE "{table}" AS '
         f'SELECT {", ".join(select)} FROM "{table}"'
     )
-
-
-def _seed_from_names(
-    conn: DuckDBPyConnection, table: str, levels: dict[int, Level]
-) -> None:
-    """Give a level with no code column one holding its own names, to rank on."""
-    for n, level in sorted(levels.items()):
-        if not level.seeded:
-            continue
-        if level.name is None:
-            msg = f"level {n} has neither {level.code!r} nor a name column in {table}"
-            raise ValueError(msg)
-        conn.execute(f'ALTER TABLE "{table}" ADD COLUMN "{level.code}" VARCHAR')
-        conn.execute(f'UPDATE "{table}" SET "{level.code}" = "{level.name}"::VARCHAR')
 
 
 def _strip_parent_prefixes(
@@ -127,7 +113,9 @@ def main(
     fmt.check_level_count(sum(1 for n in levels if n >= 1))
     if source_codes == "copy":
         _copy_source_codes(conn, table, levels)
-    _seed_from_names(conn, table, levels)
+    for n, level in sorted(levels.items()):
+        if level.seeded:
+            seed_code_from_names(conn, table, n, level.code, level.name)
     if source_codes == "embed":
         _strip_parent_prefixes(conn, table, levels, fmt)
     if 0 in levels:

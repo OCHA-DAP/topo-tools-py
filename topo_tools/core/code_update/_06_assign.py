@@ -14,6 +14,10 @@ _RETIRE_ONLY_CLASSES = {"merge", "complex"}
 _REASONS = {
     ("unchanged", "retained"): "geometry and identity unchanged, code retained",
     ("renamed", "retained"): "name changed, geometry unchanged, code retained",
+    (
+        "modified",
+        "retained",
+    ): "geometry modified, code retained (lenient: codes without a delimiter)",
     ("removed", "retired"): "no NEW counterpart, code retired",
     ("merge", "retired"): "merged into another unit, code retired",
     ("complex", "retired"): "involved in a complex N:M change, code retired",
@@ -125,6 +129,8 @@ def main(  # noqa: C901, PLR0913, PLR0915
         )
         c["a" if side == "a" else "b"].append(fid)
 
+    # Codes without a delimiter (ISO2-style) are lenient: a 1:1 match keeps its code.
+    retain_classes = _RETAIN_CLASSES | ({"modified"} if fmt.delimiter == "" else set())
     retained_codes: list[str] = []
     new_batch: list[tuple[str, str]] = []
     new_batch_meta: dict[str, dict] = {}
@@ -133,7 +139,7 @@ def main(  # noqa: C901, PLR0913, PLR0915
     for cluster_id, c in clusters.items():
         rel, a_fids, b_fids = c["class"], c["a"], c["b"]
 
-        if rel in _RETAIN_CLASSES:
+        if rel in retain_classes:
             a_fid, b_fid = a_fids[0], b_fids[0]
             old_code = old_code_by_fid[a_fid]
             new_code = rewrite_child_code(old_code, new_parent_code(b_fid), fmt)
@@ -284,7 +290,8 @@ def main(  # noqa: C901, PLR0913, PLR0915
             code_column="code_val",
             fmt=fmt,
             level=n,
-            existing_codes=retained_codes,
+            existing_codes=retained_codes
+            + [c for c in old_code_by_fid.values() if c is not None],
         )
         assigned = dict(
             conn.execute(f'SELECT fid_key, code_val FROM "{staging}"').fetchall()

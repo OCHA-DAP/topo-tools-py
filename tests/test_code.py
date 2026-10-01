@@ -8,6 +8,8 @@ from topo_tools.core.code import (
     assign_new_codes,
     build_code,
     detect_code_format,
+    detect_undelimited_format,
+    has_delimiter,
     last_component,
     next_available_integer,
     parent_prefix,
@@ -234,3 +236,32 @@ def test_detect_code_format_per_level_widths():
         codes = ["AFG.01.001", "AFG.01.002", "AFG.02.001"]
         conn.executemany("INSERT INTO t VALUES (?)", [(c,) for c in codes])
         assert detect_code_format(conn, "t", "code").min_width == (2, 3)
+
+
+_UNDELIMITED = CodeFormat(root_code="BH", delimiter="", min_width=(2, 2, 4))
+_AFTER_07 = 8
+
+
+def test_parse_code_without_delimiter_splits_by_width():
+    assert parse_code("BH51030366", _UNDELIMITED) == ["BH", "51", "03", "0366"]
+    assert parent_prefix("BH51030366", _UNDELIMITED) == "BH5103"
+    assert rewrite_child_code("BH5103", "BH52", _UNDELIMITED) == "BH5203"
+    with pytest.raises(ValueError, match="split by width"):
+        parse_code("BH510", _UNDELIMITED)
+
+
+def test_next_available_integer_without_delimiter():
+    existing = ["BH5101", "BH5107", "BH5201"]
+    assert next_available_integer(existing, "BH51", _UNDELIMITED) == _AFTER_07
+
+
+def test_detect_undelimited_format_per_level_widths():
+    with duckdb.connect() as conn:
+        conn.execute("CREATE TABLE t (c1 VARCHAR, c2 VARCHAR, c3 VARCHAR)")
+        conn.executemany(
+            "INSERT INTO t VALUES (?, ?, ?)",
+            [("BH51", "BH5103", "BH51030366"), ("BH52", "BH5201", "BH52010101")],
+        )
+        assert not has_delimiter(conn, "t", "c3")
+        fmt = detect_undelimited_format(conn, "t", {1: "c1", 2: "c2", 3: "c3"})
+    assert fmt == _UNDELIMITED
