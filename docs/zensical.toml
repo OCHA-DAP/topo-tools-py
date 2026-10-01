@@ -1,6 +1,7 @@
 [project]
 site_url = "https://ocha-dap.github.io/topo-tools-py/"
-site_name = "Topo Tools"
+site_name = "Topology Tools"
+site_description = "Python package and CLI for cleaning administrative boundary polygons, from schema and topology through codes, names and packaging."
 repo_url = "https://github.com/OCHA-DAP/topo-tools-py"
 repo_name = "OCHA-DAP/topo-tools-py"
 edit_uri = "edit/main/docs/pages/"
@@ -117,6 +118,8 @@ draft = "Draft, not yet reviewed"
 
 [project.theme]
 language = "en"
+favicon = "assets/images/icon.png"
+logo = "assets/images/icon.png"
 features = [
   "announce.dismiss",
   "content.code.annotate",

@@ -1,9 +1,9 @@
 ---
 status: draft
-title: Topo Tools
+title: Topology Tools
 ---
 
-# Topo Tools
+# Topology Tools
 
 DuckDB-powered geospatial topology utilities for cleaning and reconciling
 administrative boundary polygons, as a Python/CLI package and library.
