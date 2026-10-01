@@ -22,13 +22,23 @@ from pathlib import Path
 import duckdb
 import numpy as np
 import pyogrio.raw
-from fetch_reference import convert_layer, get_layers
 
 logging.basicConfig(format="%(message)s", level=logging.INFO)
 log = logging.getLogger(__name__)
 
 _CHUNK_SIZE = 10_000
 _GDB_LAYER_OPTIONS = {"TARGET_ARCGIS_VERSION": "ARCGIS_PRO_3_2_OR_LATER"}
+_COPY_OPTIONS = (
+    "FORMAT PARQUET, COMPRESSION ZSTD, COMPRESSION_LEVEL 15, GEOPARQUET_VERSION 'V2'"
+)
+_DTYPE_KIND_TO_SQL = {
+    "O": "VARCHAR",
+    "i": "BIGINT",
+    "u": "BIGINT",
+    "f": "DOUBLE",
+    "b": "BOOLEAN",
+    "M": "TIMESTAMP",
+}
 
 
 def _connect() -> duckdb.DuckDBPyConnection:
@@ -51,6 +61,97 @@ def _source_layers(con: duckdb.DuckDBPyConnection, src: Path) -> dict[str, dict]
         f"SELECT layers FROM ST_Read_Meta({_sql_str(src)})"
     ).fetchone()
     return {layer["name"]: layer for layer in layers}
+
+
+def get_layers(path: Path) -> list[str]:
+    """Return layer names from a spatial archive."""
+    return [name for name, _geom_type in pyogrio.list_layers(str(path))]
+
+
+def _field_sql_types(
+    path: Path, layer: str, encoding: str | None = None
+) -> dict[str, str]:
+    """Map each field name to its DuckDB SQL type, from the layer's own definitions."""
+    info = pyogrio.read_info(str(path), layer=layer, encoding=encoding)
+    return {
+        name: _DTYPE_KIND_TO_SQL.get(np.dtype(dtype).kind, "VARCHAR")
+        for name, dtype in zip(info["fields"], info["dtypes"], strict=True)
+    }
+
+
+def _read_chunk(
+    gdb_path: Path, layer: str, offset: int, encoding: str | None = None
+) -> tuple[dict, int]:
+    """Read up to _CHUNK_SIZE features as numpy arrays, dropping all-NULL fields.
+
+    DuckDB's numpy registration errors on a large all-NULL object array.
+    """
+    meta, _fids, geometry, field_data = pyogrio.raw.read(
+        str(gdb_path),
+        layer=layer,
+        skip_features=offset,
+        max_features=_CHUNK_SIZE,
+        encoding=encoding,
+    )
+    cols = {}
+    for name, raw_arr in zip(meta["fields"], field_data, strict=True):
+        if raw_arr.dtype.kind == "M":
+            cols[name] = raw_arr.astype("datetime64[us]")
+        elif raw_arr.dtype == object and all(v is None for v in raw_arr):
+            continue
+        else:
+            cols[name] = raw_arr
+    cols["_geom_wkb"] = geometry
+    return cols, len(geometry)
+
+
+def convert_layer(  # noqa: PLR0913
+    con: duckdb.DuckDBPyConnection,
+    gdb_path: Path,
+    layer: str,
+    dst: Path,
+    *,
+    encoding: str | None = None,
+    crs: str | None = None,
+) -> None:
+    """Convert one layer to GeoParquet via chunked pyogrio reads + DuckDB writes."""
+    if dst.exists():
+        row = con.execute(f"SELECT COUNT(*) FROM '{dst}'").fetchone()
+        count = row[0] if row else 0
+        log.info("  skip %s (exists, %s features)", dst.name, f"{count:,}")
+        return
+    dst.parent.mkdir(parents=True, exist_ok=True)
+
+    field_types = _field_sql_types(gdb_path, layer, encoding)
+    geometry_type = "GEOMETRY"
+    if crs is not None:
+        escaped = crs.replace("'", "''")
+        geometry_type = f"GEOMETRY('{escaped}')"
+    table = '"_convert_' + layer.replace('"', '""') + '"'
+    con.execute(f"DROP TABLE IF EXISTS {table}")
+    cols_sql = ", ".join(
+        f'"{name}" {sql_type}' for name, sql_type in field_types.items()
+    )
+    con.execute(f"CREATE TABLE {table} (geometry {geometry_type}, {cols_sql})")
+
+    offset, total = 0, 0
+    while True:
+        cols, n = _read_chunk(gdb_path, layer, offset, encoding)
+        if n == 0:
+            break
+        con.register("_chunk", cols)
+        select_list = [f"ST_GeomFromWKB(_geom_wkb)::{geometry_type} AS geometry"] + [
+            f'"{name}"' if name in cols else f'NULL::{sql_type} AS "{name}"'
+            for name, sql_type in field_types.items()
+        ]
+        con.execute(f"INSERT INTO {table} SELECT {', '.join(select_list)} FROM _chunk")
+        con.unregister("_chunk")
+        total += n
+        offset += _CHUNK_SIZE
+
+    con.execute(f"COPY {table} TO '{dst}' ({_COPY_OPTIONS})")
+    con.execute(f"DROP TABLE {table}")
+    log.info("  %s: %s features", dst.name, f"{total:,}")
 
 
 def to_parquet(src: Path, dst_dir: Path, encoding: str | None = None) -> None:
