@@ -35,13 +35,14 @@ Full documentation: <https://ocha-dap.github.io/topo-tools-py/>
 
 ## Installation
 
-Install with `uv`, `pip`/`pipx` or Homebrew:
+Install with `uv`, `pip`/`pipx`, conda or Homebrew:
 
 ```sh
 uv tool install topo-tools                   # CLI
 uv add topo-tools                            # Python library
 pip install topo-tools                       # CLI or library
 pipx install topo-tools                      # CLI
+conda install -c conda-forge topo-tools      # CLI or library, recommended on Windows
 brew install OCHA-DAP/topo-tools/topo-tools  # macOS/Linux, no Python tooling
 ```
 

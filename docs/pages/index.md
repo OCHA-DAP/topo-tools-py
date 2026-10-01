@@ -83,6 +83,14 @@ The boundary cleaning steps run the `topo-tools` CLI. Install it with:
     pipx install topo-tools      # CLI
     ```
 
+=== "conda"
+
+    ```sh
+    conda install -c conda-forge topo-tools   # CLI or library
+    ```
+
+    Recommended on Windows. `mamba` and `pixi` install it from the same channel.
+
 === "Homebrew"
 
     ```sh
