@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-02
+
+### Added
+
+- `code-create --source-codes replace|embed|copy`: `embed` puts each level's
+  source code after its parent's code, removing a parent prefix every code
+  repeats, so `11`/`22`/`33` and `11`/`1122`/`112233` both give `XY112233`
+  and existing p-codes come out unchanged. `copy` keeps the source code in
+  a `*_code1` column next to the code column.
+- `--delimiter ''` in both code tools, for ISO2-style codes such as `XY0101`.
+  `code-update` detects the root and each level's width from the previous
+  release's codes.
+- `--min-width` accepts one width, one per level (`2,2,4`, coarsest first)
+  or `auto`.
+- With explicit `--name-field`/`--code-field`, a level with names but no
+  code column gets codes numbered by name, in both code tools.
+- cod-ab skill: stage 4 asks whether the codes are source codes to keep as
+  given and picks `code-create` or `code-update` from the answer. Stage 3
+  stops and reports units dropped by `edge-match`, and takes the reference
+  admin0 from a shared `00_shared/` folder. A preview script renders issues
+  and features over OpenStreetMap and EOxCloudless.
+
+### Changed
+
+- `code-refactor` is renamed `code-create` (CLI command, `api.code_create`,
+  docs pages). There is no alias.
+- `code-update` never reissues a code: new numbers start above every code
+  a parent had in the previous release, retired codes included. A unit
+  moved under a new parent whose rewritten code is already taken gets a new
+  code. Without a delimiter, a `modified` 1:1 match keeps its code; with
+  one, it gets a new code.
+- Without a delimiter, new codes are numbered below the top 10% of a
+  level's width (`90` to `99` at width 2), which is kept for placeholder
+  codes such as a disputed area's `99`.
+- The docs site uses the HDX theme and shows the OCHA logo.
+
+### Fixed
+
+- Both code tools raise on a missing code, a code with more than one name,
+  same-named siblings when codes come from names, a level whose codes
+  outgrow a fixed width without a delimiter, and a structurally detected
+  merged or skipped level, instead of producing merged or wrong codes.
+- `code-create` reads an integer code column as text.
+
 ## [0.11.0] - 2026-10-01
 
 ### Added
@@ -691,7 +735,8 @@ Initial release: four tools, CLI + Python API for each.
   unit as unchanged/renamed/modified/relocated/split/merge/complex/created/
   removed, via spatial overlap and optional code/name identity linking.
 
-[Unreleased]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.10.2...v0.11.0
 [0.10.2]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.10.1...v0.10.2
 [0.10.1]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.10.0...v0.10.1
