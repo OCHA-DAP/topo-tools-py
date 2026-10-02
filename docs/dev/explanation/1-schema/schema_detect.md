@@ -60,11 +60,10 @@ so `validate` can skip `code-detect` and `name-detect` with that reason.
 ## Real-data results
 
 Run structurally on every latest original admin1 to admin5 layer in the
-portolan catalog (281 layers): 51 rows in 18 layers. 15 layers report
+portolan catalog (281 layers): 50 rows in 17 layers. 14 layers report
 `levels-undetected`, exactly the ones `code-detect` and `name-detect`
-refuse; 14 of them also report their 26 `supplemental-column` warnings,
-and in SVK admin1 (eight units, one level) structural detection finds
-no name column, though `adm1_name` exists. The other 10 rows are all real:
+refuse, each beside its `supplemental-column` warnings (26 in all). The
+other 10 rows are all real:
 two adm4 codes under two adm3 codes each in MMR admin4 (7 rows), BGR's
 `adm0_bg`/`adm1_bg` with no `adm2_bg`, and ZAF's `adm1_id` to `adm3_id`
 with no `adm0_id` or `adm4_id`.

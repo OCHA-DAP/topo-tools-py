@@ -44,7 +44,7 @@ are `schema-detect`'s `multiple-parents`.
 ## Real-data results
 
 Run structurally on every latest original admin1 to admin5 layer in the
-portolan catalog (281 layers), 266 were checked and 15 refused by level
+portolan catalog (281 layers), 267 were checked and 14 refused by level
 resolution (the layers `schema-detect` reports as `levels-undetected`).
 144 rows in 7 layers, all real:
 

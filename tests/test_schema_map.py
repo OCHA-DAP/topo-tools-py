@@ -754,3 +754,29 @@ def test_blank_constant_is_not_embedded_in_names(tmp_path):
     out = tmp_path / "crosswalk.csv"
     map(path, out, overwrite=True)
     assert _crosswalk(out)["adm1_name"]["target_column"] == "adm1_name"
+
+
+def test_name_containing_a_short_root_constant_stays_a_name(tmp_path):
+    """Three names contain the root's `sk`, one doesn't: still not an embedding."""
+    path = tmp_path / "lang.parquet"
+    names = ["Nitriansky", "Trnavsky", "Presovsky", "Kosicky"]
+    rows = [(_unit_square(i), "XY", "sk", f"XY{i}", n) for i, n in enumerate(names)]
+    _write_table(path, ["geom", "adm0_pcode", "lang", "adm1_pcode", "adm1_name"], rows)
+    out = tmp_path / "crosswalk.csv"
+    map(path, output_path=out, overwrite=True)
+
+    rows_out = _crosswalk(out)
+    assert rows_out["adm1_pcode"]["target_column"] == "adm1_code"
+    assert rows_out["adm1_name"]["target_column"] == "adm1_name"
+
+
+def test_numbered_names_beside_an_embedding_code_stay_names(tmp_path):
+    path = tmp_path / "numbered.parquet"
+    rows = [(_unit_square(i), "XY", f"XY{i}", f"Region {i}") for i in range(4)]
+    _write_table(path, ["geom", "adm0_pcode", "adm1_pcode", "adm1_name"], rows)
+    out = tmp_path / "crosswalk.csv"
+    map(path, output_path=out, overwrite=True)
+
+    rows_out = _crosswalk(out)
+    assert rows_out["adm1_pcode"]["target_column"] == "adm1_code"
+    assert rows_out["adm1_name"]["target_column"] == "adm1_name"

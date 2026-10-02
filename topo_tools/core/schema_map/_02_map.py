@@ -146,13 +146,14 @@ def _spatially_coherent(conn: DuckDBPyConnection, table: str, column: str) -> bo
     return 1 - within / total >= _MIN_SPATIAL_R2
 
 
-def _embeds(
+def _embeds(  # noqa: PLR0913
     conn: DuckDBPyConnection,
     table: str,
     child: str,
     parent: str,
     *,
     has_geom: bool = False,
+    prefix: bool = False,
 ) -> bool:
     """Check every non-null row has `child` contain `parent`, tolerating one sentinel.
 
@@ -163,8 +164,9 @@ def _embeds(
         {quote_identifier(child)} IS NOT NULL
         AND trim(CAST({quote_identifier(parent)} AS VARCHAR)) != ''
     """
+    match = "starts_with" if prefix else "contains"
     not_contains = f"""
-        NOT contains(
+        NOT {match}(
             CAST({quote_identifier(child)} AS VARCHAR),
             CAST({quote_identifier(parent)} AS VARCHAR)
         )
@@ -778,9 +780,10 @@ def _break_shape_tie(
     roles: dict[str, str], embeds_parent: dict[str, bool], schema: TargetSchema
 ) -> None:
     """Name a nameless level's shape-only codes by the schema's own role markers."""
-    shape_only = [c for c in roles if roles[c] == "code" and not embeds_parent[c]]
-    if "name" in roles.values() or len(shape_only) < _MIN_TIED_CODES:
+    codes = [c for c in roles if roles[c] == "code"]
+    if "name" in roles.values() or len(codes) < _MIN_TIED_CODES:
         return
+    shape_only = [c for c in codes if not embeds_parent[c]]
     name_markers = _role_markers(schema.name_field, schema.code_field)
     code_markers = _role_markers(schema.code_field, schema.name_field)
     named = [
@@ -788,7 +791,7 @@ def _break_shape_tie(
         for c in shape_only
         if any(m in c for m in name_markers) and not any(m in c for m in code_markers)
     ]
-    if len(named) < len(shape_only):
+    if len(named) < len(codes):
         roles.update(dict.fromkeys(named, "name"))
 
 
@@ -818,8 +821,10 @@ def _assign_chain_roles(  # noqa: PLR0913, PLR0917
             continue
         level = index + offset
         parent_cols = chain[index - 1][1] if index > 0 else []
+        # A prefix, since a name can contain a short constant like `lang` by chance.
         embeds_parent = {
-            c: any(_embeds(conn, table, c, p) for p in parent_cols) for c in cols
+            c: any(_embeds(conn, table, c, p, prefix=True) for p in parent_cols)
+            for c in cols
         }
         roles: dict[str, str] = {
             c: "code"
