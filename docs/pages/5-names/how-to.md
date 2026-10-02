@@ -30,6 +30,11 @@ once no row still differs from `adm{N}_name`. Keep any `adm{N}_name{k}`
 mapped from the source in stage 1, since it's an alternate name, not a
 conflict.
 
-Write the fixed names back to the cleaned file, then run `name-detect` again
-until no `error` row is left. Keep the last issues file: it's this step's
-record, written even when empty.
+Write the fixed names back to the cleaned file, then check it with
+`name-detect`, which runs the same checks without changing anything:
+
+    topo-tools name-detect admin3_names.parquet admin3_name_issues.csv \
+      --name-field adm{n}_name --code-field adm{n}_code
+
+Repeat until no `error` row is left. Keep the last issues file: it's this
+step's record, written even when empty.
