@@ -33,7 +33,7 @@ The fixes made are listed in an issues report for review. OUTPUT_FILE defaults t
 Basic run: fills only tiny gaps from rounding errors:
 
 ```sh
-  topo-tools topo-clean example.geojson
+topo-tools topo-clean example.geojson
 ```
 
 Fill thin, sliver-shaped gaps of any width:

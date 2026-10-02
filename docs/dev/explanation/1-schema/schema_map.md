@@ -1,7 +1,7 @@
 ---
 title: "schema-map"
 sidebar:
-  order: 7
+  order: 8
   badge:
     text: Draft
     variant: caution

@@ -2,7 +2,7 @@
 title: "schema-join"
 description: "Copy admin columns from a join layer onto the input features they overlap."
 sidebar:
-  order: 4
+  order: 5
 ---
 
 Copy admin columns from a join layer onto the input features they overlap.
@@ -34,7 +34,7 @@ Each input feature takes the columns of the join feature it overlaps most. Geome
 Copy admin2 columns onto an admin3 layer:
 
 ```sh
-  topo-tools schema-join admin3.geojson admin2.geojson
+topo-tools schema-join admin3.geojson admin2.geojson
 ```
 
 Build up a full hierarchy one level at a time, coarsest first:

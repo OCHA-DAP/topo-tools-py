@@ -67,17 +67,6 @@ def _blank(source: str) -> str:
     """
 
 
-def _blank_code(source: str) -> str:
-    return f"""--sql
-        SELECT 'blank-code', level, code_column, NULL, NULL, NULL, NULL, NULL,
-               printf('%d units under %s have no code: %s', count(*),
-                      coalesce(parent_code, 'the root'),
-                      coalesce(string_agg(DISTINCT name, ' / '), 'no name either'))
-        FROM "{source}" WHERE code IS NULL AND name_index = 0
-        GROUP BY level, code_column, parent_code
-    """
-
-
 def _placeholder(source: str) -> str:
     tokens = ", ".join(f"'{t}'" for t in PLACEHOLDER_TOKENS)
     return _per_name(
@@ -155,21 +144,6 @@ def _normalized_duplicate(source: str) -> str:
         )
         WHERE len(codes) > 1 AND len(names) > 1 AND unaccented_match
         {_FIRST_COLUMN_ONLY}
-    """
-
-
-def _conflict(source: str) -> str:
-    return f"""--sql
-        SELECT 'name-conflict', level, name_column, code, names[1], code, names[2],
-               NULL, printf('code %s has %d names: %s', code, len(names),
-                            array_to_string(names, ' / '))
-        FROM (
-            SELECT level, name_column, name_index, code,
-                   list_sort(list(DISTINCT name)) AS names
-            FROM {_named(source)} WHERE code IS NOT NULL GROUP BY ALL
-        )
-        WHERE len(names) > 1
-        QUALIFY row_number() OVER (PARTITION BY level, code ORDER BY name_index) = 1
     """
 
 
@@ -290,11 +264,9 @@ def _tokens(text: str) -> str:
 
 
 _CHECKS = {
-    "blank-code": _blank_code,
     "blank-name": _blank,
     "placeholder-name": _placeholder,
     "duplicate-name": _duplicate,
-    "name-conflict": _conflict,
     "encoding-artifact": _encoding,
     "normalized-duplicate-name": _normalized_duplicate,
     "invisible-character": _invisible,

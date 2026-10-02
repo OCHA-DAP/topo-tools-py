@@ -4,14 +4,14 @@
 
 `topo-tools` is a Python package of DuckDB-powered geospatial topology utilities,
 `pip install`-able and importable, mirroring the organization of the sister JS app
-at `../topo-tools-js` (a DuckDB-WASM web app with the same tools). It ships nineteen
+at `../topo-tools-js` (a DuckDB-WASM web app with the same tools). It ships twenty-two
 tools, all used for improving administrative boundary datasets and matching
 sub-national boundaries to national boundaries (import-linter contracts
 governing which tool may depend on which are in `docs/dev/shared.md`).
 Tools are named `{group}-{verb}`: **edge** (boundary-fitting between layers),
-**topo** (single-layer topology defects), **schema** (column crosswalking),
+**topo** (single-layer topology defects), **schema** (column crosswalking and hierarchy checks),
 **name** (unit-name checks) and **package** (cartographic derivatives for web maps); `change` and bare
-`package` stand alone for now, as do `code-create` and `code-update`. Four
+`package` stand alone for now, as do `code-detect`, `code-create`, `code-update` and `validate`. Four
 are primitives, each standalone AND reused internally by the composite tools
 below them:
 
@@ -26,14 +26,17 @@ below them:
 - **edge-match**: `assign-one` (default, forcing the whole input file onto one majority-vote overlay feature; opt into per-feature `assign-many` via `--per-feature` for files whose input features genuinely scatter across multiple overlay features, see `docs/adr/0082`) → per-group `edge-extend` (own subprocess) → batched `edge-clip` → `edge-stitch`, fitting an input layer into a coarser overlay layer (e.g. admin4 into admin0). The input role MAY span multiple raw files per call, combined via a memory-bounded per-file `inputs`+`assign` loop, groups/clip/stitch/outputs running once over the combined result so cross-file input features sharing an overlay feature extend together (`--per-feature`/`step` rejected outright for a multi-file call, see `docs/adr/0084`). Also accepts an opt-in `--merge` (a plain boolean, plus `--overlay-include`/`--overlay-exclude`/`--input-include`/`--input-exclude`/`--prefer` narrowing flags, the same design `edge-mosaic` uses), which both groups every input feature with no overlay feature overlap at all into one orphan group of its own (sentinel `PASSTHROUGH_OVERLAY_FID`), extending it like any other group and keeping it unclipped in the output (materially weaker safety profile than `edge-mosaic`'s own input feature passthrough, see `docs/adr/0081`), and gap-fills an overlay feature matched by zero input features via the shared `fill_unmatched_overlays()` helper, identically to `edge-mosaic` (see `docs/adr/0088`). See `docs/dev/explanation/3-edge/edge_match.md`.
 - **edge-mosaic**: `assign-one` → `edge-clip` → `edge-stitch`, fitting an already-extended input layer (a prior `edge_extend()` output) into a new/different overlay layer, skipping Voronoi extension entirely. See `docs/dev/explanation/3-edge/edge_mosaic.md`.
 - **topo-clean**: `topo-detect` → fixes the reported coverage defects (gaps, overlaps) with `ST_CoverageClean`, reporting the fix outcome in the issues file for manual review. See `docs/dev/explanation/2-topology/topo_clean.md`.
-- **name-detect**: checks a coded layer's unit names (blanks, placeholders, duplicates under a parent, a code with several names, encoding errors, invisible characters, spacing, case, mixed scripts) and writes a CSV report, rule-based DuckDB SQL, never modifying the input. See `docs/dev/explanation/5-names/name_detect.md`.
+- **name-detect**: checks a coded layer's unit names (blanks, placeholders, duplicates under a parent, encoding errors, invisible characters, spacing, case, mixed scripts) and writes a CSV report, rule-based DuckDB SQL, never modifying the input. See `docs/dev/explanation/5-names/name_detect.md`.
 - **name-clean**: `name-detect` → fixes only the safe name defects (spacing, invisible characters, NFC, verified encoding repairs) via `name-detect`'s own `name_clean()` macro, marking them `fixed` in the issues report; case, spelling and duplicates are left for review. See `docs/dev/explanation/5-names/name_clean.md`.
 - **change**: compares an old/new polygon layer pair and classifies every unit (unchanged/renamed/modified/relocated/split/merge/complex/created/removed) via spatial overlap and optional code/name identity linking; writes a tabular changelog plus a colored spatial overlay layer. See `docs/dev/explanation/4-codes/change.md`.
+- **schema-detect**: checks one admin layer's column schema and hierarchy nesting and writes a CSV report, never modifying the input: levels that can't be resolved or are skipped, a code under several parents or a blank parent, columns set aside as coarser groupings, and level columns named or present unlike the other levels'. Level membership follows the code columns' shared naming (`adm{n}_pcode`) once structural detection finds one. See `docs/dev/explanation/1-schema/schema_detect.md`.
 - **schema-map**: maps a source-column → target-schema crosswalk by inferring the admin hierarchy structurally (cardinality/containment, never column names) and classifying code vs. name by value shape, deterministically, no LLM, then renames/drops columns per it into a `_mapped` copy, writing the crosswalk CSV beside it. `--csv` applies a hand-edited crosswalk instead (columns in its row order), `--map-only` writes only the crosswalk (see `docs/adr/0116`). See `docs/dev/explanation/1-schema/schema_map.md`.
 - **schema-fill**: stamps a new `adm_lvl` column (overridable via `--depth-column`) with each row's real depth, then cascades each admin-hierarchy column down to that depth, pinned per row so a genuine NULL at a row's own real depth is never backfilled from a shallower ancestor; levels derived structurally by default, or via an explicit `--name-field`/`--code-field` pair; run against an already-clipped/stitched layer, then `package-polygons` to dissolve every level normally. See `docs/dev/explanation/1-schema/schema_fill.md`.
 - **schema-join**: copies a join layer's admin-hierarchy columns onto each input feature it overlaps most (`core.assign`'s `assign_many`, per-feature plurality), never touching geometry; a shared column that differs is kept on the input feature with the join feature's values added as the next free numbered sibling (`adm2_name1`), never raised on or overwritten (see `docs/adr/0109`); writes `no-overlap`/`low-overlap`/`value-mismatch` issue rows. See `docs/dev/explanation/1-schema/schema_join.md`.
+- **code-detect**: checks a coded layer's codes and writes a CSV report, rule-based DuckDB SQL, never modifying the input: blank codes, a code with several names, a finest-level code on several features (`split-unit` warning when they share name and parent), a code not starting with its parent's, and a code shaped unlike its level's (letters as `A`, digits as `9`), the last two only where 90% of a level's codes follow the rule. Owns `blank-code`/`name-conflict`, which `name-detect` doesn't report (see `docs/adr/0128`). See `docs/dev/explanation/4-codes/code_detect.md`.
 - **code-create**: cold-starts a hierarchical code on a flat, finest-level input, levels resolved structurally by default (or via an explicit `--name-field`/`--code-field` pair), each level's units ranked under their parent and assigned a fresh sequential code in a configurable `--root-code`/`--delimiter`/`--min-width` format (`--min-width` one width, one per level, or `auto`, see `docs/adr/0123`; `core.code`, a shared leaf), with `--source-codes replace|embed|copy` discarding, embedding, or copying each level's existing source code (see `docs/adr/0122`). See `docs/dev/explanation/4-codes/code_create.md`, `docs/dev/explanation/4-codes/code.md`.
 - **code-update**: reconciles an already-coded OLD layer against an uncoded NEW candidate, classifying every unit via `core.change`'s own engine and applying a changelog-driven retention policy (retain/replace/retire) per unit, cascading a changed parent's new code prefix down to every unchanged/renamed descendant. Format (`root_code`/`delimiter`/`min_width`, the width per level) auto-detects off OLD's own existing codes unless overridden. See `docs/dev/explanation/4-codes/code_update.md`, `docs/dev/explanation/4-codes/code.md`.
+- **validate**: runs `schema-detect` → `topo-detect` → `code-detect` → `name-detect` against one layer through their own `api.*()` functions, each writing its own report, then writes a `_validate_summary.csv` with one row per stage, kind and severity; a stage that raises is recorded as a `failed` row and the rest still run, `code-detect`/`name-detect` are skipped when `schema-detect` reports `levels-undetected`, and the CLI exits 1 on any error row. See `docs/dev/explanation/6-packaging/validate.md`.
 
 ## Deployment Targets
 
@@ -55,7 +58,7 @@ are the one exception, see `docs/dev/explanation/3-edge/edge_match.md`). Three l
 each with a specific job (mirroring `geoparquet-io`'s `core`/`api`/`cli`
 split):
 
-- `topo_tools/core/{edge_extend,assign,edge_clip,edge_stitch,topo_detect,dissolve,schema_fill,schema_join,package_polygons,package_points,package_lines,edge_match,edge_mosaic,topo_clean,change,code_create,code_update,name_detect,name_clean}/`:
+- `topo_tools/core/{edge_extend,assign,edge_clip,edge_stitch,topo_detect,dissolve,code_detect,schema_detect,schema_fill,schema_join,package_polygons,package_points,package_lines,edge_match,edge_mosaic,topo_clean,change,code_create,code_update,name_detect,name_clean,validate}/`:
   stage implementations. `core.edge_match`/`core.edge_mosaic` call
   `core.edge_clip`/`core.edge_stitch` stage functions directly (not through
   their own `api.*()`), the same pattern `core.edge_match` uses to call
@@ -74,17 +77,17 @@ split):
   `core.duckdb_utils`/`core.units`/`core.admin_columns`; every tool package
   may import any of these twelve, none of them may import back, except `core.dissolve`'s one
   narrow, explicit carve-out below. `core.schema_map` is not a neutral leaf
-  but MAY be imported by `core.schema_fill`, `core.schema_join`,
+  but MAY be imported by `core.code_detect`, `core.schema_detect`, `core.schema_fill`, `core.schema_join`,
   `core.dissolve`, `core.package_polygons`, `core.package_points`,
   `core.package_lines`,
   `core.code_create`, `core.code_update`, and `core.name_detect` specifically (the
   `name_field`/`code_field`/level-detection mechanism,
-  `core/schema_map/_levels.py`, `core/schema_map/_level_columns.py`), never
-  the reverse (see `docs/adr/0075`,
+  `core/schema_map/_levels.py`, `core/schema_map/_level_columns.py`,
+  `core/schema_map/_resolve_levels.py`), never the reverse (see `docs/adr/0075`,
   `docs/adr/0092`); `schema-fill` does not call `core.dissolve` itself, a
   caller runs `package-polygons` separately after filling (see
   `docs/dev/explanation/1-schema/schema_fill.md`).
-- `topo_tools/api/{edge_extend,edge_clip,edge_stitch,topo_detect,schema_map,schema_fill,schema_join,package_polygons,package_points,package_lines,package,edge_match,edge_mosaic,topo_clean,change,code_create,code_update,name_detect,name_clean}.py`:
+- `topo_tools/api/{edge_extend,edge_clip,edge_stitch,topo_detect,code_detect,schema_detect,schema_map,schema_fill,schema_join,package_polygons,package_points,package_lines,package,edge_match,edge_mosaic,topo_clean,change,code_create,code_update,name_detect,name_clean,validate}.py`:
   public API functions; each chains its own tool's stages for exactly one
   file (or file pair) per call, except `edge-mosaic`'s and `edge-match`'s
   input roles, which MAY span multiple files (see
@@ -183,6 +186,9 @@ uv run topo-tools edge-clip input.parquet overlay.geojson
 uv run topo-tools edge-stitch tiled.geojson
 uv run topo-tools topo-detect example.geojson
 
+# Run the schema-detect tool (check column schema and hierarchy nesting, CSV issues report)
+uv run topo-tools schema-detect admin3.parquet
+
 # Run the schema-fill tool (fill down admin columns, stamp each row's real depth)
 uv run topo-tools schema-fill admin4.geojson
 
@@ -215,6 +221,9 @@ uv run topo-tools schema-map example.geojson --csv example_crosswalk.csv
 # Run the code-create tool (cold-start a hierarchical code, ranked per parent)
 uv run topo-tools code-create admin2.geojson --root-code AFG --delimiter . --min-width 3
 
+# Run the code-detect tool (check unit codes, CSV issues report)
+uv run topo-tools code-detect admin3.parquet
+
 # Run the code-update tool (reconcile an already-coded OLD layer against an uncoded NEW candidate)
 uv run topo-tools code-update admin1_old.geojson admin1_new.geojson
 
@@ -223,6 +232,9 @@ uv run topo-tools name-detect admin3.parquet
 
 # Run the name-clean tool (fix safe name defects, report the rest)
 uv run topo-tools name-clean admin3.parquet
+
+# Run the validate tool (every single-layer detect, plus a summary; exits 1 on errors)
+uv run topo-tools validate admin3.parquet --output-dir checks
 
 # Format and lint
 uv run ruff format && uv run ruff check

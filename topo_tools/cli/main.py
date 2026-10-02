@@ -7,6 +7,7 @@ from pathlib import Path
 import click
 
 from topo_tools.api import change as _change
+from topo_tools.api import code_detect as _code_detect
 from topo_tools.api import edge_clip as _edge_clip
 from topo_tools.api import edge_extend as _edge_extend
 from topo_tools.api import edge_match as _edge_match
@@ -15,11 +16,13 @@ from topo_tools.api import edge_stitch as _edge_stitch
 from topo_tools.api import name_clean as _name_clean
 from topo_tools.api import name_detect as _name_detect
 from topo_tools.api import package as _package
+from topo_tools.api import schema_detect as _schema_detect
 from topo_tools.api import schema_fill as _schema_fill
 from topo_tools.api import schema_join as _schema_join
 from topo_tools.api import schema_map as _schema_map
 from topo_tools.api import topo_clean as _topo_clean
 from topo_tools.api import topo_detect as _topo_detect
+from topo_tools.api import validate as _validate
 from topo_tools.api.code_create import code_create as _code_create
 from topo_tools.api.code_update import code_update as _code_update
 from topo_tools.api.package_lines import package_lines as _package_lines
@@ -400,12 +403,11 @@ def name_detect(  # noqa: PLR0913, PLR0917
     """Find problems in the unit names of one coded layer.
 
     Checks every name column of every level: blank and placeholder names,
-    duplicates under the same parent, a code with more than one name,
-    encoding errors, invisible characters, spacing, case and mixed
-    scripts. Writes the problems found without changing the layer, even
-    when there are none. ISSUES_FILE defaults to INPUT_FILE with a
-    "_name_issues" suffix, as CSV; a .parquet name adds each unit's
-    geometry.
+    duplicates under the same parent, encoding errors, invisible
+    characters, spacing, case and mixed scripts. Writes the problems
+    found without changing the layer, even when there are none.
+    ISSUES_FILE defaults to INPUT_FILE with a "_name_issues" suffix, as
+    CSV; a .parquet name adds each unit's geometry.
 
     \b
     Examples:
@@ -1013,6 +1015,107 @@ def package(  # noqa: PLR0913, PLR0917
         raise click.ClickException(str(e)) from e
 
 
+@cli.command()
+@click.argument("input_file", envvar="INPUT_FILE")
+@click.option(
+    "--output-dir",
+    envvar="OUTPUT_DIR",
+    default=None,
+    help="Folder for the reports and the summary (default: beside INPUT_FILE).",
+)
+@click.option(
+    "--name-field",
+    envvar="NAME_FIELD",
+    default=None,
+    help="Name column of each level, with {n} for the level number, e.g. "
+    "'adm{n}_name'. Give it with --code-field. Without both, levels are "
+    "detected from the data.",
+)
+@click.option(
+    "--code-field",
+    envvar="CODE_FIELD",
+    default=None,
+    help="Code column of each level, with {n} for the level number, e.g. "
+    "'adm{n}_code'. Give it with --name-field. Without both, levels are "
+    "detected from the data.",
+)
+@click.option(
+    "--overwrite",
+    envvar="OVERWRITE",
+    type=bool,
+    default=True,
+    show_default=True,
+    help="Replace output files that already exist. Pass --overwrite=false to "
+    "stop with an error instead.",
+)
+@click.option(
+    "--threads",
+    envvar="THREADS",
+    type=int,
+    default=None,
+    help="Number of threads DuckDB uses (default: all CPU cores).",
+)
+@click.option(
+    "--debug",
+    envvar="DEBUG",
+    is_flag=True,
+    help="Keep intermediate tables, export them to Parquet, and log the time "
+    "and memory each query takes.",
+)
+@click.option(
+    "--tmp-dir",
+    envvar="TMP_DIR",
+    default=None,
+    help="Folder for the working DuckDB database and intermediate files "
+    "(default: a new temporary folder, deleted afterwards unless --debug is set).",
+)
+def validate(  # noqa: PLR0913, PLR0917
+    input_file: str,
+    output_dir: str | None,
+    name_field: str | None,
+    code_field: str | None,
+    overwrite: bool,  # noqa: FBT001
+    threads: int | None,
+    debug: bool,  # noqa: FBT001
+    tmp_dir: str | None,
+) -> None:
+    """Check one layer with every detect tool and summarize the results.
+
+    Runs schema-detect, topo-detect, code-detect and name-detect on
+    INPUT_FILE, each writing its own report, then writes a summary with one
+    row per stage and kind. A stage that fails is recorded in the summary
+    and the others still run; code-detect and name-detect are skipped when
+    schema-detect cannot detect the levels. Exits with status 1 when any
+    report has an error or a stage fails; warnings alone exit 0.
+
+    \b
+    Examples:
+      # Reports and summary beside the input
+      topo-tools validate admin3.parquet
+
+    \b
+      # Reports in their own folder, explicit level columns
+      topo-tools validate admin3.parquet --output-dir checks \\
+        --name-field adm{n}_name --code-field adm{n}_pcode
+    """
+    logger.info("--debug=%s", debug)
+    try:
+        errors = _validate(
+            input_file,
+            output_dir,
+            name_field=name_field,
+            code_field=code_field,
+            threads=threads,
+            tmp_dir=tmp_dir,
+            overwrite=overwrite,
+            debug=debug,
+        )
+    except (FileExistsError, RuntimeError, ValueError) as e:
+        raise click.ClickException(str(e)) from e
+    if errors:
+        raise SystemExit(1)
+
+
 @cli.command(name="topo-clean")
 @click.argument("input_file", envvar="INPUT_FILE")
 @click.argument("output_file", envvar="OUTPUT_FILE", required=False, default=None)
@@ -1323,6 +1426,109 @@ def change(  # noqa: PLR0913, PLR0917
             step=step,
         )
     except (FileExistsError, ValueError, RuntimeError) as e:
+        raise click.ClickException(str(e)) from e
+
+
+@cli.command(name="code-detect")
+@click.argument("input_file", envvar="INPUT_FILE")
+@click.argument("issues_file", envvar="ISSUES_FILE", required=False, default=None)
+@click.option(
+    "--name-field",
+    envvar="NAME_FIELD",
+    default=None,
+    help="Name column of each level, with {n} for the level number, e.g. "
+    "'adm{n}_name'. Give it with --code-field. Without both, levels are "
+    "detected from the data.",
+)
+@click.option(
+    "--code-field",
+    envvar="CODE_FIELD",
+    default=None,
+    help="Code column of each level, with {n} for the level number, e.g. "
+    "'adm{n}_code'. Give it with --name-field. Without both, levels are "
+    "detected from the data.",
+)
+@click.option(
+    "--overwrite",
+    envvar="OVERWRITE",
+    type=bool,
+    default=True,
+    show_default=True,
+    help="Replace output files that already exist. Pass --overwrite=false to "
+    "stop with an error instead.",
+)
+@click.option(
+    "--threads",
+    envvar="THREADS",
+    type=int,
+    default=None,
+    help="Number of threads DuckDB uses (default: all CPU cores).",
+)
+@click.option(
+    "--debug",
+    envvar="DEBUG",
+    is_flag=True,
+    help="Keep intermediate tables, export them to Parquet, and log the time "
+    "and memory each query takes.",
+)
+@click.option(
+    "--tmp-dir",
+    envvar="TMP_DIR",
+    default=None,
+    help="Folder for the working DuckDB database and intermediate files "
+    "(default: a new temporary folder, deleted afterwards unless --debug is set).",
+)
+@click.option(
+    "--step",
+    envvar="STEP",
+    type=click.Choice(["inputs", "levels", "checks", "outputs"]),
+    default=None,
+    help="Run only this step of the tool, for debugging.",
+)
+def code_detect(  # noqa: PLR0913, PLR0917
+    input_file: str,
+    issues_file: str | None,
+    name_field: str | None,
+    code_field: str | None,
+    overwrite: bool,  # noqa: FBT001
+    threads: int | None,
+    debug: bool,  # noqa: FBT001
+    tmp_dir: str | None,
+    step: str | None,
+) -> None:
+    """Find problems in the unit codes of one coded layer.
+
+    Checks every level's codes: blank codes, a code with more than one
+    name, a finest-level code on more than one feature, a code that does
+    not start with its parent's code, and a code shaped unlike the rest of
+    its level. Writes the problems found without changing the layer, even
+    when there are none. ISSUES_FILE defaults to INPUT_FILE with a
+    "_code_issues" suffix, as CSV, or Parquet for a .parquet name.
+
+    \b
+    Examples:
+      # Basic run, CSV report named automatically
+      topo-tools code-detect admin3.parquet
+
+    \b
+      # Explicit level columns
+      topo-tools code-detect admin3.parquet admin3_code_issues.csv \\
+        --name-field adm{n}_name --code-field adm{n}_pcode
+    """
+    logger.info("--debug=%s", debug)
+    try:
+        _code_detect(
+            input_file,
+            Path(issues_file) if issues_file is not None else None,
+            name_field=name_field,
+            code_field=code_field,
+            threads=threads,
+            tmp_dir=tmp_dir,
+            overwrite=overwrite,
+            debug=debug,
+            step=step,
+        )
+    except (FileExistsError, RuntimeError, ValueError) as e:
         raise click.ClickException(str(e)) from e
 
 
@@ -2269,6 +2475,109 @@ def edge_stitch(  # noqa: PLR0913, PLR0917
             name_field=name_field,
             code_field=code_field,
             depth_column=depth_column,
+        )
+    except (FileExistsError, RuntimeError, ValueError) as e:
+        raise click.ClickException(str(e)) from e
+
+
+@cli.command(name="schema-detect")
+@click.argument("input_file", envvar="INPUT_FILE")
+@click.argument("issues_file", envvar="ISSUES_FILE", required=False, default=None)
+@click.option(
+    "--name-field",
+    envvar="NAME_FIELD",
+    default=None,
+    help="Name column of each level, with {n} for the level number, e.g. "
+    "'adm{n}_name'. Give it with --code-field. Without both, levels are "
+    "detected from the data.",
+)
+@click.option(
+    "--code-field",
+    envvar="CODE_FIELD",
+    default=None,
+    help="Code column of each level, with {n} for the level number, e.g. "
+    "'adm{n}_code'. Give it with --name-field. Without both, levels are "
+    "detected from the data.",
+)
+@click.option(
+    "--overwrite",
+    envvar="OVERWRITE",
+    type=bool,
+    default=True,
+    show_default=True,
+    help="Replace output files that already exist. Pass --overwrite=false to "
+    "stop with an error instead.",
+)
+@click.option(
+    "--threads",
+    envvar="THREADS",
+    type=int,
+    default=None,
+    help="Number of threads DuckDB uses (default: all CPU cores).",
+)
+@click.option(
+    "--debug",
+    envvar="DEBUG",
+    is_flag=True,
+    help="Keep intermediate tables, export them to Parquet, and log the time "
+    "and memory each query takes.",
+)
+@click.option(
+    "--tmp-dir",
+    envvar="TMP_DIR",
+    default=None,
+    help="Folder for the working DuckDB database and intermediate files "
+    "(default: a new temporary folder, deleted afterwards unless --debug is set).",
+)
+@click.option(
+    "--step",
+    envvar="STEP",
+    type=click.Choice(["inputs", "levels", "checks", "outputs"]),
+    default=None,
+    help="Run only this step of the tool, for debugging.",
+)
+def schema_detect(  # noqa: PLR0913, PLR0917
+    input_file: str,
+    issues_file: str | None,
+    name_field: str | None,
+    code_field: str | None,
+    overwrite: bool,  # noqa: FBT001
+    threads: int | None,
+    debug: bool,  # noqa: FBT001
+    tmp_dir: str | None,
+    step: str | None,
+) -> None:
+    """Find problems in the column schema and hierarchy of one admin layer.
+
+    Checks that admin levels can be detected with none skipped, that every
+    level has the same set of columns named the same way, that each code
+    sits under exactly one parent code, and that no code has a blank
+    parent. Writes the problems found without changing the layer, even
+    when there are none. ISSUES_FILE defaults to INPUT_FILE with a
+    "_schema_issues" suffix, as CSV, or Parquet for a .parquet name.
+
+    \b
+    Examples:
+      # Basic run, CSV report named automatically
+      topo-tools schema-detect admin3.parquet
+
+    \b
+      # Explicit level columns
+      topo-tools schema-detect admin3.parquet admin3_schema_issues.csv \\
+        --name-field adm{n}_name --code-field adm{n}_pcode
+    """
+    logger.info("--debug=%s", debug)
+    try:
+        _schema_detect(
+            input_file,
+            Path(issues_file) if issues_file is not None else None,
+            name_field=name_field,
+            code_field=code_field,
+            threads=threads,
+            tmp_dir=tmp_dir,
+            overwrite=overwrite,
+            debug=debug,
+            step=step,
         )
     except (FileExistsError, RuntimeError, ValueError) as e:
         raise click.ClickException(str(e)) from e

@@ -1,7 +1,7 @@
 ---
 title: "schema-join"
 sidebar:
-  order: 4
+  order: 5
   badge:
     text: Draft
     variant: caution

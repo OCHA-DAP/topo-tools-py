@@ -78,3 +78,14 @@ can't be split; `auto` avoids this.
 
 Review the result, particularly any unit whose rank could plausibly tie
 with a neighbor.
+
+Then check the coded layer's codes:
+
+    topo-tools code-detect admin3_coded.parquet \
+      --code-field adm{n}_code --name-field adm{n}_name
+
+This writes `admin3_coded_code_issues.csv` without changing the input. Fix
+every `error` row (`blank-code`, `name-conflict`, `duplicate-code`,
+`prefix-mismatch`) and review each `warn` row: `split-unit` lists one
+unit stored as several features, and `format-outlier`/`format-undetected`
+list codes shaped unlike the rest of their level.

@@ -34,8 +34,8 @@ in sync.
   `core.schema_map`'s and `core.schema_refactor`'s logic directly; neither
   of those MUST depend on `core.schema_crosswalk`, or on each other (see
   `docs/dev/explanation/1-schema/schema_map.md`).
-- `schema-fill`, `schema-join`, `package-polygons`, `package-points`, and
-  `package-lines` MAY all depend on `schema-map`'s
+- `schema-detect`, `schema-fill`, `schema-join`, `package-polygons`,
+  `package-points`, and `package-lines` MAY all depend on `schema-map`'s
   `name_field`/`code_field`/level-detection helpers
   (`core/schema_map/_levels.py`, `core/schema_map/_level_columns.py`);
   `schema-map` MUST NOT depend on any of them (see `docs/adr/0075`,
@@ -53,7 +53,7 @@ in sync.
   or `core.schema_map` (see `docs/adr/0095`).
 - `core.code` (the shared code-format/cascade/rewrite primitive) MUST NOT
   depend on `code-create` or `code-update`.
-- `code-create` and `code-update` MAY depend on `schema_map`'s
+- `code-detect`, `code-create` and `code-update` MAY depend on `schema_map`'s
   `name_field`/`code_field`/level-detection helpers; `schema_map` MUST NOT
   depend on either.
 - `code-update` MAY depend on `core.dissolve`'s stage function directly;
@@ -65,6 +65,8 @@ in sync.
 - `code-update` MUST NOT depend on `edge-extend`, `edge-match`,
   `edge-mosaic`, or `topo-clean`, and none of them MUST depend on
   `code-update`.
+- `validate` MAY depend on every detect tool's `api.*.detect()`;
+  `core.validate` MUST NOT depend on any tool package.
 
 ## Multi-file combine ordering
 
@@ -258,8 +260,10 @@ involved (e.g. the other side of an overlap). `edge-match` MUST populate
 parent directory plus filename (never the full input path), for every
 kind that has one (`unassigned`, `dropped_group`, `clip-empty`,
 `detached-part`, `passthrough`), null only for `gap` (see `docs/adr/0084`,
-`docs/adr/0087`). `name-detect` writes its own schema (see its reference),
-always, even with zero rows, as CSV by default.
+`docs/adr/0087`). `schema-detect`, `code-detect` and `name-detect` each
+write their own schema (see their references), always, even with zero
+rows, as CSV by default; `validate` summarizes all four reports in its own
+schema (see its reference).
 
 None of `edge-match`/`edge-mosaic`/`edge-clip`/`edge-stitch`'s *main*
 output carries a `source_file` column at all, even though every one of

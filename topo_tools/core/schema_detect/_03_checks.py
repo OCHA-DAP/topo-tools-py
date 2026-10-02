@@ -1,0 +1,155 @@
+"""Finds column-naming, column-set and hierarchy-nesting defects, one row each."""
+
+from collections.abc import Callable
+from itertools import pairwise
+from logging import getLogger
+
+from duckdb import DuckDBPyConnection
+
+from topo_tools.core.duckdb_utils import quote_identifier
+
+logger = getLogger(__name__)
+
+_COLUMNS = (
+    "kind VARCHAR, level INTEGER, column_name VARCHAR, code VARCHAR, reason VARCHAR"
+)
+
+
+def _problems(name: str, _parents: list) -> str:
+    return f"""--sql
+        SELECT problem, level, column_name, NULL, reason
+        FROM "{name}_02" WHERE problem IS NOT NULL
+    """
+
+
+def _families(name: str) -> str:
+    return f"""--sql
+        SELECT * FROM "{name}_02" WHERE problem IS NULL AND family IS NOT NULL
+    """
+
+
+def _naming(name: str, _parents: list) -> str:
+    # A tied family (two levels, two spellings) goes to the separator/case style
+    # most of the layer's other columns use.
+    return f"""--sql
+        WITH s AS ({_families(name)}), styled AS (
+            SELECT family, raw_family, regexp_replace(regexp_replace(
+                regexp_replace(raw_family, '[0-9]+', '', 'g'),
+                '[a-z]+', 'a', 'g'), '[A-Z]+', 'A', 'g') AS style
+            FROM s WHERE anchored
+        ), counts AS (
+            SELECT family, raw_family, count(*) AS n,
+                   bool_or(style = (SELECT mode(style) FROM styled)) AS fits
+            FROM styled GROUP BY ALL
+        ), usual AS (
+            SELECT family, arg_max(raw_family, (n, fits, raw_family)) AS raw
+            FROM counts GROUP BY family
+        ), example AS (
+            SELECT family, min(column_name) AS example
+            FROM s JOIN usual USING (family)
+            WHERE anchored AND raw_family = raw GROUP BY family
+        )
+        SELECT 'column-naming', level, column_name, NULL,
+               CASE WHEN example IS NULL
+                    THEN printf('does not follow level %d''s column naming', level)
+                    ELSE printf('named unlike %s, its match at another level', example)
+               END
+        FROM s LEFT JOIN usual USING (family) LEFT JOIN example USING (family)
+        WHERE NOT anchored OR raw_family IS DISTINCT FROM raw
+    """
+
+
+def _column_set(name: str, _parents: list) -> str:
+    # A family at one level only (e.g. a reference name) is level-specific.
+    return f"""--sql
+        WITH s AS ({_families(name)}),
+        levels AS (SELECT DISTINCT level FROM s),
+        families AS (
+            SELECT family, list(DISTINCT level) AS found, min(column_name) AS example
+            FROM s GROUP BY family
+        )
+        SELECT 'column-set-mismatch', l.level, NULL, NULL,
+               printf('no column like %s, which another level has', f.example)
+        FROM families f CROSS JOIN levels l
+        WHERE NOT list_contains(f.found, l.level)
+          AND len(f.found) > 1
+    """
+
+
+def _literal(text: str) -> str:
+    return "'" + text.replace("'", "''") + "'"
+
+
+def _pairs_sql(name: str, parents: list, select: Callable[[int, str, str], str]) -> str:
+    unions = [select(level, child, parent) for level, child, parent in parents]
+    if not unions:
+        return f'SELECT NULL, NULL, NULL, NULL, NULL FROM "{name}_02" WHERE false'
+    return " UNION ALL ".join(f"SELECT * FROM ({u})" for u in unions)
+
+
+def _multiple_parents(name: str, parents: list) -> str:
+    def select(level: int, child: str, parent: str) -> str:
+        c, p = quote_identifier(child), quote_identifier(parent)
+        return f"""--sql
+            SELECT 'multiple-parents', {level}, {_literal(child)}, {c}::VARCHAR,
+                   printf('under %d parents: %s', count(DISTINCT {p}),
+                          string_agg(DISTINCT {p}::VARCHAR, ', '
+                                     ORDER BY {p}::VARCHAR))
+            FROM "{name}_01"
+            WHERE {c} IS NOT NULL AND {p} IS NOT NULL
+            GROUP BY {c} HAVING count(DISTINCT {p}) > 1
+        """
+
+    return _pairs_sql(name, parents, select)
+
+
+def _orphan(name: str, parents: list) -> str:
+    def select(level: int, child: str, parent: str) -> str:
+        c, p = quote_identifier(child), quote_identifier(parent)
+        return f"""--sql
+            SELECT DISTINCT 'orphan-child', {level}, {_literal(child)}, {c}::VARCHAR,
+                   {_literal(f"has no parent code in {parent}")}
+            FROM "{name}_01" WHERE {c} IS NOT NULL AND {p} IS NULL
+        """
+
+    return _pairs_sql(name, parents, select)
+
+
+_CHECKS = {
+    "problems": _problems,
+    "column-naming": _naming,
+    "column-set-mismatch": _column_set,
+    "multiple-parents": _multiple_parents,
+    "orphan-child": _orphan,
+}
+
+
+def _parents(conn: DuckDBPyConnection, name: str) -> list[tuple[int, str, str]]:
+    """Each level's (level, code column, next coarser level's code column)."""
+    codes = conn.execute(f"""--sql
+        SELECT level, column_name FROM "{name}_02"
+        WHERE is_code AND problem IS NULL ORDER BY level
+    """).fetchall()
+    return [(level, child, parent) for (_, parent), (level, child) in pairwise(codes)]
+
+
+def main(conn: DuckDBPyConnection, name: str, *, debug: bool = False) -> None:
+    """Write `{name}_03`: every finding, one row per column, level or unit."""
+    parents = _parents(conn, name)
+    tmps = []
+    for i, (kind, build) in enumerate(_CHECKS.items(), start=1):
+        tmp = f"{name}_03_tmp{i}"
+        tmps.append(tmp)
+        try:
+            conn.execute(f'CREATE OR REPLACE TABLE "{tmp}" ({_COLUMNS})')
+            conn.execute(f'INSERT INTO "{tmp}" {build(name, parents)}')
+        except Exception as e:  # noqa: BLE001 (one failing check must not hide the rest)
+            logger.warning("%s check failed (%s); reporting none", kind, e)
+            conn.execute(f'CREATE OR REPLACE TABLE "{tmp}" ({_COLUMNS})')
+    conn.execute(f"""--sql
+        CREATE OR REPLACE TABLE "{name}_03" AS
+        {" UNION ALL ".join(f'SELECT * FROM "{t}"' for t in tmps)}
+    """)
+    if not debug:
+        for tmp in tmps:
+            conn.execute(f'DROP TABLE IF EXISTS "{tmp}"')

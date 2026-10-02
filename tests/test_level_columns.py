@@ -146,6 +146,27 @@ def test_detect_level_columns_finds_flat_non_embedding_finest_level(conn):
     assert result[finest_level].group_by == ["adm3_pcode"]
 
 
+def test_detect_level_columns_finds_zero_padded_middle_level(conn):
+    """Zero-padded codes embed only the root's, and lang1/lang2 join the root group."""
+    conn.execute("""--sql
+        CREATE TABLE t_01 AS
+        SELECT row_number() OVER () AS fid, 'XY' AS adm0_pcode,
+               'Country' AS adm0_name, 'en' AS lang1, 'fr' AS lang2,
+               'XY' || a || '0000' AS adm1_pcode, 'Region ' || a AS adm1_name,
+               'XY' || a || b || '000' AS adm2_pcode,
+               'District ' || a || b AS adm2_name,
+               'XY' || a || b || c || d AS adm3_pcode,
+               'Commune ' || a || b || c || d AS adm3_name,
+               ST_MakeEnvelope(a * 10 + b, c * 10 + d, a * 10 + b + 1, c * 10 + d + 1)
+                   AS geom
+        FROM range(1, 4) r1(a), range(1, 4) r2(b), range(1, 4) r3(c),
+             range(1, 4) r4(d)
+    """)
+    result = detect_level_columns(conn, "t_01")
+    group_bys = [set(result[level].group_by) for level in sorted(result)]
+    assert {"adm2_pcode", "adm2_name"} in group_bys
+
+
 def test_detect_level_columns_ignores_coincidentally_embedding_sparse_columns(conn):
     """Sparse, single-row audit columns must not out-chain the real hierarchy."""
     adm2_children = {

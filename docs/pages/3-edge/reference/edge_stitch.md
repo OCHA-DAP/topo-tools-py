@@ -36,7 +36,7 @@ Removes the slivers and overlaps left where clipped pieces meet. OUTPUT_FILE def
 Basic run, output name chosen automatically:
 
 ```sh
-  topo-tools edge-stitch tiled.geojson
+topo-tools edge-stitch tiled.geojson
 ```
 
 Explicit output:

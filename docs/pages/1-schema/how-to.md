@@ -47,3 +47,16 @@ child's column and adds the parent's as the next free sibling
   [review names](../5-names/index.mdx);
 - `no-overlap`, `low-overlap`: a unit outside or mostly outside its
   parent, settled with the data provider before coding.
+
+Then check the finest level's schema and nesting:
+
+    topo-tools schema-detect admin2_mapped.parquet
+
+This writes `admin2_mapped_schema_issues.csv` without changing the input.
+Errors (`levels-undetected`, `level-skipped`, `multiple-parents`,
+`orphan-child`) mean the hierarchy can't be trusted yet: fix them before
+coding. Warnings list columns named or present unlike the other levels'
+(`column-naming`, `column-set-mismatch`), and columns set aside as a
+coarser grouping (`supplemental-column`). A layer with such a grouping
+also reports `levels-undetected`: run it again with
+`--name-field`/`--code-field`.

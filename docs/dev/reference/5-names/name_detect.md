@@ -39,10 +39,8 @@ sidebar:
 
   | kind | severity | finding |
   | --- | --- | --- |
-  | `blank-code` | error | a unit with no code, one row per parent |
   | `blank-name` | error | NULL, empty or whitespace only |
   | `placeholder-name` | error | `n/a`, `n_a`, `n.a.`, `null`, `none`, `unknown`, `undefined`, punctuation only, or the unit's own code |
-  | `name-conflict` | error | one code with more than one name |
   | `encoding-artifact` | error | U+FFFD, a C1 control character, `Ã` or `Â` followed by a continuation byte, `â€`, or any other UTF-8 lead byte read as cp1252 when it repairs to plausible Latin text |
   | `duplicate-name` | warn | the same name for different codes under one parent |
   | `normalized-duplicate-name` | warn | names under one parent equal after ignoring case and punctuation between letters, or, for Latin names, accents when one of them has none |
@@ -53,8 +51,8 @@ sidebar:
   | `mixed-script` | warn | one word with letters from more than one of Latin, Cyrillic and Greek |
   | `code-in-name` | warn | the name contains its own or its parent's code as a whole word (at least 3 characters, with a letter and a digit) |
 
-- A unit with no code MUST be reported only as `blank-code`, never by
-  another kind.
+- A unit with no code MUST NOT be reported by any kind; `code-detect`
+  reports it as `blank-code` (see `docs/adr/0128`).
 - A pair or group of units matched in several language columns MUST be
   reported once, from the first column that matches.
 - A unit with `blank-name` MUST NOT be reported by another per-name kind in

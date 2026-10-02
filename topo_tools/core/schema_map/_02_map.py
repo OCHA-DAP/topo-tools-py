@@ -6,6 +6,7 @@ algorithm and why.
 
 import os
 import re
+from collections import Counter
 from dataclasses import dataclass
 from logging import getLogger
 
@@ -555,11 +556,13 @@ def _build_edges(
 
 
 def _group_digit(cols: list[str]) -> int | None:
-    """Return the single naming digit every column in a group agrees on."""
-    digits = {
+    """Return the naming digit most of a group's columns share, None on a tie."""
+    digits = Counter(
         int(m.group()) for c in cols if (m := _LEVEL_DIGIT_RE.search(c)) is not None
-    }
-    return digits.pop() if len(digits) == 1 else None
+    ).most_common(2)
+    if not digits or (len(digits) > 1 and digits[0][1] == digits[1][1]):
+        return None
+    return digits[0][0]
 
 
 def _bridged_edges(

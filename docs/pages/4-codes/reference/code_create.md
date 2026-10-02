@@ -36,8 +36,8 @@ Use it when there is no previous release to keep codes from, or with `--source-c
 Basic run, levels detected from the data:
 
 ```sh
-  topo-tools code-create admin2.geojson --root-code AFG --delimiter . \
-    --min-width 3
+topo-tools code-create admin2.geojson --root-code AFG --delimiter . \
+  --min-width 3
 ```
 
 Name the level columns, when detection is unsure:

@@ -5,8 +5,18 @@ sidebar:
   label: "How-to"
 ---
 
-Run `package` against the name-cleaned output of
-[step 5](../5-names/how-to.md).
+Check the name-cleaned output of [step 5](../5-names/how-to.md) with
+`validate` first. It runs `schema-detect`, `topo-detect`, `code-detect`
+and `name-detect` on the layer and writes each report plus a summary
+into `checks/`, exiting with status 1 if any report has an error.
+
+    topo-tools validate admin3_names_edited.parquet --output-dir checks \
+      --name-field "adm{n}_name" --code-field "adm{n}_code"
+
+Open `checks/admin3_names_edited_validate_summary.csv` for one row per
+stage and kind found; each row names the report with the details.
+
+Then run `package` on the same layer.
 
     topo-tools package admin3_names_edited.parquet --output "release/{x}.parquet" \
       --name-field "adm{n}_name" --code-field "adm{n}_code" \

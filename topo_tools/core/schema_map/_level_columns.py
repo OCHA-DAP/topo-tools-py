@@ -108,7 +108,7 @@ def _resolve_levels(
     return rows, codes, anchors, _display_levels(codes, anchors)
 
 
-def _detect_anchors(
+def detect_level_anchors(
     conn: DuckDBPyConnection, table: str
 ) -> dict[int, tuple[str, str, str]]:
     """Each displayed level's (prefix, anchor, suffix) naming split."""
@@ -249,11 +249,11 @@ def detect_level_codes(conn: DuckDBPyConnection, table: str) -> dict[int, str]:
     return {display.get(level, level): column for level, column in codes.items()}
 
 
-def _root_anchor(
+def root_anchor(
     conn: DuckDBPyConnection, table: str, level_columns: dict[int, LevelColumns]
 ) -> tuple[str, str, str] | None:
     """Find an unassigned family's (prefix, anchor, suffix), or None if ambiguous."""
-    anchors = _detect_anchors(conn, table)
+    anchors = detect_level_anchors(conn, table)
     if not anchors:
         return None
     prefix, _, suffix = next(iter(anchors.values()))
@@ -286,10 +286,10 @@ def detect_root_level(
     """
     if not level_columns:
         return None
-    root = _root_anchor(conn, table, level_columns)
+    root = root_anchor(conn, table, level_columns)
     if root is None:
         return None
-    prefix, root_anchor, suffix = root
+    prefix, root_digits, suffix = root
 
     table_columns = [
         r[0] for r in conn.execute(f"DESCRIBE {quote_identifier(table)}").fetchall()
@@ -299,7 +299,7 @@ def detect_root_level(
         c
         for c in table_columns
         if c not in assigned
-        and is_level_identity_column(c, prefix, root_anchor, suffix)
+        and is_level_identity_column(c, prefix, root_digits, suffix)
     ]
     if not candidates:
         return None
@@ -384,10 +384,10 @@ def group_families_by_level(
     conn: DuckDBPyConnection, table: str, level_columns: dict[int, LevelColumns]
 ) -> dict[str, dict[int, str]]:
     """Group every level's identity columns by shared naming kind, across levels."""
-    anchors = _detect_anchors(conn, table)
+    anchors = detect_level_anchors(conn, table)
     if 0 in level_columns and 0 not in anchors:
         real_levels = {k: v for k, v in level_columns.items() if k != 0}
-        root = _root_anchor(conn, table, real_levels)
+        root = root_anchor(conn, table, real_levels)
         if root is not None:
             anchors[0] = root
     families: dict[str, dict[int, str]] = {}

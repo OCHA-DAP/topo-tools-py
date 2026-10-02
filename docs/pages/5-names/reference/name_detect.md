@@ -15,7 +15,7 @@ topo-tools name-detect [OPTIONS] INPUT_FILE [ISSUES_FILE]
 
 ## Description
 
-Checks every name column of every level: blank and placeholder names, duplicates under the same parent, a code with more than one name, encoding errors, invisible characters, spacing, case and mixed scripts. Writes the problems found without changing the layer, even when there are none. ISSUES_FILE defaults to INPUT_FILE with a "_name_issues" suffix, as CSV; a .parquet name adds each unit's geometry.
+Checks every name column of every level: blank and placeholder names, duplicates under the same parent, encoding errors, invisible characters, spacing, case and mixed scripts. Writes the problems found without changing the layer, even when there are none. ISSUES_FILE defaults to INPUT_FILE with a "_name_issues" suffix, as CSV; a .parquet name adds each unit's geometry.
 
 ## Options
 
@@ -32,7 +32,7 @@ Checks every name column of every level: blank and placeholder names, duplicates
 Basic run, CSV report named automatically:
 
 ```sh
-  topo-tools name-detect admin3.parquet
+topo-tools name-detect admin3.parquet
 ```
 
 Explicit level columns, report with geometry:

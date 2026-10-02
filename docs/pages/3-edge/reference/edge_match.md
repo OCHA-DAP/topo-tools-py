@@ -46,7 +46,7 @@ Each input file is matched to the overlay feature it overlaps most, extended to 
 Fit an admin4 layer into a single country boundary:
 
 ```sh
-  topo-tools edge-match adm4.geojson adm0.geojson
+topo-tools edge-match adm4.geojson adm0.geojson
 ```
 
 Fit admin3 into admin2, each group of units into its own admin2 unit:

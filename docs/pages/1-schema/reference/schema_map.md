@@ -2,7 +2,7 @@
 title: "schema-map"
 description: "Rename a layer's admin columns to a standard schema, using a crosswalk."
 sidebar:
-  order: 3
+  order: 4
 ---
 
 Rename a layer's admin columns to a standard schema, using a crosswalk.
@@ -37,7 +37,7 @@ The admin levels and which columns hold codes or names are worked out from the d
 Map and apply, output names chosen automatically:
 
 ```sh
-  topo-tools schema-map example.geojson
+topo-tools schema-map example.geojson
 ```
 
 Apply an edited crosswalk:

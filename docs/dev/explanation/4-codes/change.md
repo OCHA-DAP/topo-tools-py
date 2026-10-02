@@ -1,7 +1,7 @@
 ---
 title: "change"
 sidebar:
-  order: 11
+  order: 12
   badge:
     text: Draft
     variant: caution
