@@ -1024,7 +1024,7 @@ def change(  # noqa: PLR0913, PLR0917
     "--delimiter",
     envvar="DELIMITER",
     required=True,
-    help="Single-character delimiter; empty ('') only with --source-codes embed.",
+    help="Single-character delimiter, or empty ('') for none.",
 )
 @click.option(
     "--min-width",

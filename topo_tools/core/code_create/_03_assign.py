@@ -17,7 +17,7 @@ def _copy_source_codes(
     siblings: dict[str, str] = {}
     for n in sorted(levels):
         level = levels[n]
-        if n == 0 or level.seeded:
+        if level.seeded:
             continue
         siblings[level.code] = next_free_sibling(level.code, taken)
         taken.add(siblings[level.code])
@@ -76,20 +76,37 @@ def _strip_parent_prefixes(
         )
 
 
+def _prepare_source_codes(
+    conn: DuckDBPyConnection, table: str, levels: dict[int, Level]
+) -> None:
+    """Cast each code column to VARCHAR, blanks to NULL; raise on a missing code."""
+    columns = {r[0] for r in conn.execute(f'DESCRIBE "{table}"').fetchall()}
+    for n, level in sorted(levels.items()):
+        if level.code not in columns:
+            continue
+        conn.execute(f'ALTER TABLE "{table}" ALTER "{level.code}" TYPE VARCHAR')
+        conn.execute(
+            f'UPDATE "{table}" SET "{level.code}" = NULL '
+            f"WHERE trim(\"{level.code}\") = ''"
+        )
+        if n == 0 or level.seeded:
+            continue
+        (nulls,) = conn.execute(
+            f'SELECT COUNT(*) FROM "{table}" WHERE "{level.code}" IS NULL'
+        ).fetchone()
+        if nulls:
+            # Ranking would merge every code-less unit under a parent into one.
+            msg = f"level {n} ({level.code!r}) has {nulls} row(s) with no source code"
+            raise ValueError(msg)
+
+
 def _check_embeddable(
     conn: DuckDBPyConnection, table: str, n: int, level: Level, fmt: CodeFormat
 ) -> None:
-    """Raise unless every row has a source code, all one length without a delimiter."""
-    nulls, lengths = conn.execute(f"""--sql
-        SELECT COUNT(*) FILTER (WHERE "{level.code}" IS NULL),
-               list(DISTINCT length("{level.code}"::VARCHAR)) FILTER (
-                   WHERE "{level.code}" IS NOT NULL
-               )
-        FROM "{table}"
-    """).fetchone()
-    if nulls:
-        msg = f"level {n} ({level.code!r}) has {nulls} row(s) with no source code"
-        raise ValueError(msg)
+    """Raise unless every source code is one length without a delimiter."""
+    (lengths,) = conn.execute(
+        f'SELECT list(DISTINCT length("{level.code}")) FROM "{table}"'
+    ).fetchone()
     if fmt.delimiter == "" and len(lengths or []) > 1:
         msg = (
             f"level {n} ({level.code!r}) source codes vary in length "
@@ -111,6 +128,7 @@ def main(
         msg = f"source_codes must be one of {SOURCE_CODES}, got {source_codes!r}"
         raise ValueError(msg)
     fmt.check_level_count(sum(1 for n in levels if n >= 1))
+    _prepare_source_codes(conn, table, levels)
     if source_codes == "copy":
         _copy_source_codes(conn, table, levels)
     for n, level in sorted(levels.items()):

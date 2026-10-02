@@ -27,8 +27,9 @@ title: "code-create"
   `docs/adr/0106`), rather than silently skipping that level or overwriting
   its name column.
 - With an explicit `name_field`/`code_field` pair, a level with a name
-  column but no code column MUST get a code column seeded from its names; a
-  level with neither MUST raise `ValueError`.
+  column but no code column, or a code column with no non-blank value,
+  MUST get a code column seeded from its names; a level with neither MUST
+  raise `ValueError`.
 - `code-create` MUST raise `ValueError` in structural mode ("group units like a
   level") if detection sets any column aside as a supplemental coarser
   grouping, and ("a coarser level merged into this one") if any member of
@@ -47,6 +48,10 @@ title: "code-create"
 ## Assignment
 
 - `source_codes` MUST be one of `replace` (default), `embed`, `copy`.
+- Every level's code column MUST be read as text (an integer column cast
+  to VARCHAR, a blank value treated as missing). A row of a source-coded
+  level with no source code MUST raise `ValueError` under every mode,
+  since ranking would merge every code-less unit under a parent into one.
 - Under `replace` and `copy`, for each resolved level `1..N`, ascending,
   `code-create` MUST rank that level's own distinct code-column values
   under their immediately-coarser level's already-assigned code (or
@@ -66,9 +71,8 @@ title: "code-create"
   every source code at a level starts with its parent's source code (or
   `root_code`, at level 1) and is longer than it, that prefix MUST be
   removed before embedding; if only some do, `embed` MUST raise
-  `ValueError`. `embed` MUST also raise `ValueError` if a row of a
-  source-coded level has no source code, or if `delimiter` is empty and
-  that level's source codes differ in length (see `docs/adr/0122`,
+  `ValueError`. `embed` MUST also raise `ValueError` if `delimiter` is
+  empty and that level's source codes differ in length (see `docs/adr/0122`,
   `docs/adr/0125`).
 - The sort key MUST be the resolved code column's own raw value; there is
   no COD-AB-specific multi-column tie-break (e.g. `srcid` then `name` then

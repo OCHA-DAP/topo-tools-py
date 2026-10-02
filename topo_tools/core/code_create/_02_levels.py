@@ -22,6 +22,20 @@ class Level:
     seeded: bool = False
 
 
+def _has_codes(
+    conn: DuckDBPyConnection, table: str, code: str, columns: set[str]
+) -> bool:
+    """Return whether the code column exists with at least one non-blank value."""
+    if code not in columns:
+        return False
+    return (
+        conn.execute(
+            f'SELECT bool_or(trim("{code}"::VARCHAR) <> \'\') FROM "{table}"'
+        ).fetchone()[0]
+        is True
+    )
+
+
 def main(
     conn: DuckDBPyConnection,
     table: str,
@@ -36,9 +50,8 @@ def main(
         result = {}
         for n in levels:
             code, name = schema.code_field.format(n=n), schema.name_field.format(n=n)
-            result[n] = Level(
-                code, name if name in columns else None, code not in columns
-            )
+            seeded = n >= 1 and not _has_codes(conn, table, code, columns)
+            result[n] = Level(code, name if name in columns else None, seeded)
         return result
 
     level_columns = detect_level_columns_or_single(conn, table)

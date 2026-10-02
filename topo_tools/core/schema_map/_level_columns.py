@@ -9,7 +9,6 @@ from duckdb import DuckDBPyConnection
 from topo_tools.core.duckdb_utils import quote_identifier
 from topo_tools.core.schema_map._02_map import (
     _WINNER_MAX_COLLAPSE_RATIO,
-    _combined_distinct_count,
     resolve_columns,
 )
 from topo_tools.core.schema_map._constants import CONFIDENCE_SUPPLEMENTAL
@@ -449,12 +448,23 @@ def _verify_no_coarser_member(
     parent_column: str,
 ) -> None:
     """Raise if a member collapses the level's own units under each parent."""
-    units = _combined_distinct_count(conn, table, parent_column, canonical_column)
+    parent, canonical = (
+        quote_identifier(parent_column),
+        quote_identifier(canonical_column),
+    )
     for other in cluster:
         if other == canonical_column:
             continue
-        values = _combined_distinct_count(conn, table, parent_column, other)
-        if 1 - values / units > _WINNER_MAX_COLLAPSE_RATIO:
+        member = quote_identifier(other)
+        # Only rows where the member has a value: an empty alternate-name column
+        # would otherwise count as one value per parent.
+        units, values = conn.execute(f"""--sql
+            SELECT COUNT(DISTINCT ({parent}, {canonical})),
+                   COUNT(DISTINCT ({parent}, {member}))
+            FROM {quote_identifier(table)}
+            WHERE {member} IS NOT NULL
+        """).fetchone()
+        if units and 1 - values / units > _WINNER_MAX_COLLAPSE_RATIO:
             msg = (
                 f"{table}: {other!r} ({values} values under {parent_column!r}) "
                 f"groups {canonical_column!r} ({units}), a coarser level merged "
