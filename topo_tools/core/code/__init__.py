@@ -21,7 +21,7 @@ from topo_tools.core.code._detect_format import (
 )
 from topo_tools.core.code._next_available import next_available_integer
 from topo_tools.core.code._rewrite import rewrite_child_code
-from topo_tools.core.code._seed import seed_code_from_names
+from topo_tools.core.code._seed import check_unique_names, seed_code_from_names
 
 __all__ = [
     "TABLE_COPY_OPTS",
@@ -29,6 +29,7 @@ __all__ = [
     "MinWidth",
     "assign_new_codes",
     "build_code",
+    "check_unique_names",
     "detect_code_format",
     "detect_undelimited_format",
     "has_delimiter",

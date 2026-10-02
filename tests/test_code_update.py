@@ -747,3 +747,15 @@ def test_missing_code_or_mixed_name_raises(tmp_path, side, column, value, match)
     _write_synthetic(new_path, new_rows)
     with pytest.raises(ValueError, match=match):
         code_update(old_path, new_path, tmp_path / "out.parquet", **_TEMPLATES_AB)
+
+
+def test_same_named_siblings_seeded_from_names_raise(tmp_path):
+    """Two NEW units with one name under one parent can't be told apart."""
+    old_rows = [{**r, "adm2_name": f"N{r['adm2_code']}"} for r in _two_parent_rows()]
+    old_coded_path = _code_old(tmp_path, old_rows)
+    new_rows = [{k: v for k, v in r.items() if k != "adm2_code"} for r in old_rows]
+    new_rows[1]["adm2_name"] = new_rows[0]["adm2_name"]
+    new_path = tmp_path / "new.parquet"
+    _write_synthetic(new_path, new_rows)
+    with pytest.raises(ValueError, match="repeat under one parent"):
+        code_update(old_coded_path, new_path, tmp_path / "out.parquet", **_TEMPLATES_AB)

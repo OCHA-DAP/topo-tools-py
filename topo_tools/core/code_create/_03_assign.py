@@ -3,7 +3,12 @@
 from duckdb import DuckDBPyConnection
 
 from topo_tools.core.admin_columns import next_free_sibling
-from topo_tools.core.code import CodeFormat, assign_new_codes, seed_code_from_names
+from topo_tools.core.code import (
+    CodeFormat,
+    assign_new_codes,
+    check_unique_names,
+    seed_code_from_names,
+)
 from topo_tools.core.code_create._02_levels import Level
 from topo_tools.core.code_create._constants import SOURCE_CODES
 
@@ -134,6 +139,9 @@ def main(
     for n, level in sorted(levels.items()):
         if level.seeded:
             seed_code_from_names(conn, table, n, level.code, level.name)
+            if n == max(levels):
+                parent = levels[n - 1].code if n - 1 in levels else None
+                check_unique_names(conn, table, n, level.code, parent)
     if source_codes == "embed":
         _strip_parent_prefixes(conn, table, levels, fmt)
     if 0 in levels:

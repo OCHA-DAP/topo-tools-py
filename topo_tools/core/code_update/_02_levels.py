@@ -6,6 +6,7 @@ from duckdb import DuckDBPyConnection
 
 from topo_tools.core.code import (
     CodeFormat,
+    check_unique_names,
     detect_code_format,
     detect_undelimited_format,
     has_delimiter,
@@ -67,6 +68,8 @@ def _resolve_side(
                         f'UPDATE "{table}" SET "{columns[n]}" = '
                         f'"{columns[n - 1]}"::VARCHAR || \' > \' || "{columns[n]}"'
                     )
+                if n == max(levels):
+                    check_unique_names(conn, table, n, columns[n])
         return SideLevels(
             columns=columns, names=names, schema=schema, level_columns=None
         )
