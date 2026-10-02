@@ -30,8 +30,9 @@ sidebar:
   | --- | --- | --- |
   | `blank-code` | error | a unit with no code, one row per parent |
   | `name-conflict` | error | one code with more than one name |
-  | `duplicate-code` | error | a finest-level code on more than one feature |
+  | `duplicate-code` | error | a finest-level code on more than one feature, with different names or parents |
   | `prefix-mismatch` | error | a code not starting with its parent's code, in a level where at least 90% of codes do |
+  | `split-unit` | warn | a finest-level code on more than one feature, all with the same name and parent |
   | `format-outlier` | warn | a code shaped unlike its level's most common shape, where at least 90% of the level's codes share it |
   | `format-undetected` | warn | a level whose most common code shape covers under 90% of its codes |
 

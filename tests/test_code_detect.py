@@ -92,6 +92,13 @@ def test_duplicate_code(tmp_path):
     assert ("duplicate-code", "error", 3, "XY111") in _kinds(tmp_path, select)
 
 
+def test_split_unit(tmp_path):
+    select = (
+        "SELECT * FROM base UNION ALL SELECT * FROM base WHERE adm3_pcode = 'XY111'"
+    )
+    assert _kinds(tmp_path, select) == {("split-unit", "warn", 3, "XY111")}
+
+
 def test_prefix_mismatch(tmp_path):
     select = """--sql
         SELECT * REPLACE (

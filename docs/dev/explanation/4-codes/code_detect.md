@@ -34,25 +34,29 @@ follow the rule, so a level coded in two schemes reads as
 
 ## Duplicates
 
-`duplicate-code` counts features, not units: a code on two features is
-reported even when both carry the same name and parent, which is how one
-unit split into separate features (instead of one MultiPolygon) shows up.
-Codes repeated across parents at a coarser level are `schema-detect`'s
-`multiple-parents`.
+A finest-level code on several features is a `split-unit` warning when
+every feature carries the same name and parent: one unit stored as
+separate features instead of one MultiPolygon, which dissolving repairs.
+With a differing name or parent it is a `duplicate-code` error, two
+units sharing one code. Codes repeated across parents at a coarser level
+are `schema-detect`'s `multiple-parents`.
 
 ## Real-data results
 
 Run structurally on every latest original admin1 to admin5 layer in the
-portolan catalog (281 layers), 264 were checked and 17 refused by level
-resolution (supplemental columns, or levels not detected). 141 rows in 6
-layers, all real:
+portolan catalog (281 layers), 266 were checked and 15 refused by level
+resolution (the layers `schema-detect` reports as `levels-undetected`).
+144 rows in 7 layers, all real:
 
-- COL admin3: 36 duplicated codes (each one unit split across features),
-  44 codes one digit short, and `COPUERTO LOPEZ` as a code; 3 codes don't
-  start with their parent's code.
-- UGA admin3: 4 codes each split across features.
+- COL admin3: 36 units split across features, 44 codes one digit short,
+  `COPUERTO LOPEZ` as a code, and 3 codes not starting with their
+  parent's code.
+- UGA admin3: 4 units split across features.
+- LBN admin3: the `Conflict` area, coded `0` and split across 17
+  features.
 - MMR admin2 to admin4: 5 self-administered zone codes (`MMR005S001`)
   shaped unlike the level, as warnings; in admin4 also 22 codes not
   starting with their parent's code (7 of them the codes `schema-detect`
-  reports under two parents), 8 duplicated, 6 units with no code.
+  reports under two parents), 7 duplicated, 1 unit split across features,
+  6 units with no code.
 - SOM admin2: one `Unspecified` code.

@@ -59,13 +59,33 @@ def _conflict(source: str) -> str:
     """
 
 
+def _leaf_repeats(source: str) -> str:
+    """Finest-level codes on several features, with their (parent, name) variants."""
+    return f"""(
+        SELECT level, code_column, code, sum(row_count)::INT AS features,
+               count(DISTINCT (parent_code, name)) AS variants
+        FROM "{source}"
+        WHERE code IS NOT NULL AND name_index = 0
+          AND level = (SELECT max(level) FROM "{source}")
+        GROUP BY level, code_column, code HAVING sum(row_count) > 1
+    )"""
+
+
 def _duplicate(source: str) -> str:
     return f"""--sql
         SELECT 'duplicate-code', level, code_column, code, NULL, NULL, NULL,
-               printf('code %s is on %d features', code, sum(row_count)::INT)
-        FROM {_codes(source)}
-        WHERE level = (SELECT max(level) FROM "{source}")
-        GROUP BY level, code_column, code HAVING sum(row_count) > 1
+               printf('code %s is on %d features with different names or parents',
+                      code, features)
+        FROM {_leaf_repeats(source)} WHERE variants > 1
+    """
+
+
+def _split(source: str) -> str:
+    return f"""--sql
+        SELECT 'split-unit', level, code_column, code, NULL, NULL, NULL,
+               printf('code %s is on %d features with the same name and parent: '
+                      'one unit split across features', code, features)
+        FROM {_leaf_repeats(source)} WHERE variants = 1
     """
 
 
@@ -132,6 +152,7 @@ _CHECKS = {
     "blank-code": _blank_code,
     "name-conflict": _conflict,
     "duplicate-code": _duplicate,
+    "split-unit": _split,
     "prefix-mismatch": _prefix,
     "format-outlier": _format_outlier,
     "format-undetected": _format_undetected,

@@ -8,6 +8,7 @@ SEVERITY = {
     "name-conflict": ERROR,
     "duplicate-code": ERROR,
     "prefix-mismatch": ERROR,
+    "split-unit": WARN,
     "format-outlier": WARN,
     "format-undetected": WARN,
 }
