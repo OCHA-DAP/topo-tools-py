@@ -105,7 +105,7 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
    | `02_topology/` | the topo-cleaned file (the finer-level edge-match is conditional, skip if not applicable) |
    | `03_edge_matching/` | the edge-matched file |
    | `04_codes/` | the coded file |
-   | `05_names/` | the names issues file (present, any row count, even zero, since this stage has no other output) |
+   | `05_names/` | the name-cleaned file plus `{iso3}_admin{n}_name_issues.parquet` from the final `name-detect` check (any row count, even zero) |
    | `06_packaging/` | one parquet per output layer |
 
    The highest-numbered stage with its defining output present marks the
@@ -208,9 +208,18 @@ PNGs using the JSON sidecar's pixel mapping and font, never by importing
    Code the stage 2 file in place of the stage 3 output when the user
    chose to code the full geometry first.
 5. [Names](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/5-names/how-to.md)
+
+   Run `name-clean`, then read every name in the cleaned file, not only the
+   flagged ones, in batches by parent unit. Judge each `warn` row and look
+   for what the checks can't catch (typos, inconsistent spellings across
+   levels or language columns, casing). Propose a fix per unit with its
+   code, apply the ones the user approves, then re-check with `name-detect`.
+   Write both reports as `.parquet`: `{iso3}_admin{n}_name_fixes.parquet`
+   from `name-clean` and `{iso3}_admin{n}_name_issues.parquet` from the
+   final `name-detect`.
 6. [Packaging](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/6-packaging/how-to.md)
 
-   When the coded file in `04_codes/` has more units than the stage 3
+   When the name-cleaned file in `05_names/` has more units than the stage 3
    output (the full geometry was coded first), ask whether to package it
    as is, or rerun `edge-match` on it with the same admin0, overwriting
    the stage 3 output, and package that.
