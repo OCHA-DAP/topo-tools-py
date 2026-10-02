@@ -44,6 +44,6 @@ child's column and adds the parent's as the next free sibling
 (`adm2_name1`), filled on every row. Its issues file lists:
 
 - `value-mismatch`: a differing name or code, settled in
-  [review names](../5-names/index.md);
+  [review names](../5-names/index.mdx);
 - `no-overlap`, `low-overlap`: a unit outside or mostly outside its
   parent, settled with the data provider before coding.
