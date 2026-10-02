@@ -4,13 +4,13 @@
 
 `topo-tools` is a Python package of DuckDB-powered geospatial topology utilities,
 `pip install`-able and importable, mirroring the organization of the sister JS app
-at `../topo-tools-js` (a DuckDB-WASM web app with the same tools). It ships seventeen
+at `../topo-tools-js` (a DuckDB-WASM web app with the same tools). It ships eighteen
 tools, all used for improving administrative boundary datasets and matching
 sub-national boundaries to national boundaries (import-linter contracts
 governing which tool may depend on which are in `docs/dev/shared.md`).
 Tools are named `{group}-{verb}`: **edge** (boundary-fitting between layers),
 **topo** (single-layer topology defects), **schema** (column crosswalking),
-and **package** (cartographic derivatives for web maps); `change` and bare
+**name** (unit-name checks) and **package** (cartographic derivatives for web maps); `change` and bare
 `package` stand alone for now, as do `code-create` and `code-update`. Four
 are primitives, each standalone AND reused internally by the composite tools
 below them:
@@ -26,6 +26,7 @@ below them:
 - **edge-match**: `assign-one` (default, forcing the whole input file onto one majority-vote overlay feature; opt into per-feature `assign-many` via `--per-feature` for files whose input features genuinely scatter across multiple overlay features, see `docs/adr/0082`) → per-group `edge-extend` (own subprocess) → batched `edge-clip` → `edge-stitch`, fitting an input layer into a coarser overlay layer (e.g. admin4 into admin0). The input role MAY span multiple raw files per call, combined via a memory-bounded per-file `inputs`+`assign` loop, groups/clip/stitch/outputs running once over the combined result so cross-file input features sharing an overlay feature extend together (`--per-feature`/`step` rejected outright for a multi-file call, see `docs/adr/0084`). Also accepts an opt-in `--merge` (a plain boolean, plus `--overlay-include`/`--overlay-exclude`/`--input-include`/`--input-exclude`/`--prefer` narrowing flags, the same design `edge-mosaic` uses), which both groups every input feature with no overlay feature overlap at all into one orphan group of its own (sentinel `PASSTHROUGH_OVERLAY_FID`), extending it like any other group and keeping it unclipped in the output (materially weaker safety profile than `edge-mosaic`'s own input feature passthrough, see `docs/adr/0081`), and gap-fills an overlay feature matched by zero input features via the shared `fill_unmatched_overlays()` helper, identically to `edge-mosaic` (see `docs/adr/0088`). See `docs/dev/explanation/3-edge/edge_match.md`.
 - **edge-mosaic**: `assign-one` → `edge-clip` → `edge-stitch`, fitting an already-extended input layer (a prior `edge_extend()` output) into a new/different overlay layer, skipping Voronoi extension entirely. See `docs/dev/explanation/3-edge/edge_mosaic.md`.
 - **topo-clean**: `topo-detect` → fixes the reported coverage defects (gaps, overlaps) with `ST_CoverageClean`, reporting the fix outcome in the issues file for manual review. See `docs/dev/explanation/2-topology/topo_clean.md`.
+- **name-detect**: checks a coded layer's unit names (blanks, placeholders, duplicates under a parent, a code with several names, encoding errors, invisible characters, spacing, case, mixed scripts) and writes a CSV report, rule-based DuckDB SQL, never modifying the input. See `docs/dev/explanation/5-names/name_detect.md`.
 - **change**: compares an old/new polygon layer pair and classifies every unit (unchanged/renamed/modified/relocated/split/merge/complex/created/removed) via spatial overlap and optional code/name identity linking; writes a tabular changelog plus a colored spatial overlay layer. See `docs/dev/explanation/4-codes/change.md`.
 - **schema-map**: maps a source-column → target-schema crosswalk by inferring the admin hierarchy structurally (cardinality/containment, never column names) and classifying code vs. name by value shape, deterministically, no LLM, then renames/drops columns per it into a `_mapped` copy, writing the crosswalk CSV beside it. `--csv` applies a hand-edited crosswalk instead (columns in its row order), `--map-only` writes only the crosswalk (see `docs/adr/0116`). See `docs/dev/explanation/1-schema/schema_map.md`.
 - **schema-fill**: stamps a new `adm_lvl` column (overridable via `--depth-column`) with each row's real depth, then cascades each admin-hierarchy column down to that depth, pinned per row so a genuine NULL at a row's own real depth is never backfilled from a shallower ancestor; levels derived structurally by default, or via an explicit `--name-field`/`--code-field` pair; run against an already-clipped/stitched layer, then `package-polygons` to dissolve every level normally. See `docs/dev/explanation/1-schema/schema_fill.md`.
@@ -53,7 +54,7 @@ are the one exception, see `docs/dev/explanation/3-edge/edge_match.md`). Three l
 each with a specific job (mirroring `geoparquet-io`'s `core`/`api`/`cli`
 split):
 
-- `topo_tools/core/{edge_extend,assign,edge_clip,edge_stitch,topo_detect,dissolve,schema_fill,schema_join,package_polygons,package_points,package_lines,edge_match,edge_mosaic,topo_clean,change,code_create,code_update}/`:
+- `topo_tools/core/{edge_extend,assign,edge_clip,edge_stitch,topo_detect,dissolve,schema_fill,schema_join,package_polygons,package_points,package_lines,edge_match,edge_mosaic,topo_clean,change,code_create,code_update,name_detect}/`:
   stage implementations. `core.edge_match`/`core.edge_mosaic` call
   `core.edge_clip`/`core.edge_stitch` stage functions directly (not through
   their own `api.*()`), the same pattern `core.edge_match` uses to call
@@ -75,14 +76,14 @@ split):
   but MAY be imported by `core.schema_fill`, `core.schema_join`,
   `core.dissolve`, `core.package_polygons`, `core.package_points`,
   `core.package_lines`,
-  `core.code_create`, and `core.code_update` specifically (the
+  `core.code_create`, `core.code_update`, and `core.name_detect` specifically (the
   `name_field`/`code_field`/level-detection mechanism,
   `core/schema_map/_levels.py`, `core/schema_map/_level_columns.py`), never
   the reverse (see `docs/adr/0075`,
   `docs/adr/0092`); `schema-fill` does not call `core.dissolve` itself, a
   caller runs `package-polygons` separately after filling (see
   `docs/dev/explanation/1-schema/schema_fill.md`).
-- `topo_tools/api/{edge_extend,edge_clip,edge_stitch,topo_detect,schema_map,schema_fill,schema_join,package_polygons,package_points,package_lines,package,edge_match,edge_mosaic,topo_clean,change,code_create,code_update}.py`:
+- `topo_tools/api/{edge_extend,edge_clip,edge_stitch,topo_detect,schema_map,schema_fill,schema_join,package_polygons,package_points,package_lines,package,edge_match,edge_mosaic,topo_clean,change,code_create,code_update,name_detect}.py`:
   public API functions; each chains its own tool's stages for exactly one
   file (or file pair) per call, except `edge-mosaic`'s and `edge-match`'s
   input roles, which MAY span multiple files (see
@@ -216,6 +217,9 @@ uv run topo-tools code-create admin2.geojson --root-code AFG --delimiter . --min
 # Run the code-update tool (reconcile an already-coded OLD layer against an uncoded NEW candidate)
 uv run topo-tools code-update admin1_old.geojson admin1_new.geojson
 
+# Run the name-detect tool (check unit names, CSV issues report)
+uv run topo-tools name-detect admin3.parquet
+
 # Format and lint
 uv run ruff format && uv run ruff check
 ```
@@ -250,7 +254,7 @@ file (or an old/new comparison pair, for `change`) from the catalog.
 
 ## Reference Docs
 
-- `docs/pages/{phase}/`: one folder per COD-AB release phase (`1-schema`, `2-topology`, `3-edge`, `4-codes`, `5-names`, `6-packaging`), each with `index.mdx` (the phase's overview), `how-to.md` (the phase's step) and `reference/{tool}.md` (options and examples per tool, generated from the CLI's `--help` by `.github/scripts/gen_reference.py`, never hand-edited; `--check` runs in pre-commit and CI); `change` sits in `4-codes`; `5-names` has only `index.md`, its how-to
+- `docs/pages/{phase}/`: one folder per COD-AB release phase (`1-schema`, `2-topology`, `3-edge`, `4-codes`, `5-names`, `6-packaging`), each with `index.mdx` (the phase's overview), `how-to.md` (the phase's step) and `reference/{tool}.md` (options and examples per tool, generated from the CLI's `--help` by `.github/scripts/gen_reference.py`, never hand-edited; `--check` runs in pre-commit and CI); `change` sits in `4-codes`
 - `docs/dev/` (unpublished, like `docs/adr/`): `reference/{phase}/{tool}.md` (behavior contract per tool, MUST/SHOULD/MAY), `explanation/{phase}/{tool}.md` (stage-by-stage detail, plus an `overview.md`; `3-edge` also has `assign.md` and `voronoi-memory.md` (per-file resampling distance and memory ceilings for `phl_admin3`/`idn_admin3`), and `3-edge/edge_match.md` has the `check_gaps` caveat), `tutorials/{phase}/` (walkthroughs not yet ready to publish), `shared.md` (rules and settings common to every tool, the MUST/SHOULD/MAY convention), `topology.md` (the SPATIAL_JOIN memory bug), `performance.md` (thread-scaling benchmarks + the RTREE experiment)
 - `docs/pages/` is published at <https://topo-tools.org/docs/> by topo-tools-js (Starlight); `.github/workflows/docs.yml` triggers that deploy on push to `main`, and `npm run dev` in a sibling topo-tools-js checkout previews it
 - `.claude/skills/`: `publishing` (PyPI release via OIDC), `verify-duckdb-function` (DuckDB/spatial function lookup), `at-scale-testing` (portolan catalog layout, picking a test file/pair), `manual-dev-testing` (running any tool against your own data)

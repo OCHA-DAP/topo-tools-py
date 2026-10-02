@@ -28,6 +28,7 @@ Full documentation: <https://topo-tools.org/docs/>
 | **change** | classify changes between two polygon layer versions |
 | **code-create** | assign a fresh hierarchical code, ranked per parent |
 | **code-update** | carry codes over from an old layer to a new one |
+| **name-detect** | check unit names for blanks, duplicates and encoding errors |
 | **package** | dissolve, label, and line-ify a layer in one call |
 | **package-polygons** | dissolve a layer into coarser admin levels |
 | **package-points** | one label point per admin unit |

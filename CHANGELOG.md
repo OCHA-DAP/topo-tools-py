@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `name-detect`: checks a coded layer's unit names and writes a CSV report
+  (or Parquet with geometry), always, even when clean. Errors: missing codes,
+  blank or placeholder names, a code with more than one name, encoding
+  errors. Warnings: duplicates under one parent, names differing only in
+  case, accents or punctuation, invisible characters, NFC, spacing, all-caps
+  outliers, mixed Latin/Cyrillic/Greek words, codes inside names. Safe fixes
+  are given in `suggested`. Rule-based, no new dependency.
+
 ### Changed
 
 - Documentation lives at <https://topo-tools.org/docs/>, and the Claude Code

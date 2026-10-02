@@ -258,7 +258,8 @@ involved (e.g. the other side of an overlap). `edge-match` MUST populate
 parent directory plus filename (never the full input path), for every
 kind that has one (`unassigned`, `dropped_group`, `clip-empty`,
 `detached-part`, `passthrough`), null only for `gap` (see `docs/adr/0084`,
-`docs/adr/0087`).
+`docs/adr/0087`). `name-detect` writes its own schema (see its reference),
+always, even with zero rows, as CSV by default.
 
 None of `edge-match`/`edge-mosaic`/`edge-clip`/`edge-stitch`'s *main*
 output carries a `source_file` column at all, even though every one of
