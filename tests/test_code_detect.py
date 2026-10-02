@@ -140,7 +140,7 @@ def test_few_codes_skip_format_checks(tmp_path):
     assert not kinds & {"format-outlier", "format-undetected"}
 
 
-def test_failing_check_reports_none(tmp_path, monkeypatch):
+def test_failing_check_reported_others_run(tmp_path, monkeypatch):
     def broken(_source):
         return "SELECT * FROM missing_table"
 
@@ -150,7 +150,9 @@ def test_failing_check_reports_none(tmp_path, monkeypatch):
                                ELSE adm3_pcode END AS adm3_pcode)
         FROM base
     """
-    assert ("duplicate-code", "error", 3, "XY111") in _kinds(tmp_path, select)
+    kinds = _kinds(tmp_path, select)
+    assert ("duplicate-code", "error", 3, "XY111") in kinds
+    assert ("check-failed", "error", None, None) in kinds
 
 
 def test_parquet_report(tmp_path):

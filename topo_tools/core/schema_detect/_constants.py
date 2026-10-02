@@ -4,6 +4,7 @@ ERROR = "error"
 WARN = "warn"
 
 SEVERITY = {
+    "check-failed": ERROR,
     "levels-undetected": ERROR,
     "level-skipped": ERROR,
     "multiple-parents": ERROR,

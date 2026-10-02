@@ -63,7 +63,9 @@ sidebar:
   `encoding-artifact` only when re-encoding as cp1252 and decoding as UTF-8
   succeeds and gives only Latin letters, digits, spaces and common
   punctuation.
-- If one check fails, `name-detect` MUST still report the others.
+- If one check fails, `name-detect` MUST still report the others, and MUST
+  report the failure as a `check-failed` row (severity `error`) whose
+  `reason` names the check and its error.
 
 ## Outputs
 

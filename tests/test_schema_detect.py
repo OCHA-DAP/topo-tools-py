@@ -144,14 +144,15 @@ def test_bad_issues_suffix_raises(tmp_path):
         detect(_write(tmp_path / "in.parquet"), tmp_path / "issues.gpkg", **_FIELDS)
 
 
-def test_failing_check_reports_none(tmp_path, monkeypatch):
+def test_failing_check_reported_others_run(tmp_path, monkeypatch):
     def broken(_name, _parents):
         return "SELECT * FROM missing_table"
 
     monkeypatch.setitem(_CHECKS, "column-naming", broken)
     select = "SELECT * EXCLUDE (adm2_name1) FROM base"
     assert _kinds(tmp_path, select, **_FIELDS) == {
-        ("column-set-mismatch", "warn", 2, None)
+        ("check-failed", "error", None, None),
+        ("column-set-mismatch", "warn", 2, None),
     }
 
 

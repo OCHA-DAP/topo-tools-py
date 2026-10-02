@@ -61,10 +61,11 @@ tested against every other candidate column's values, never its name.
 Value shape (`_looks_code_shaped()`, majority of non-null values
 containing a digit) MUST only be consulted as a fallback for the `code`
 vs. `name` role of a chain column once its level is already resolved.
-When a level has no name and two or more code-shaped columns that don't
-embed the parent, the target schema's `name_field`/`code_field` text in a
-column's name MAY break the tie, as long as one code remains (see
-`docs/adr/0121`). See
+When a level has no name and two or more `code` columns, the target
+schema's `name_field`/`code_field` text in the name of a code-shaped
+column that doesn't embed the parent MAY break the tie, as long as one
+code remains (see
+`docs/adr/0121`, `docs/adr/0130`). See
 `docs/dev/explanation/1-schema/schema_map.md` and `docs/adr/0064`, `docs/adr/0066` for the
 empirical justification.
 
@@ -119,13 +120,14 @@ empirical justification.
   `level`, a constant coarsest level MUST be numbered 0 and any other
   coarsest level 1, with a logged warning.
 - Within a resolved chain level, each column's role MUST be `code` if
-  either it textually contains (`contains(child, parent)`) some column at
-  the level's resolved parent, or it independently passes
+  either it textually starts with (`starts_with(child, parent)`) some
+  column at the level's resolved parent, or it independently passes
   `_looks_code_shaped()`; otherwise it MUST be `name`. This check MUST run
   per column, never deferred to a sibling's embedding result: a column
   that fails to embed its parent MUST still resolve to `code` on its own
   value shape rather than defaulting to `name` just because another
-  sibling in the group embedded the parent (see `docs/adr/0067`). Same-
+  sibling in the group embedded the parent (see `docs/adr/0067`,
+  `docs/adr/0130`). Same-
   role companions at one level MUST each get a numbered `target_column`
   from `code_field`/`name_field` (a code that embeds its parent first,
   then source-column order; the first gets the bare rendered template,

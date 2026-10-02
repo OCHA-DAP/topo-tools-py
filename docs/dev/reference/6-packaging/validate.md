@@ -21,7 +21,8 @@ sidebar:
   `warn`) for each. `topo-detect` always runs.
 - If a stage raises, `validate` MUST record a `failed` row (severity
   `error`, the exception message as `reason`) and still run the remaining
-  stages.
+  stages. A single check failing inside a stage MUST show as that stage's
+  `check-failed` error row.
 
 ## Outputs
 

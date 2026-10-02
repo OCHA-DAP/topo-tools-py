@@ -197,16 +197,20 @@ def test_bad_issues_suffix_raises(names_input, tmp_path):
         detect(names_input, tmp_path / "issues.gpkg", **_FIELDS)
 
 
-def test_failing_check_reports_none(names_input, tmp_path, monkeypatch):
+def test_failing_check_reported_others_run(names_input, tmp_path, monkeypatch):
     def broken(_source):
         return "SELECT * FROM missing_table"
 
     monkeypatch.setitem(_CHECKS, "whitespace", broken)
     out = tmp_path / "issues.csv"
     detect(names_input, out, **_FIELDS)
-    kinds = {r["kind"] for r in _read(out)}
+    rows = _read(out)
+    kinds = {r["kind"] for r in rows}
     assert "whitespace" not in kinds
     assert "case-outlier" in kinds
+    (failed,) = [r for r in rows if r["kind"] == "check-failed"]
+    assert failed["severity"] == "error"
+    assert failed["reason"].startswith("whitespace check failed:")
 
 
 def test_cli_error_on_existing_output(names_input, tmp_path):
