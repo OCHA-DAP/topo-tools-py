@@ -25,8 +25,9 @@ checks need an overlay layer and have no place in a single-layer check.
 `code-detect` and `name-detect` need the admin levels resolved, so
 `validate` skips them when `schema-detect` reports `levels-undetected`.
 `schema-detect` runs the same level resolution they do, so a layer they
-would refuse is reported there once, with the reason, and a `failed` row
-means a stage broke for another reason.
+would refuse is reported there once, with the reason. A `failed` row
+means a whole stage broke; a `check-failed` row means one check inside a
+stage broke and the stage's other checks still ran.
 
 ## Summary
 

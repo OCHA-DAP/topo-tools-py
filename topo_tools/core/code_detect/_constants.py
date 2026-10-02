@@ -4,6 +4,7 @@ ERROR = "error"
 WARN = "warn"
 
 SEVERITY = {
+    "check-failed": ERROR,
     "blank-code": ERROR,
     "name-conflict": ERROR,
     "duplicate-code": ERROR,

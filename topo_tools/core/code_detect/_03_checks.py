@@ -170,8 +170,12 @@ def main(conn: DuckDBPyConnection, name: str, *, debug: bool = False) -> None:
             conn.execute(f'CREATE OR REPLACE TABLE "{tmp}" ({_COLUMNS})')
             conn.execute(f'INSERT INTO "{tmp}" {build(source)}')
         except Exception as e:  # noqa: BLE001 (one failing check must not hide the rest)
-            logger.warning("%s check failed (%s); reporting none", kind, e)
+            logger.warning("%s check failed (%s)", kind, e)
             conn.execute(f'CREATE OR REPLACE TABLE "{tmp}" ({_COLUMNS})')
+            conn.execute(
+                f'INSERT INTO "{tmp}" (kind, reason) VALUES (?, ?)',
+                ["check-failed", f"{kind} check failed: {e}"],
+            )
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_03" AS
         {" UNION ALL ".join(f'SELECT * FROM "{t}"' for t in tmps)}

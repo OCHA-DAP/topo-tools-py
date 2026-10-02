@@ -61,7 +61,9 @@ sidebar:
   layer's level columns share.
 - Nesting MUST be checked between each level and the next coarser one
   found, row by row in the input.
-- If one check fails, `schema-detect` MUST still report the others.
+- If one check fails, `schema-detect` MUST still report the others, and MUST
+  report the failure as a `check-failed` row (severity `error`) whose
+  `reason` names the check and its error.
 
 ## Outputs
 

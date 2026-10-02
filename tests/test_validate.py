@@ -8,6 +8,7 @@ from click.testing import CliRunner
 
 from topo_tools.api.validate import validate
 from topo_tools.cli.main import cli
+from topo_tools.core.code_detect._03_checks import _CHECKS as _CODE_CHECKS
 
 _FIELDS = {"name_field": "adm{n}_name", "code_field": "adm{n}_pcode"}
 
@@ -115,6 +116,19 @@ def test_failing_stage_recorded_others_run(tmp_path, monkeypatch):
         }
     ]
     assert {r["stage"] for r in rows} == {"schema", "topo", "code", "name"}
+
+
+def test_failing_check_is_an_error(tmp_path, monkeypatch):
+    def broken(_source):
+        return "SELECT * FROM missing_table"
+
+    monkeypatch.setitem(_CODE_CHECKS, "format-outlier", broken)
+    assert validate(_write(tmp_path / "in.parquet"), tmp_path, **_FIELDS)
+    rows = _summary(tmp_path / "in_validate_summary.csv")
+    code = [
+        (r["kind"], r["severity"], r["count"]) for r in rows if r["stage"] == "code"
+    ]
+    assert code == [("check-failed", "error", "1")]
 
 
 def test_existing_report_without_overwrite_raises(tmp_path):

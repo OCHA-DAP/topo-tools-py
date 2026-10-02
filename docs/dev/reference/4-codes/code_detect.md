@@ -42,7 +42,9 @@ sidebar:
   level with fewer than 10 distinct codes (or code and parent pairs).
 - `name-conflict` MUST be reported once per code, from the first name
   column that differs.
-- If one check fails, `code-detect` MUST still report the others.
+- If one check fails, `code-detect` MUST still report the others, and MUST
+  report the failure as a `check-failed` row (severity `error`) whose
+  `reason` names the check and its error.
 
 ## Outputs
 
