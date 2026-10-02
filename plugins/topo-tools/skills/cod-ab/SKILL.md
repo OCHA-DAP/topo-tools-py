@@ -207,7 +207,7 @@ PNGs using the JSON sidecar's pixel mapping and font, never by importing
 
    Code the stage 2 file in place of the stage 3 output when the user
    chose to code the full geometry first.
-5. [Names](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/5-names/index.md)
+5. [Names](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/5-names/how-to.md)
 6. [Packaging](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/6-packaging/how-to.md)
 
    When the coded file in `04_codes/` has more units than the stage 3

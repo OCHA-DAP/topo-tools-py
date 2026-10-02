@@ -33,6 +33,8 @@ LAYOUT = {
     "code-create": ("4-codes", 4),
     "code-update": ("4-codes", 5),
     "change": ("4-codes", 6),
+    "name-detect": ("5-names", 3),
+    "name-clean": ("5-names", 4),
     "package": ("6-packaging", 3),
     "package-polygons": ("6-packaging", 4),
     "package-points": ("6-packaging", 5),

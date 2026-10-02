@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-02
+
+### Added
+
+- `name-detect`: checks a coded layer's unit names and writes a CSV report
+  (or Parquet with geometry), always, even when clean. Errors: missing codes,
+  blank or placeholder names, a code with more than one name, encoding
+  errors. Warnings: duplicates under one parent, names differing only in
+  case, accents or punctuation, invisible characters, NFC, spacing, all-caps
+  outliers, mixed Latin/Cyrillic/Greek words, codes inside names. Safe fixes
+  are given in `suggested`. Rule-based, no new dependency.
+- `name-clean`: runs the `name-detect` checks and fixes only what can't
+  change a name's meaning (spacing, invisible characters, NFC, encoding
+  repairs that are certain), writing the cleaned layer and the report with
+  a `fixed` column. Case, spelling and duplicates are left for review.
+
 ### Changed
 
 - Documentation lives at <https://topo-tools.org/docs/>, and the Claude Code
@@ -743,7 +759,8 @@ Initial release: four tools, CLI + Python API for each.
   unit as unchanged/renamed/modified/relocated/split/merge/complex/created/
   removed, via spatial overlap and optional code/name identity linking.
 
-[Unreleased]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.10.2...v0.11.0
 [0.10.2]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.10.1...v0.10.2
