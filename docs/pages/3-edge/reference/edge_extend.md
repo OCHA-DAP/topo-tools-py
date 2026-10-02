@@ -1,79 +1,46 @@
 ---
-status: draft
 title: "edge-extend"
+description: "Extend polygons outward to fill the gaps around and between them."
+sidebar:
+  order: 3
 ---
 
-## Inputs
+Extend polygons outward to fill the gaps around and between them.
 
-- `edge-extend` MUST read the input and reproject it to EPSG:4326.
-- If the reprojected input has any coverage violation (an overlap or a
-  mismatched shared edge), `edge-extend` MUST correct it before continuing;
-  otherwise it MUST leave the input unmodified.
-- Correcting a violation MAY shift any polygon's boundary, not just the
-  violating one.
-- `edge-extend` MUST NOT distinguish a real hole from a digitization gap;
-  both are left for the boundary-extension stage.
+## Synopsis
 
-## Extracting boundaries
+```text
+topo-tools edge-extend [OPTIONS] INPUT_FILE [OUTPUT_FILE]
+```
 
-- Each polygon's exterior boundary MUST be its own boundary minus the
-  combined boundary of every bounding-box-overlapping neighbor. A polygon
-  with no such neighbor MUST keep its full boundary.
+## Description
 
-## Generating the boundary extension (points and Voronoi cells, retried together)
+Each polygon grows into the empty space next to it (coastlines, water bodies, disputed areas) using Voronoi diagrams, so the layer covers a continuous area. OUTPUT_FILE defaults to INPUT_FILE with an "_extended" suffix.
 
-- `edge-extend` MUST generate points along each polygon's exterior boundary, at
-  a target spacing, as input to a Voronoi diagram.
-- The target spacing MUST default to the smaller of a fixed default or the
-  file's own median real segment length.
-- A single real segment MUST NOT contribute more than a fixed cap's worth
-  of points.
-- Generated points MUST exclude a buffered zone around every shared
-  boundary endpoint.
-- `edge-extend` MUST build a Voronoi diagram from the points, assign each cell
-  to the polygon whose point generated it, and union cells by polygon into
-  that polygon's extension.
-- On failure, or more points than a fixed maximum, `edge-extend` MUST retry
-  with the spacing doubled from the resolved default, up to 10 times, then
-  raise.
+## Options
 
-## Merging
-
-- Each polygon's final geometry MUST be its original geometry combined
-  with the portion of its own extension not already covered by a nearby
-  original polygon.
-- `edge-extend` MUST snap an extension to its nearby original neighbors, using
-  a small fixed tolerance, before subtracting them.
-- `edge-extend` MUST run one whole-layer coverage-clean pass afterward, using a
-  gap-closing width equal to the snapping tolerance, not a shape-based
-  heuristic.
-
-## Outputs
-
-- `edge-extend`'s final output MUST pass the coverage check (no
-  overlap, no gap) before export.
-- `edge-extend` MUST export the final merged layer.
-
-## Configuration (`api.edge_extend.extend()` / CLI)
-
-- `edge-extend` MUST process exactly one input file per call.
-- The output path MUST default to the input path with an `_extended`
-  suffix.
-- `edge-extend` MUST raise `FileExistsError` if the output exists and
-  overwriting wasn't requested.
-- `step`, if given, MUST be one of `inputs`, `lines`, `attempt`, `merge`,
-  `outputs`; any other value MUST raise `ValueError`.
+- `--overwrite BOOLEAN`: Replace output files that already exist. Pass `--overwrite=false` to stop with an error instead. [default: True]
+- `--threads INTEGER`: Number of threads DuckDB uses (default: all CPU cores).
+- `--debug`: Keep intermediate tables, export them to Parquet, and log the time and memory each query takes.
+- `--tmp-dir TEXT`: Folder for the working DuckDB database and intermediate files (default: a new temporary folder, deleted afterwards unless `--debug` is set).
+- `--step [inputs|lines|attempt|merge|outputs]`: Run only this step of the tool, for debugging.
 
 ## Examples
 
-### Example 1: basic run, output name chosen automatically
+Basic run, output name chosen automatically:
 
-    topo-tools edge-extend example.geojson
+```sh
+  topo-tools edge-extend example.geojson
+```
 
-### Example 2: explicit output
+Explicit output:
 
-    topo-tools edge-extend example.gpkg example_extended.gpkg
+```sh
+topo-tools edge-extend example.gpkg example_extended.gpkg
+```
 
-### Example 3: rerun and overwrite a previous output
+Stop with an error if the output already exists:
 
-    topo-tools edge-extend example.parquet example_extended.parquet --overwrite
+```sh
+topo-tools edge-extend example.parquet example_extended.parquet --overwrite=false
+```

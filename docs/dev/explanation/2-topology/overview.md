@@ -1,0 +1,15 @@
+---
+title: "Topo"
+sidebar:
+  order: 5
+  label: "Overview"
+  badge:
+    text: Draft
+    variant: caution
+---
+
+Why topo-clean calls topo-detect's own issue-detection stage directly
+instead of owning separate detection logic.
+
+- [topo-detect](topo_detect.md)
+- [topo-clean](topo_clean.md)

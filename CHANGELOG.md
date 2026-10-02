@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Documentation lives at <https://topo-tools.org/docs/>, and the Claude Code
+  plugin marketplace at <https://topo-tools.org/marketplace.json>.
+  `py.topo-tools.org` is retired.
+- CLI `--help` text is rewritten in plain language, with more examples.
+  Reference pages are generated from it.
+
 ## [0.12.0] - 2026-10-02
 
 ### Added

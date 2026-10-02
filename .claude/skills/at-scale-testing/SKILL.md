@@ -57,12 +57,12 @@ without local repo access.
 3. Run `change` with the older version as the first argument, the newer as
    the second; point every output path outside the catalog.
 
-`docs/pages/4-codes/explanation/change.md`'s "Portolan-scale profiling" section has real
+`docs/dev/explanation/4-codes/change.md`'s "Portolan-scale profiling" section has real
 timing/memory numbers from Philippines admin3 (`v02`->`v03`), Ethiopia
 admin3 (`v01`->`v04`), and Ukraine admin3 (`v01`->`v05`) runs, plus a
 `--link-by-code` footgun found on the Philippines pair.
-`docs/pages/6-packaging/explanation/package_polygons.md`, `docs/pages/6-packaging/explanation/package_points.md`,
-and `docs/pages/6-packaging/explanation/package_lines.md` each have their own
+`docs/dev/explanation/6-packaging/package_polygons.md`, `docs/dev/explanation/6-packaging/package_points.md`,
+and `docs/dev/explanation/6-packaging/package_lines.md` each have their own
 "Portolan-scale profiling" section with a full global admin4 run.
 
 ## Prefer the catalog's own GeoParquet over a freshly-converted GDB export

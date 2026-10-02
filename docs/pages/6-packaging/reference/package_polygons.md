@@ -1,94 +1,47 @@
 ---
-status: draft
 title: "package-polygons"
+description: "Merge a polygon layer into one layer for each coarser admin level."
+sidebar:
+  order: 4
 ---
 
-## Inputs
+Merge a polygon layer into one layer for each coarser admin level.
 
-- `package-polygons` MUST read the input and reproject it to EPSG:4326.
-- `package-polygons` MUST detect every admin level present, either
-  structurally (`core.schema_map`'s cardinality/containment matcher, no
-  naming convention assumed, the default when `name_field`/`code_field`
-  are omitted) or via an explicit `name_field`/`code_field` pair (the same
-  shape `schema-map`/`schema-fill` take, each containing a `{n}`
-  placeholder, given together or not at all), raising `ValueError` if no
-  level is found.
+## Synopsis
 
-## Dissolving
+```text
+topo-tools package-polygons [OPTIONS] INPUT_FILE [OUTPUT_FILE]
+```
 
-- `package-polygons` MUST dissolve the input once per detected level
-  coarser than the finest, grouping by that level's own code column.
-  The finest level MUST NOT be dissolved; its output is the loaded input
-  itself.
-- Every column not at or above a given level's own detected depth MUST be
-  dropped unconditionally (via the explicit `code_field`, or via each
-  finer level's own structurally-detected identity columns when
-  auto-detecting), never triggering the auto-drop warning `dissolve` would
-  otherwise log for a genuinely finer-level column.
+## Description
 
-## Outputs
+Units are dissolved by their code at every admin level found in the file. OUTPUT_FILE must contain "{n}", replaced by each level number. Without it, each level is written to INPUT_FILE with an "_admin{n}" suffix. The finest level is skipped when its path would be INPUT_FILE itself.
 
-- `package-polygons` MUST produce one output file per detected level.
-- Each level's output MUST pass the coverage check
-  (no overlap or micro-polygon; a gap at or below `SNAP_TOLERANCE` blocks
-  export, a wider one does not). Micro-polygons are merged on input, and their `micro-polygon` rows go in the
-  finest level's issues report.
-- `package-polygons` MUST also export an issues report per level, using the same columns as every other tool's issues report. A level's issues report MUST
-  be produced only when it has at least one row.
-- `package-polygons` MAY take `output_name_field`/`output_code_field`
-  (each containing a `{n}` placeholder, either or both). When given, every
-  written level MUST rename each column in the input
-  `name_field`/`code_field` family (numbered siblings included) to the matching output template at the same
-  level, leaving every other column unchanged. Either one given without
-  `name_field`/`code_field` MUST raise `ValueError`, as MUST a renamed
-  column colliding with any other output column.
-- The finest level's own output MUST be skipped (no file written, no
-  `check_overwrite` call) when its computed path resolves to the same file
-  as the input; otherwise it MUST be written as a plain copy of the loaded
-  input.
+## Options
 
-## Configuration (`api.package_polygons.package_polygons()` / CLI)
-
-- `package-polygons` MUST process exactly one input file per call.
-- `output_path`, if given, MUST contain a literal `{n}` placeholder,
-  formatted per level; `package-polygons` MUST raise `ValueError` if it is
-  given without one. If omitted, each level's output path MUST default to
-  the input path with an `_admin{n}` suffix.
-- `issues_path` follows the same `{n}`-template-or-omitted rule as
-  `output_path`, defaulting per level to that level's own output path with
-  an `_issues` suffix.
-- `package-polygons` MUST raise `FileExistsError` for any level whose
-  output or issues path already exists and overwriting wasn't requested.
-- `step`, if given, MUST be one of `inputs`, `dissolve`, `outputs`; any
-  other value MUST raise `ValueError`.
-- `name_field`/`code_field` MUST be given together, or both omitted; when
-  both are omitted, `package-polygons` MUST fall back to full structural
-  auto-detection of every level.
-- `aggregations` (CLI: repeatable `--aggregation column=function`) MUST map
-  a column name to one of `sum`, `min`, `max`, `avg`, `first`, overriding
-  `dissolve`'s default of summing a numeric column that varies within a
-  group (or dropping it, if non-numeric); any other function name MUST
-  raise `ValueError`.
+- `--issues-file TEXT`: Path for the issues report of each level. It must contain "{n}", replaced by each level number. Defaults to each level's output with an "_issues" suffix.
+- `--name-field TEXT`: Name column of each level, with {n} for the level number, e.g. 'adm{n}_name'. Give it with `--code-field`. Without both, levels are detected from the data.
+- `--code-field TEXT`: Code column of each level, with {n} for the level number, e.g. 'adm{n}_code'. Give it with `--name-field`. Without both, levels are detected from the data.
+- `--output-name-field TEXT`: Rename the `--name-field` columns to this pattern in every output, e.g. 'adm{n}_label'. Needs `--name-field` and `--code-field`.
+- `--output-code-field TEXT`: Rename the `--code-field` columns to this pattern in every output, e.g. 'adm{n}_pcode'. Needs `--name-field` and `--code-field`.
+- `--aggregation TEXT`: How to combine a column whose values differ inside one unit, as 'column=function', where function is sum, min, max, avg or first. By default numbers are summed and other columns dropped. Repeat for more columns.
+- `--overwrite BOOLEAN`: Replace output files that already exist. Pass `--overwrite=false` to stop with an error instead. [default: True]
+- `--threads INTEGER`: Number of threads DuckDB uses (default: all CPU cores).
+- `--debug`: Keep intermediate tables, export them to Parquet, and log the time and memory each query takes.
+- `--tmp-dir TEXT`: Folder for the working DuckDB database and intermediate files (default: a new temporary folder, deleted afterwards unless `--debug` is set).
+- `--step [inputs|dissolve|outputs]`: Run only this step of the tool, for debugging.
 
 ## Examples
 
-### Example 1: default naming
+Default naming: input_admin1.geojson, input_admin2.geojson, ...:
 
-Produces `adm3_admin1.geojson`, `adm3_admin2.geojson`, one file per
-detected level, from a single admin3 input:
+```sh
+  topo-tools package-polygons admin3.geojson
+```
 
-    topo-tools package-polygons adm3.geojson
+Choose the output names and the level columns:
 
-### Example 2: explicit output template
-
-`{n}` MUST appear in the output path if given, formatted per level:
-
-    topo-tools package-polygons adm3.parquet "level_{n}.parquet"
-
-### Example 3: finest level as a plain copy
-
-Routing every level, including the finest, through the same template
-still writes the finest level (as a copy of the input), unless that
-level's own computed path happens to equal the input path itself:
-
-    topo-tools package-polygons adm3.parquet "web/{n}.parquet"
+```sh
+topo-tools package-polygons admin3.geojson "level_{n}.geojson" \
+  --name-field adm{n}_name --code-field adm{n}_pcode
+```

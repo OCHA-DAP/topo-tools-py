@@ -74,7 +74,7 @@ def _real_hole_area(path):
 def test_cli_help():
     result = CliRunner().invoke(cli, ["topo-clean", "--help"])
     assert result.exit_code == 0
-    assert "Detect and fix gap/overlap defects" in result.output
+    assert "Find and fix gaps and overlaps" in result.output
     assert "Examples:" in result.output
 
 

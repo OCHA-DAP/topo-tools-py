@@ -60,11 +60,11 @@ _MERGE_OPTIONS = (
         envvar="MERGE",
         is_flag=True,
         help=(
-            "Carry overlay columns onto every matched input feature and keep "
-            "an unmatched overlay or input feature unclipped in the output instead of "
-            "dropping it. Narrow the carried columns with "
-            "--overlay-include/--overlay-exclude/--input-include/"
-            "--input-exclude; resolve a real name collision automatically "
+            "Copy the overlay's columns onto every matched input feature, and "
+            "keep unmatched overlay or input features in the output, unclipped, "
+            "instead of dropping them. Choose columns with --overlay-include, "
+            "--overlay-exclude, --input-include and --input-exclude. When both "
+            "layers have a column with the same name, choose which one to keep "
             "with --prefer."
         ),
     ),
@@ -72,25 +72,25 @@ _MERGE_OPTIONS = (
         "--overlay-include",
         envvar="OVERLAY_INCLUDE",
         default=None,
-        help="Comma-separated overlay columns to carry (requires --merge).",
+        help="Overlay columns to copy, comma-separated. Needs --merge.",
     ),
     click.option(
         "--overlay-exclude",
         envvar="OVERLAY_EXCLUDE",
         default=None,
-        help="Comma-separated overlay columns to omit (requires --merge).",
+        help="Overlay columns not to copy, comma-separated. Needs --merge.",
     ),
     click.option(
         "--input-include",
         envvar="INPUT_INCLUDE",
         default=None,
-        help="Comma-separated input columns to keep (requires --merge).",
+        help="Input columns to keep, comma-separated. Needs --merge.",
     ),
     click.option(
         "--input-exclude",
         envvar="INPUT_EXCLUDE",
         default=None,
-        help="Comma-separated input columns to drop (requires --merge).",
+        help="Input columns to drop, comma-separated. Needs --merge.",
     ),
     click.option(
         "--prefer",
@@ -98,9 +98,10 @@ _MERGE_OPTIONS = (
         type=click.Choice(["overlay", "input"]),
         default=None,
         help=(
-            "Resolve a real overlay/input column-name collision by keeping "
-            "this side's column (requires --merge; mutually exclusive with "
-            "the --overlay-*/--input-* narrowing flags)."
+            "When the overlay and input both have a column with the same name, "
+            "keep this layer's column. Needs --merge. Can't be combined with "
+            "--overlay-include, --overlay-exclude, --input-include or "
+            "--input-exclude."
         ),
     ),
 )
@@ -119,33 +120,35 @@ _FILL_OPTIONS = (
         envvar="FILL_SCHEMA",
         is_flag=True,
         help=(
-            "Cascade admin-hierarchy columns down and stamp each row's real "
-            "depth, right before export. Narrow the target schema with "
-            "--name-field/--code-field; rename the stamped depth column "
-            "with --depth-column."
+            "Before writing the output, fill each row's empty finer admin "
+            "columns from its coarser ones and add a column with the row's own "
+            "admin level. Set the columns with --name-field and --code-field, "
+            "and the level column's name with --depth-column."
         ),
     ),
     click.option(
         "--name-field",
         envvar="NAME_FIELD",
         default=None,
-        help="Name-field template, e.g. 'adm{n}_name' (requires --fill-schema "
-        "and --code-field; default: structural auto-detection).",
+        help="Name column of each level, with {n} for the level number, e.g. "
+        "'adm{n}_name'. Needs --fill-schema and --code-field. Without both, levels "
+        "are detected from the data.",
     ),
     click.option(
         "--code-field",
         envvar="CODE_FIELD",
         default=None,
-        help="Code-field template, e.g. 'adm{n}_code' (requires --fill-schema "
-        "and --name-field; default: structural auto-detection).",
+        help="Code column of each level, with {n} for the level number, e.g. "
+        "'adm{n}_code'. Needs --fill-schema and --name-field. Without both, levels "
+        "are detected from the data.",
     ),
     click.option(
         "--depth-column",
         envvar="DEPTH_COLUMN",
         default="adm_lvl",
         show_default=True,
-        help="Name of the new column stamping each row's real depth "
-        "(requires --fill-schema).",
+        help="Name of the added column holding each row's own admin level. "
+        "Needs --fill-schema.",
     ),
 )
 
@@ -160,7 +163,7 @@ def _add_fill_options(f):  # noqa: ANN001, ANN202
 @click.group()
 @click.version_option(package_name="topo-tools", prog_name="topo-tools")
 def cli() -> None:
-    """topo-tools: DuckDB-powered geospatial topology utilities."""
+    """topo-tools: tools for cleaning and packaging administrative boundaries."""
 
 
 @cli.command(name="edge-extend")
@@ -172,29 +175,36 @@ def cli() -> None:
     type=bool,
     default=True,
     show_default=True,
-    help="Overwrite an existing output; pass --overwrite=false to error instead.",
+    help="Replace output files that already exist. Pass --overwrite=false to "
+    "stop with an error instead.",
 )
 @click.option(
-    "--threads", envvar="THREADS", type=int, default=None, help="DuckDB thread count."
+    "--threads",
+    envvar="THREADS",
+    type=int,
+    default=None,
+    help="Number of threads DuckDB uses (default: all CPU cores).",
 )
 @click.option(
     "--debug",
     envvar="DEBUG",
     is_flag=True,
-    help="Keep intermediate tables, export to Parquet, log timing/memory per query.",
+    help="Keep intermediate tables, export them to Parquet, and log the time "
+    "and memory each query takes.",
 )
 @click.option(
     "--tmp-dir",
     envvar="TMP_DIR",
     default=None,
-    help="Intermediate DuckDB + Parquet location.",
+    help="Folder for the working DuckDB database and intermediate files "
+    "(default: a new temporary folder, deleted afterwards unless --debug is set).",
 )
 @click.option(
     "--step",
     envvar="STEP",
     type=click.Choice(["inputs", "lines", "attempt", "merge", "outputs"]),
     default=None,
-    help="Run only one named stage.",
+    help="Run only this step of the tool, for debugging.",
 )
 def edge_extend(  # noqa: PLR0913, PLR0917
     input_file: str,
@@ -205,9 +215,12 @@ def edge_extend(  # noqa: PLR0913, PLR0917
     tmp_dir: str | None,
     step: str | None,
 ) -> None:
-    """Extend polygon boundaries outward with Voronoi diagrams to fill coverage gaps.
+    """Extend polygons outward to fill the gaps around and between them.
 
-    OUTPUT_FILE defaults to INPUT_FILE with an "_extended" suffix if omitted.
+    Each polygon grows into the empty space next to it (coastlines, water
+    bodies, disputed areas) using Voronoi diagrams, so the layer covers a
+    continuous area. OUTPUT_FILE defaults to INPUT_FILE with an "_extended"
+    suffix.
 
     \b
     Examples:
@@ -219,7 +232,7 @@ def edge_extend(  # noqa: PLR0913, PLR0917
       topo-tools edge-extend example.gpkg example_extended.gpkg
 
     \b
-      # Error instead of silently overwriting an existing output
+      # Stop with an error if the output already exists
       topo-tools edge-extend example.parquet example_extended.parquet --overwrite=false
     """
     logger.info("--debug=%s", debug)
@@ -246,29 +259,36 @@ def edge_extend(  # noqa: PLR0913, PLR0917
     type=bool,
     default=True,
     show_default=True,
-    help="Overwrite an existing output; pass --overwrite=false to error instead.",
+    help="Replace output files that already exist. Pass --overwrite=false to "
+    "stop with an error instead.",
 )
 @click.option(
-    "--threads", envvar="THREADS", type=int, default=None, help="DuckDB thread count."
+    "--threads",
+    envvar="THREADS",
+    type=int,
+    default=None,
+    help="Number of threads DuckDB uses (default: all CPU cores).",
 )
 @click.option(
     "--debug",
     envvar="DEBUG",
     is_flag=True,
-    help="Keep intermediate tables, export to Parquet, log timing/memory per query.",
+    help="Keep intermediate tables, export them to Parquet, and log the time "
+    "and memory each query takes.",
 )
 @click.option(
     "--tmp-dir",
     envvar="TMP_DIR",
     default=None,
-    help="Intermediate DuckDB + Parquet location.",
+    help="Folder for the working DuckDB database and intermediate files "
+    "(default: a new temporary folder, deleted afterwards unless --debug is set).",
 )
 @click.option(
     "--step",
     envvar="STEP",
     type=click.Choice(["inputs", "issues", "outputs"]),
     default=None,
-    help="Run only one named stage.",
+    help="Run only this step of the tool, for debugging.",
 )
 def topo_detect(  # noqa: PLR0913, PLR0917
     input_file: str,
@@ -279,9 +299,10 @@ def topo_detect(  # noqa: PLR0913, PLR0917
     tmp_dir: str | None,
     step: str | None,
 ) -> None:
-    """Scan a single polygon layer for gap/overlap coverage defects.
+    """Find gaps and overlaps between the polygons of one layer.
 
-    OUTPUT_FILE defaults to INPUT_FILE with an "_issues" suffix if omitted.
+    Writes the problems found without changing the layer. OUTPUT_FILE
+    defaults to INPUT_FILE with an "_issues" suffix.
 
     \b
     Examples:
@@ -314,45 +335,49 @@ def topo_detect(  # noqa: PLR0913, PLR0917
     "--issues-file",
     envvar="ISSUES_FILE",
     default=None,
-    help="Issues report path template. Defaults to each level's own output "
-    'with an "_issues" suffix.',
+    help='Path for the issues report of each level. It must contain "{n}", '
+    "replaced by each level number. Defaults to each level's output with an "
+    '"_issues" suffix.',
 )
 @click.option(
     "--name-field",
     envvar="NAME_FIELD",
     default=None,
-    help="Name-field template, e.g. 'adm{n}_name' (requires --code-field; "
-    "default: structural auto-detection).",
+    help="Name column of each level, with {n} for the level number, e.g. "
+    "'adm{n}_name'. Give it with --code-field. Without both, levels are "
+    "detected from the data.",
 )
 @click.option(
     "--code-field",
     envvar="CODE_FIELD",
     default=None,
-    help="Code-field template, e.g. 'adm{n}_code' (requires --name-field; "
-    "default: structural auto-detection).",
+    help="Code column of each level, with {n} for the level number, e.g. "
+    "'adm{n}_code'. Give it with --name-field. Without both, levels are "
+    "detected from the data.",
 )
 @click.option(
     "--output-name-field",
     envvar="OUTPUT_NAME_FIELD",
     default=None,
-    help="Rename --name-field's columns to this template in every written level, "
-    "e.g. 'adm{n}_label' (requires --name-field/--code-field).",
+    help="Rename the --name-field columns to this pattern in every output, "
+    "e.g. 'adm{n}_label'. Needs --name-field and --code-field.",
 )
 @click.option(
     "--output-code-field",
     envvar="OUTPUT_CODE_FIELD",
     default=None,
-    help="Rename --code-field's columns to this template in every written level, "
-    "e.g. 'adm{n}_pcode' (requires --name-field/--code-field).",
+    help="Rename the --code-field columns to this pattern in every output, "
+    "e.g. 'adm{n}_pcode'. Needs --name-field and --code-field.",
 )
 @click.option(
     "--aggregation",
     "aggregations",
     envvar="AGGREGATIONS",
     multiple=True,
-    help="'column=function' override for a column that varies within a group "
-    "(function is one of sum, min, max, avg, first; default: sum if numeric, "
-    "else dropped) [may be repeated].",
+    help="How to combine a column whose values differ inside one unit, as "
+    "'column=function', where function is sum, min, max, avg or first. By "
+    "default numbers are summed and other columns dropped. Repeat for more "
+    "columns.",
 )
 @click.option(
     "--overwrite",
@@ -360,29 +385,36 @@ def topo_detect(  # noqa: PLR0913, PLR0917
     type=bool,
     default=True,
     show_default=True,
-    help="Overwrite an existing output; pass --overwrite=false to error instead.",
+    help="Replace output files that already exist. Pass --overwrite=false to "
+    "stop with an error instead.",
 )
 @click.option(
-    "--threads", envvar="THREADS", type=int, default=None, help="DuckDB thread count."
+    "--threads",
+    envvar="THREADS",
+    type=int,
+    default=None,
+    help="Number of threads DuckDB uses (default: all CPU cores).",
 )
 @click.option(
     "--debug",
     envvar="DEBUG",
     is_flag=True,
-    help="Keep intermediate tables, export to Parquet, log timing/memory per query.",
+    help="Keep intermediate tables, export them to Parquet, and log the time "
+    "and memory each query takes.",
 )
 @click.option(
     "--tmp-dir",
     envvar="TMP_DIR",
     default=None,
-    help="Intermediate DuckDB + Parquet location.",
+    help="Folder for the working DuckDB database and intermediate files "
+    "(default: a new temporary folder, deleted afterwards unless --debug is set).",
 )
 @click.option(
     "--step",
     envvar="STEP",
     type=click.Choice(["inputs", "dissolve", "outputs"]),
     default=None,
-    help="Run only one named stage.",
+    help="Run only this step of the tool, for debugging.",
 )
 def package_polygons(  # noqa: PLR0913, PLR0917
     input_file: str,
@@ -399,12 +431,13 @@ def package_polygons(  # noqa: PLR0913, PLR0917
     tmp_dir: str | None,
     step: str | None,
 ) -> None:
-    """Dissolve a polygon layer into every detected coarser admin level.
+    """Merge a polygon layer into one layer for each coarser admin level.
 
-    OUTPUT_FILE, if given, MUST contain a literal "{n}" placeholder, formatted
-    per level; if omitted, each level defaults to INPUT_FILE with an
-    "_admin{n}" suffix. The finest detected level is skipped when its
-    computed path resolves to INPUT_FILE itself.
+    Units are dissolved by their code at every admin level found in the
+    file. OUTPUT_FILE must contain "{n}", replaced by each level number.
+    Without it, each level is written to INPUT_FILE with an "_admin{n}"
+    suffix. The finest level is skipped when its path would be INPUT_FILE
+    itself.
 
     \b
     Examples:
@@ -412,7 +445,7 @@ def package_polygons(  # noqa: PLR0913, PLR0917
       topo-tools package-polygons admin3.geojson
 
     \b
-      # Explicit {n} template
+      # Choose the output names and the level columns
       topo-tools package-polygons admin3.geojson "level_{n}.geojson" \\
         --name-field adm{n}_name --code-field adm{n}_pcode
     """
@@ -444,22 +477,24 @@ def package_polygons(  # noqa: PLR0913, PLR0917
     "--name-field",
     envvar="NAME_FIELD",
     default=None,
-    help="Name-field template, e.g. 'adm{n}_name' (requires --code-field; "
-    "default: structural auto-detection).",
+    help="Name column of each level, with {n} for the level number, e.g. "
+    "'adm{n}_name'. Give it with --code-field. Without both, levels are "
+    "detected from the data.",
 )
 @click.option(
     "--code-field",
     envvar="CODE_FIELD",
     default=None,
-    help="Code-field template, e.g. 'adm{n}_code' (requires --name-field; "
-    "default: structural auto-detection).",
+    help="Code column of each level, with {n} for the level number, e.g. "
+    "'adm{n}_code'. Give it with --name-field. Without both, levels are "
+    "detected from the data.",
 )
 @click.option(
     "--depth-column",
     envvar="DEPTH_COLUMN",
     default="adm_lvl",
     show_default=True,
-    help="Column name stamped with each point's own admin level.",
+    help="Name of the added column holding each point's admin level.",
 )
 @click.option(
     "--overwrite",
@@ -467,29 +502,36 @@ def package_polygons(  # noqa: PLR0913, PLR0917
     type=bool,
     default=True,
     show_default=True,
-    help="Overwrite an existing output; pass --overwrite=false to error instead.",
+    help="Replace output files that already exist. Pass --overwrite=false to "
+    "stop with an error instead.",
 )
 @click.option(
-    "--threads", envvar="THREADS", type=int, default=None, help="DuckDB thread count."
+    "--threads",
+    envvar="THREADS",
+    type=int,
+    default=None,
+    help="Number of threads DuckDB uses (default: all CPU cores).",
 )
 @click.option(
     "--debug",
     envvar="DEBUG",
     is_flag=True,
-    help="Keep intermediate tables, export to Parquet, log timing/memory per query.",
+    help="Keep intermediate tables, export them to Parquet, and log the time "
+    "and memory each query takes.",
 )
 @click.option(
     "--tmp-dir",
     envvar="TMP_DIR",
     default=None,
-    help="Intermediate DuckDB + Parquet location.",
+    help="Folder for the working DuckDB database and intermediate files "
+    "(default: a new temporary folder, deleted afterwards unless --debug is set).",
 )
 @click.option(
     "--step",
     envvar="STEP",
     type=click.Choice(["inputs", "points", "outputs"]),
     default=None,
-    help="Run only one named stage.",
+    help="Run only this step of the tool, for debugging.",
 )
 def package_points(  # noqa: PLR0913, PLR0917
     input_file: str,
@@ -503,9 +545,11 @@ def package_points(  # noqa: PLR0913, PLR0917
     tmp_dir: str | None,
     step: str | None,
 ) -> None:
-    """One pole-of-inaccessibility label point per admin unit, every level combined.
+    """Make one label point for each admin unit, at every level, in one file.
 
-    OUTPUT_FILE defaults to INPUT_FILE with a "_points" suffix if omitted.
+    Each point is the spot inside the unit farthest from its edges, so it
+    always falls inside the unit, unlike a centroid. OUTPUT_FILE defaults to
+    INPUT_FILE with a "_points" suffix.
 
     \b
     Examples:
@@ -536,22 +580,25 @@ def package_points(  # noqa: PLR0913, PLR0917
     "--name-field",
     envvar="NAME_FIELD",
     default=None,
-    help="Name-field template, e.g. 'adm{n}_name' (requires --code-field; "
-    "default: structural auto-detection).",
+    help="Name column of each level, with {n} for the level number, e.g. "
+    "'adm{n}_name'. Give it with --code-field. Without both, levels are "
+    "detected from the data.",
 )
 @click.option(
     "--code-field",
     envvar="CODE_FIELD",
     default=None,
-    help="Code-field template, e.g. 'adm{n}_code' (requires --name-field; "
-    "default: structural auto-detection).",
+    help="Code column of each level, with {n} for the level number, e.g. "
+    "'adm{n}_code'. Give it with --name-field. Without both, levels are "
+    "detected from the data.",
 )
 @click.option(
     "--depth-column",
     envvar="DEPTH_COLUMN",
     default="adm_lvl",
     show_default=True,
-    help="Column name stamped with each boundary's own coarsest admin level.",
+    help="Name of the added column holding the coarsest admin level each "
+    "boundary line belongs to.",
 )
 @click.option(
     "--overwrite",
@@ -559,29 +606,36 @@ def package_points(  # noqa: PLR0913, PLR0917
     type=bool,
     default=True,
     show_default=True,
-    help="Overwrite an existing output; pass --overwrite=false to error instead.",
+    help="Replace output files that already exist. Pass --overwrite=false to "
+    "stop with an error instead.",
 )
 @click.option(
-    "--threads", envvar="THREADS", type=int, default=None, help="DuckDB thread count."
+    "--threads",
+    envvar="THREADS",
+    type=int,
+    default=None,
+    help="Number of threads DuckDB uses (default: all CPU cores).",
 )
 @click.option(
     "--debug",
     envvar="DEBUG",
     is_flag=True,
-    help="Keep intermediate tables, export to Parquet, log timing/memory per query.",
+    help="Keep intermediate tables, export them to Parquet, and log the time "
+    "and memory each query takes.",
 )
 @click.option(
     "--tmp-dir",
     envvar="TMP_DIR",
     default=None,
-    help="Intermediate DuckDB + Parquet location.",
+    help="Folder for the working DuckDB database and intermediate files "
+    "(default: a new temporary folder, deleted afterwards unless --debug is set).",
 )
 @click.option(
     "--step",
     envvar="STEP",
     type=click.Choice(["inputs", "boundaries", "outputs"]),
     default=None,
-    help="Run only one named stage.",
+    help="Run only this step of the tool, for debugging.",
 )
 def package_lines(  # noqa: PLR0913, PLR0917
     input_file: str,
@@ -595,9 +649,11 @@ def package_lines(  # noqa: PLR0913, PLR0917
     tmp_dir: str | None,
     step: str | None,
 ) -> None:
-    """Deduplicated shared+exterior boundary lines, classified by admin level.
+    """Make one line layer of admin boundaries, each line drawn once.
 
-    OUTPUT_FILE defaults to INPUT_FILE with a "_lines" suffix if omitted.
+    Lines between two units and along the outer edge are included, each
+    tagged with the coarsest admin level it belongs to. OUTPUT_FILE defaults
+    to INPUT_FILE with a "_lines" suffix.
 
     \b
     Examples:
@@ -628,45 +684,48 @@ def package_lines(  # noqa: PLR0913, PLR0917
     "output",
     envvar="OUTPUT",
     default=None,
-    help='Output path template containing a literal "{x}" placeholder, '
-    'substituted per sub-tool ("admin{n}"/"points"/"lines"). Omit for defaults.',
+    help='Output path containing "{x}", replaced by "admin{n}", "points" or '
+    '"lines" for each output. Without it, each tool\'s default name is used.',
 )
 @click.option(
     "--name-field",
     envvar="NAME_FIELD",
     default=None,
-    help="Name-field template, e.g. 'adm{n}_name' (requires --code-field; "
-    "default: structural auto-detection).",
+    help="Name column of each level, with {n} for the level number, e.g. "
+    "'adm{n}_name'. Give it with --code-field. Without both, levels are "
+    "detected from the data.",
 )
 @click.option(
     "--code-field",
     envvar="CODE_FIELD",
     default=None,
-    help="Code-field template, e.g. 'adm{n}_code' (requires --name-field; "
-    "default: structural auto-detection).",
+    help="Code column of each level, with {n} for the level number, e.g. "
+    "'adm{n}_code'. Give it with --name-field. Without both, levels are "
+    "detected from the data.",
 )
 @click.option(
     "--output-name-field",
     envvar="OUTPUT_NAME_FIELD",
     default=None,
-    help="Rename --name-field's columns to this template in every written level, "
-    "e.g. 'adm{n}_label' (requires --name-field/--code-field).",
+    help="Rename the --name-field columns to this pattern in every output, "
+    "e.g. 'adm{n}_label'. Needs --name-field and --code-field.",
 )
 @click.option(
     "--output-code-field",
     envvar="OUTPUT_CODE_FIELD",
     default=None,
-    help="Rename --code-field's columns to this template in every written level, "
-    "e.g. 'adm{n}_pcode' (requires --name-field/--code-field).",
+    help="Rename the --code-field columns to this pattern in every output, "
+    "e.g. 'adm{n}_pcode'. Needs --name-field and --code-field.",
 )
 @click.option(
     "--aggregation",
     "aggregations",
     envvar="AGGREGATIONS",
     multiple=True,
-    help="'column=function' override for package-polygons, for a column that "
-    "varies within a group (function is one of sum, min, max, avg, first; "
-    "default: sum if numeric, else dropped) [may be repeated].",
+    help="How package-polygons combines a column whose values differ inside "
+    "one unit, as 'column=function', where function is sum, min, max, avg or "
+    "first. By default numbers are summed and other columns dropped. Repeat "
+    "for more columns.",
 )
 @click.option(
     "--overwrite",
@@ -674,22 +733,29 @@ def package_lines(  # noqa: PLR0913, PLR0917
     type=bool,
     default=True,
     show_default=True,
-    help="Overwrite an existing output; pass --overwrite=false to error instead.",
+    help="Replace output files that already exist. Pass --overwrite=false to "
+    "stop with an error instead.",
 )
 @click.option(
-    "--threads", envvar="THREADS", type=int, default=None, help="DuckDB thread count."
+    "--threads",
+    envvar="THREADS",
+    type=int,
+    default=None,
+    help="Number of threads DuckDB uses (default: all CPU cores).",
 )
 @click.option(
     "--debug",
     envvar="DEBUG",
     is_flag=True,
-    help="Keep intermediate tables, export to Parquet, log timing/memory per query.",
+    help="Keep intermediate tables, export them to Parquet, and log the time "
+    "and memory each query takes.",
 )
 @click.option(
     "--tmp-dir",
     envvar="TMP_DIR",
     default=None,
-    help="Intermediate DuckDB + Parquet location.",
+    help="Folder for the working DuckDB database and intermediate files "
+    "(default: a new temporary folder, deleted afterwards unless --debug is set).",
 )
 def package(  # noqa: PLR0913, PLR0917
     input_file: str,
@@ -704,7 +770,7 @@ def package(  # noqa: PLR0913, PLR0917
     debug: bool,  # noqa: FBT001
     tmp_dir: str | None,
 ) -> None:
-    """Run package-polygons, package-points, and package-lines against one input.
+    """Run package-polygons, package-points and package-lines on one input.
 
     \b
     Examples:
@@ -712,7 +778,7 @@ def package(  # noqa: PLR0913, PLR0917
       topo-tools package admin3.geojson
 
     \b
-      # Explicit {x} template
+      # Choose where the outputs go
       topo-tools package admin3.geojson --output "web/{x}.geojson"
     """
     logger.info("--debug=%s", debug)
@@ -741,25 +807,26 @@ def package(  # noqa: PLR0913, PLR0917
     "--issues-file",
     envvar="ISSUES_FILE",
     default=None,
-    help='Issues report path. Defaults to OUTPUT_FILE with an "_issues" suffix.',
+    help="Path for the issues report. Defaults to OUTPUT_FILE with an "
+    '"_issues" suffix.',
 )
 @click.option(
     "--maximum-gap-width",
     envvar="MAXIMUM_GAP_WIDTH",
     type=str,
     default=None,
-    help="'thin' (fill thin/sliver-shaped gaps regardless of width), 'all' "
-    "(fill every detected gap), or a number in decimal degrees (the layer's "
-    "EPSG:4326 units, matches GDAL/OGR convention, not meters). Omit to fill "
-    "only floating-point-noise-scale gaps (the default).",
+    help="Which gaps to fill: 'thin' for thin, sliver-shaped gaps of any "
+    "width, 'all' for every gap found, or a width in decimal degrees (not "
+    "meters). By default only tiny gaps from rounding errors are filled.",
 )
 @click.option(
     "--snapping-distance",
     envvar="SNAPPING_DISTANCE",
     type=str,
     default=None,
-    help="A number in decimal degrees. Omit to snap at SNAP_TOLERANCE (the "
-    "default). Noding robustness knob only.",
+    help="Distance in decimal degrees within which nearby vertices are "
+    "joined (default: 0.00000001). Only change it if cleaning fails on "
+    "nearly touching edges.",
 )
 @click.option(
     "--overwrite",
@@ -767,29 +834,36 @@ def package(  # noqa: PLR0913, PLR0917
     type=bool,
     default=True,
     show_default=True,
-    help="Overwrite an existing output; pass --overwrite=false to error instead.",
+    help="Replace output files that already exist. Pass --overwrite=false to "
+    "stop with an error instead.",
 )
 @click.option(
-    "--threads", envvar="THREADS", type=int, default=None, help="DuckDB thread count."
+    "--threads",
+    envvar="THREADS",
+    type=int,
+    default=None,
+    help="Number of threads DuckDB uses (default: all CPU cores).",
 )
 @click.option(
     "--debug",
     envvar="DEBUG",
     is_flag=True,
-    help="Keep intermediate tables, export to Parquet, log timing/memory per query.",
+    help="Keep intermediate tables, export them to Parquet, and log the time "
+    "and memory each query takes.",
 )
 @click.option(
     "--tmp-dir",
     envvar="TMP_DIR",
     default=None,
-    help="Intermediate DuckDB + Parquet location.",
+    help="Folder for the working DuckDB database and intermediate files "
+    "(default: a new temporary folder, deleted afterwards unless --debug is set).",
 )
 @click.option(
     "--step",
     envvar="STEP",
     type=click.Choice(["inputs", "issues", "clean", "outputs"]),
     default=None,
-    help="Run only one named stage.",
+    help="Run only this step of the tool, for debugging.",
 )
 def topo_clean(  # noqa: PLR0913, PLR0917
     input_file: str,
@@ -803,17 +877,18 @@ def topo_clean(  # noqa: PLR0913, PLR0917
     tmp_dir: str | None,
     step: str | None,
 ) -> None:
-    """Detect and fix gap/overlap defects in a single polygon layer.
+    """Find and fix gaps and overlaps between the polygons of one layer.
 
-    OUTPUT_FILE defaults to INPUT_FILE with a "_cleaned" suffix if omitted.
+    The fixes made are listed in an issues report for review. OUTPUT_FILE
+    defaults to INPUT_FILE with a "_cleaned" suffix.
 
     \b
     Examples:
-      # Basic run: fills only floating-point-noise-scale gaps (the default)
+      # Basic run: fills only tiny gaps from rounding errors
       topo-tools topo-clean example.geojson
 
     \b
-      # Fill thin/sliver-shaped gaps regardless of width
+      # Fill thin, sliver-shaped gaps of any width
       topo-tools topo-clean example.gpkg --maximum-gap-width thin
 
     \b
@@ -821,8 +896,14 @@ def topo_clean(  # noqa: PLR0913, PLR0917
       topo-tools topo-clean example.gpkg --maximum-gap-width all
 
     \b
-      # Cap gap-filling at ~0.0001 degrees (~11m at the equator)
+      # Fill gaps up to about 0.0001 degrees wide (about 11 m at the equator)
       topo-tools topo-clean example.parquet --maximum-gap-width 0.0001
+
+    \b
+      # Choose the output and the issues report, which lists how each problem
+      # was fixed
+      topo-tools topo-clean admin2.geojson admin2_cleaned.geojson \\
+        --issues-file admin2_cleaned_issues.geojson
     """
     logger.info(
         "--maximum-gap-width=%s --snapping-distance=%s --debug=%s",
@@ -855,8 +936,8 @@ def topo_clean(  # noqa: PLR0913, PLR0917
     "--overlay-file",
     envvar="OVERLAY_FILE",
     default=None,
-    help='Spatial overlay layer path. Defaults to OUTPUT_FILE with an "_overlay" '
-    "suffix.",
+    help="Path for the map layer of changes. Defaults to OUTPUT_FILE with an "
+    '"_overlay" suffix.',
 )
 @click.option(
     "--tau-match",
@@ -864,7 +945,8 @@ def topo_clean(  # noqa: PLR0913, PLR0917
     type=float,
     default=TAU_MATCH_DEFAULT,
     show_default=True,
-    help="Minimum overlap coverage for two units to be spatially linked.",
+    help="Smallest share of a unit's area that must overlap another unit for "
+    "the two to count as related.",
 )
 @click.option(
     "--tau-same",
@@ -872,20 +954,22 @@ def topo_clean(  # noqa: PLR0913, PLR0917
     type=float,
     default=TAU_SAME_DEFAULT,
     show_default=True,
-    help="Minimum IoU for a 1:1 linked pair to be unchanged/renamed rather than "
-    "modified.",
+    help="Smallest overlap, as shared area divided by combined area, for a "
+    "matched pair to count as the same shape rather than modified.",
 )
 @click.option(
     "--link-by-code",
     envvar="LINK_BY_CODE",
     is_flag=True,
-    help="Also link units sharing a unique code value across versions.",
+    help="Also match units that have the same code in both versions, when "
+    "that code is unique.",
 )
 @click.option(
     "--link-by-name",
     envvar="LINK_BY_NAME",
     is_flag=True,
-    help="Also link units sharing a unique name value across versions.",
+    help="Also match units that have the same name in both versions, when "
+    "that name is unique.",
 )
 @click.option(
     "--link-mode",
@@ -893,31 +977,32 @@ def topo_clean(  # noqa: PLR0913, PLR0917
     type=click.Choice(["either", "both"]),
     default="either",
     show_default=True,
-    help="How code/name identity matches combine (only matters if both flags are set).",
+    help="With both --link-by-code and --link-by-name, match on either one "
+    "or only on both.",
 )
 @click.option(
     "--code-column-a",
     envvar="CODE_COLUMN_A",
     default=None,
-    help="Old-side code column; auto-detected if omitted.",
+    help="Code column in OLD_FILE. Detected from the data if omitted.",
 )
 @click.option(
     "--code-column-b",
     envvar="CODE_COLUMN_B",
     default=None,
-    help="New-side code column; auto-detected if omitted.",
+    help="Code column in NEW_FILE. Detected from the data if omitted.",
 )
 @click.option(
     "--name-column-a",
     envvar="NAME_COLUMN_A",
     default=None,
-    help="Old-side name column; auto-detected if omitted.",
+    help="Name column in OLD_FILE. Detected from the data if omitted.",
 )
 @click.option(
     "--name-column-b",
     envvar="NAME_COLUMN_B",
     default=None,
-    help="New-side name column; auto-detected if omitted.",
+    help="Name column in NEW_FILE. Detected from the data if omitted.",
 )
 @click.option(
     "--overwrite",
@@ -925,29 +1010,36 @@ def topo_clean(  # noqa: PLR0913, PLR0917
     type=bool,
     default=True,
     show_default=True,
-    help="Overwrite an existing output; pass --overwrite=false to error instead.",
+    help="Replace output files that already exist. Pass --overwrite=false to "
+    "stop with an error instead.",
 )
 @click.option(
-    "--threads", envvar="THREADS", type=int, default=None, help="DuckDB thread count."
+    "--threads",
+    envvar="THREADS",
+    type=int,
+    default=None,
+    help="Number of threads DuckDB uses (default: all CPU cores).",
 )
 @click.option(
     "--debug",
     envvar="DEBUG",
     is_flag=True,
-    help="Keep intermediate tables, export to Parquet, log timing/memory per query.",
+    help="Keep intermediate tables, export them to Parquet, and log the time "
+    "and memory each query takes.",
 )
 @click.option(
     "--tmp-dir",
     envvar="TMP_DIR",
     default=None,
-    help="Intermediate DuckDB + Parquet location.",
+    help="Folder for the working DuckDB database and intermediate files "
+    "(default: a new temporary folder, deleted afterwards unless --debug is set).",
 )
 @click.option(
     "--step",
     envvar="STEP",
     type=click.Choice(["inputs", "overlap", "classify", "outputs"]),
     default=None,
-    help="Run only one named stage.",
+    help="Run only this step of the tool, for debugging.",
 )
 def change(  # noqa: PLR0913, PLR0917
     old_file: str,
@@ -969,25 +1061,31 @@ def change(  # noqa: PLR0913, PLR0917
     tmp_dir: str | None,
     step: str | None,
 ) -> None:
-    """Compare two polygon layer versions and classify what changed.
+    """Compare two versions of a polygon layer and list what changed.
 
-    OLD_FILE is the previous version, NEW_FILE is the new version. OUTPUT_FILE
-    (the tabular changelog, CSV or Parquet) defaults to a name combining both
-    stems with a "_changelog" suffix if omitted. A spatial overlay layer
-    colored by relationship_class is always written alongside it.
+    Each unit is classed as unchanged, renamed, modified, relocated, split,
+    merged, complex, created or removed. OLD_FILE is the previous version and
+    NEW_FILE the new one. OUTPUT_FILE, the changelog table (CSV or Parquet),
+    defaults to both file names combined with a "_changelog" suffix. A map
+    layer colored by type of change is written next to it.
 
     \b
     Examples:
-      # Basic run, pure spatial matching
+      # Basic run, matching units by overlap only
       topo-tools change admin2_2020.geojson admin2_2024.geojson
 
     \b
-      # Also link units sharing a unique pcode across versions
-      topo-tools change old.gpkg new.gpkg --link-by-code
+      # Also match units that keep the same p-code
+      topo-tools change old.gpkg new.gpkg --link-by-code \\
+        --code-column-a adm2_pcode --code-column-b adm2_pcode
 
     \b
-      # Loosen the "related" threshold for heavily redrawn boundaries
+      # Accept less overlap, for heavily redrawn boundaries
       topo-tools change old.parquet new.parquet --tau-match 0.6
+
+    \b
+      # Choose the changelog and the map layer of changes, for review
+      topo-tools change old.gpkg new.gpkg changelog.csv --overlay-file overlay.gpkg
     """
     logger.info("--tau-match=%s --tau-same=%s --debug=%s", tau_match, tau_same, debug)
     try:
@@ -1019,19 +1117,25 @@ def change(  # noqa: PLR0913, PLR0917
 @click.argument("input_file", envvar="INPUT_FILE")
 @click.argument("output_file", envvar="OUTPUT_FILE", required=False, default=None)
 @click.argument("issues_file", envvar="ISSUES_FILE", required=False, default=None)
-@click.option("--root-code", envvar="ROOT_CODE", required=True, help="Root code value.")
+@click.option(
+    "--root-code",
+    envvar="ROOT_CODE",
+    required=True,
+    help="Code at the start of every code, e.g. a country code.",
+)
 @click.option(
     "--delimiter",
     envvar="DELIMITER",
     required=True,
-    help="Single-character delimiter, or empty ('') for none.",
+    help="One character between the parts of a code, or '' for none.",
 )
 @click.option(
     "--min-width",
     envvar="MIN_WIDTH",
     required=True,
-    help="Zero-pad floor per level: one width (3), one per level, coarsest "
-    "first (2,2,4), or auto (the digits each level needs).",
+    help="How many digits each level's number is padded to with zeros: one "
+    "width for all levels (3), one per level from coarsest (2,2,4), or auto "
+    "for as many as each level needs.",
 )
 @click.option(
     "--source-codes",
@@ -1039,22 +1143,25 @@ def change(  # noqa: PLR0913, PLR0917
     type=click.Choice(["replace", "embed", "copy"]),
     default="replace",
     show_default=True,
-    help="Each level's existing code: replace it, embed it as the level's own "
-    "component, or copy it to a numbered sibling column before replacing it.",
+    help="What to do with each level's existing code: replace it with a new "
+    "number, embed it as that level's part of the new code, or copy it to a "
+    "new column (adm1_code to adm1_code1) and then replace it.",
 )
 @click.option(
     "--name-field",
     envvar="NAME_FIELD",
     default=None,
-    help="Name-field template, e.g. 'adm{n}_name' (requires --code-field; "
-    "default: structural auto-detection).",
+    help="Name column of each level, with {n} for the level number, e.g. "
+    "'adm{n}_name'. Give it with --code-field. Without both, levels are "
+    "detected from the data.",
 )
 @click.option(
     "--code-field",
     envvar="CODE_FIELD",
     default=None,
-    help="Code-field template, e.g. 'adm{n}_code' (requires --name-field; "
-    "default: structural auto-detection).",
+    help="Code column of each level, with {n} for the level number, e.g. "
+    "'adm{n}_code'. Give it with --name-field. Without both, levels are "
+    "detected from the data.",
 )
 @click.option(
     "--overwrite",
@@ -1062,29 +1169,36 @@ def change(  # noqa: PLR0913, PLR0917
     type=bool,
     default=True,
     show_default=True,
-    help="Overwrite an existing output; pass --overwrite=false to error instead.",
+    help="Replace output files that already exist. Pass --overwrite=false to "
+    "stop with an error instead.",
 )
 @click.option(
-    "--threads", envvar="THREADS", type=int, default=None, help="DuckDB thread count."
+    "--threads",
+    envvar="THREADS",
+    type=int,
+    default=None,
+    help="Number of threads DuckDB uses (default: all CPU cores).",
 )
 @click.option(
     "--debug",
     envvar="DEBUG",
     is_flag=True,
-    help="Keep intermediate tables, export to Parquet, log timing/memory per query.",
+    help="Keep intermediate tables, export them to Parquet, and log the time "
+    "and memory each query takes.",
 )
 @click.option(
     "--tmp-dir",
     envvar="TMP_DIR",
     default=None,
-    help="Intermediate DuckDB + Parquet location.",
+    help="Folder for the working DuckDB database and intermediate files "
+    "(default: a new temporary folder, deleted afterwards unless --debug is set).",
 )
 @click.option(
     "--step",
     envvar="STEP",
     type=click.Choice(["inputs", "levels", "assign", "outputs"]),
     default=None,
-    help="Run only one named stage.",
+    help="Run only this step of the tool, for debugging.",
 )
 def code_create(  # noqa: PLR0913, PLR0917
     input_file: str,
@@ -1102,26 +1216,28 @@ def code_create(  # noqa: PLR0913, PLR0917
     tmp_dir: str | None,
     step: str | None,
 ) -> None:
-    """Cold-start a hierarchical code on one input file, ranked per parent.
+    """Give every unit a new hierarchical code, numbered within its parent.
 
-    Each level's own code column is written into in place, no separate
-    output-naming flag; OUTPUT_FILE defaults to INPUT_FILE with a "_coded"
-    suffix. ISSUES_FILE (tabular, overflow rows only) defaults to
-    OUTPUT_FILE with an "_issues" suffix, written only when non-empty.
+    Use it when there is no previous release to keep codes from, or with
+    --source-codes embed to keep the source codes inside the new codes. The new
+    codes replace each level's code column. OUTPUT_FILE defaults to
+    INPUT_FILE with a "_coded" suffix. ISSUES_FILE lists parents with more
+    children than the code width allows. It defaults to OUTPUT_FILE with an
+    "_issues" suffix and is only written when there are any.
 
     \b
     Examples:
-      # Default naming, levels auto-detected structurally
+      # Basic run, levels detected from the data
       topo-tools code-create admin2.geojson --root-code AFG --delimiter . \\
         --min-width 3
 
     \b
-      # Explicit code/name columns, when auto-detection is ambiguous
+      # Name the level columns, when detection is unsure
       topo-tools code-create admin2.geojson --root-code AFG --delimiter . \\
         --min-width 3 --code-field adm{n}_code --name-field adm{n}_name
 
     \b
-      # Source codes kept inside the code, no delimiter (AF01, AF0101, ...)
+      # Keep existing codes inside the new code, no delimiter (AF01, AF0101, ...)
       topo-tools code-create admin2.geojson --root-code AF --delimiter '' \\
         --min-width 2 --source-codes embed --code-field adm{n}_code \\
         --name-field adm{n}_name
@@ -1157,76 +1273,82 @@ def code_create(  # noqa: PLR0913, PLR0917
     "--root-code",
     envvar="ROOT_CODE",
     default=None,
-    help="Root code value; auto-detected off OLD's own codes if omitted.",
+    help="Code at the start of every code. Detected from OLD_FILE's codes if omitted.",
 )
 @click.option(
     "--delimiter",
     envvar="DELIMITER",
     default=None,
-    help="Single-character delimiter; auto-detected off OLD's own codes if omitted.",
+    help="One character between the parts of a code, or '' for none. "
+    "Detected from OLD_FILE's codes if omitted.",
 )
 @click.option(
     "--min-width",
     envvar="MIN_WIDTH",
     default=None,
-    help="Zero-pad floor per level: 3, 2,2,4 or auto; detected off OLD's own "
-    "codes if omitted.",
+    help="How many digits each level's number is padded to with zeros: 3, "
+    "2,2,4 or auto. Detected from OLD_FILE's codes if omitted.",
 )
 @click.option(
     "--name-field-a",
     envvar="NAME_FIELD_A",
     default=None,
-    help="OLD name-field template, e.g. 'adm{n}_name' (requires --code-field-a; "
-    "default: structural auto-detection).",
+    help="Name column of each level in OLD_FILE, with {n} for the level "
+    "number, e.g. 'adm{n}_name'. Give it with --code-field-a. Without both, "
+    "levels are detected from the data.",
 )
 @click.option(
     "--code-field-a",
     envvar="CODE_FIELD_A",
     default=None,
-    help="OLD code-field template, e.g. 'adm{n}_pcode' (requires --name-field-a; "
-    "default: structural auto-detection).",
+    help="Code column of each level in OLD_FILE, with {n} for the level "
+    "number, e.g. 'adm{n}_pcode'. Give it with --name-field-a. Without both, "
+    "levels are detected from the data.",
 )
 @click.option(
     "--name-field-b",
     envvar="NAME_FIELD_B",
     default=None,
-    help="NEW name-field template (requires --code-field-b; "
-    "default: structural auto-detection).",
+    help="Name column of each level in NEW_FILE, with {n} for the level "
+    "number. Give it with --code-field-b. Without both, levels are detected "
+    "from the data.",
 )
 @click.option(
     "--code-field-b",
     envvar="CODE_FIELD_B",
     default=None,
-    help="NEW code-field template (requires --name-field-b; "
-    "default: structural auto-detection).",
+    help="Code column of each level in NEW_FILE, with {n} for the level "
+    "number. A level with names but no code column gets codes made from its "
+    "names. Give it with --name-field-b. Without both, levels are detected "
+    "from the data.",
 )
 @click.option(
     "--code-column-a",
     envvar="CODE_COLUMN_A",
     default=None,
-    help="Old-side identity-link code column; defaults to the resolved per-level "
-    "code column.",
+    help="Code column in OLD_FILE used by --link-by-code. Defaults to "
+    "each level's code column.",
 )
 @click.option(
     "--code-column-b",
     envvar="CODE_COLUMN_B",
     default=None,
-    help="New-side identity-link code column; defaults to the resolved per-level "
-    "code column.",
+    help="Code column in NEW_FILE used by --link-by-code. Defaults to "
+    "each level's code column.",
 )
 @click.option(
     "--name-column-a",
     envvar="NAME_COLUMN_A",
     default=None,
-    help="Old-side identity-link name column; defaults to the resolved per-level "
-    "name column.",
+    help="Name column in OLD_FILE used by --link-by-name. Defaults to "
+    "each level's name column.",
 )
 @click.option(
     "--name-column-b",
     envvar="NAME_COLUMN_B",
     default=None,
-    help="New-side identity-link name column; defaults to the resolved per-level "
-    "name column.",
+    help="Name column in NEW_FILE used by --link-by-name. Defaults to "
+    "each level's name column.",
 )
 @click.option(
     "--tau-match",
@@ -1234,7 +1356,8 @@ def code_create(  # noqa: PLR0913, PLR0917
     type=float,
     default=TAU_MATCH_DEFAULT,
     show_default=True,
-    help="Minimum overlap coverage for two units to be spatially linked.",
+    help="Smallest share of a unit's area that must overlap another unit for "
+    "the two to count as related.",
 )
 @click.option(
     "--tau-same",
@@ -1242,20 +1365,22 @@ def code_create(  # noqa: PLR0913, PLR0917
     type=float,
     default=TAU_SAME_DEFAULT,
     show_default=True,
-    help="Minimum IoU for a 1:1 linked pair to be unchanged/renamed rather than "
-    "modified.",
+    help="Smallest overlap, as shared area divided by combined area, for a "
+    "matched pair to count as the same shape rather than modified.",
 )
 @click.option(
     "--link-by-code",
     envvar="LINK_BY_CODE",
     is_flag=True,
-    help="Also link units sharing a unique code value across versions.",
+    help="Also match units that have the same code in both versions, when "
+    "that code is unique.",
 )
 @click.option(
     "--link-by-name",
     envvar="LINK_BY_NAME",
     is_flag=True,
-    help="Also link units sharing a unique name value across versions.",
+    help="Also match units that have the same name in both versions, when "
+    "that name is unique.",
 )
 @click.option(
     "--link-mode",
@@ -1263,7 +1388,8 @@ def code_create(  # noqa: PLR0913, PLR0917
     type=click.Choice(["either", "both"]),
     default="either",
     show_default=True,
-    help="How code/name identity matches combine (only matters if both flags are set).",
+    help="With both --link-by-code and --link-by-name, match on either one "
+    "or only on both.",
 )
 @click.option(
     "--overwrite",
@@ -1271,29 +1397,36 @@ def code_create(  # noqa: PLR0913, PLR0917
     type=bool,
     default=True,
     show_default=True,
-    help="Overwrite an existing output; pass --overwrite=false to error instead.",
+    help="Replace output files that already exist. Pass --overwrite=false to "
+    "stop with an error instead.",
 )
 @click.option(
-    "--threads", envvar="THREADS", type=int, default=None, help="DuckDB thread count."
+    "--threads",
+    envvar="THREADS",
+    type=int,
+    default=None,
+    help="Number of threads DuckDB uses (default: all CPU cores).",
 )
 @click.option(
     "--debug",
     envvar="DEBUG",
     is_flag=True,
-    help="Keep intermediate tables, export to Parquet, log timing/memory per query.",
+    help="Keep intermediate tables, export them to Parquet, and log the time "
+    "and memory each query takes.",
 )
 @click.option(
     "--tmp-dir",
     envvar="TMP_DIR",
     default=None,
-    help="Intermediate DuckDB + Parquet location.",
+    help="Folder for the working DuckDB database and intermediate files "
+    "(default: a new temporary folder, deleted afterwards unless --debug is set).",
 )
 @click.option(
     "--step",
     envvar="STEP",
     type=click.Choice(["inputs", "levels", "process", "outputs"]),
     default=None,
-    help="Run only one named stage.",
+    help="Run only this step of the tool, for debugging.",
 )
 def code_update(  # noqa: PLR0913, PLR0917
     old_file: str,
@@ -1322,20 +1455,22 @@ def code_update(  # noqa: PLR0913, PLR0917
     tmp_dir: str | None,
     step: str | None,
 ) -> None:
-    """Reconcile an already-coded OLD layer against an uncoded NEW candidate.
+    """Code a new release so units that carry over keep their previous codes.
 
-    OLD_FILE is the previous already-coded version, NEW_FILE is the uncoded
-    candidate version. OUTPUT_FILE (NEW's geometry, coded) defaults to
-    NEW_FILE with a "_coded" suffix. CHANGELOG_FILE (tabular, always written)
-    defaults to OUTPUT_FILE with a "_changelog" suffix.
+    OLD_FILE is the previous release, already coded. NEW_FILE is the new
+    release. Unchanged units keep their codes, changed units get new ones,
+    and no code is ever given to a different unit. OUTPUT_FILE, the new
+    release with codes, defaults to NEW_FILE with a "_coded" suffix.
+    CHANGELOG_FILE, a table of what happened to each code, defaults to
+    OUTPUT_FILE with a "_changelog" suffix and is always written.
 
     \b
     Examples:
-      # Basic run, format and levels auto-detected off OLD's own codes
+      # Basic run, code format and levels detected from OLD_FILE
       topo-tools code-update admin1_old.geojson admin1_new.geojson
 
     \b
-      # Identity-link on a shared source code, for relocated units
+      # Also match units by a shared source ID, for units that moved
       topo-tools code-update old.gpkg new.gpkg --link-by-code \\
         --code-column-a srcid --code-column-b srcid
     """
@@ -1382,15 +1517,16 @@ def code_update(  # noqa: PLR0913, PLR0917
     envvar="EXTRA_INPUTS",
     multiple=True,
     help=(
-        "Additional input file beyond INPUT_FILE, combined with it "
-        "[may be repeated, and each value MAY be comma-separated]."
+        "Another input file to process together with INPUT_FILE. Repeat it "
+        "or separate files with commas."
     ),
 )
 @click.option(
     "--issues-file",
     envvar="ISSUES_FILE",
     default=None,
-    help='Issues report path. Defaults to OUTPUT_FILE with an "_issues" suffix.',
+    help="Path for the issues report. Defaults to OUTPUT_FILE with an "
+    '"_issues" suffix.',
 )
 @click.option(
     "--overwrite",
@@ -1398,51 +1534,61 @@ def code_update(  # noqa: PLR0913, PLR0917
     type=bool,
     default=True,
     show_default=True,
-    help="Overwrite an existing output; pass --overwrite=false to error instead.",
+    help="Replace output files that already exist. Pass --overwrite=false to "
+    "stop with an error instead.",
 )
 @click.option(
-    "--threads", envvar="THREADS", type=int, default=None, help="DuckDB thread count."
+    "--threads",
+    envvar="THREADS",
+    type=int,
+    default=None,
+    help="Number of threads DuckDB uses (default: all CPU cores).",
 )
 @click.option(
     "--debug",
     envvar="DEBUG",
     is_flag=True,
-    help="Keep intermediate tables, export to Parquet, log timing/memory per query.",
+    help="Keep intermediate tables, export them to Parquet, and log the time "
+    "and memory each query takes.",
 )
 @click.option(
     "--tmp-dir",
     envvar="TMP_DIR",
     default=None,
-    help="Intermediate DuckDB + Parquet location.",
+    help="Folder for the working DuckDB database and intermediate files "
+    "(default: a new temporary folder, deleted afterwards unless --debug is set).",
 )
 @click.option(
     "--step",
     envvar="STEP",
     type=click.Choice(["inputs", "assign", "groups", "clip", "stitch", "outputs"]),
     default=None,
-    help="Run only one named stage.",
+    help="Run only this step of the tool, for debugging.",
 )
 @click.option(
     "--match-column",
     envvar="MATCH_COLUMN",
     default=None,
     help=(
-        "Column name shared by both layers, used as an exact code join "
-        "(e.g. a pcode) that wins over spatial overlap on disagreement. "
-        "Mutually exclusive with --overlay-match-column/--input-match-column."
+        "Column in both layers, such as a p-code, used to match input "
+        "features to overlay features. It wins over overlap where the two "
+        "disagree. Can't be combined with --overlay-match-column or "
+        "--input-match-column."
     ),
 )
 @click.option(
     "--overlay-match-column",
     envvar="OVERLAY_MATCH_COLUMN",
     default=None,
-    help="Overlay-side code column, when it's named differently than the input's.",
+    help="Matching column in the overlay, when its name differs from the "
+    "input's. Give it with --input-match-column.",
 )
 @click.option(
     "--input-match-column",
     envvar="INPUT_MATCH_COLUMN",
     default=None,
-    help="Input-side code column, when it's named differently than the overlay's.",
+    help="Matching column in the input, when its name differs from the "
+    "overlay's. Give it with --overlay-match-column.",
 )
 @_add_merge_options
 @click.option(
@@ -1450,13 +1596,11 @@ def code_update(  # noqa: PLR0913, PLR0917
     envvar="PER_FEATURE",
     is_flag=True,
     help=(
-        "Assign each input feature independently to whichever overlay feature "
-        "it overlaps most (assign-many), instead of forcing the whole input "
-        "file onto one majority-vote overlay feature (assign-one, the default). "
-        "Use this when input features genuinely belong to different overlay "
-        "features, e.g. a "
-        "poorly-digitized admin4 layer fitting into many admin3 units. "
-        "Rejected when more than one input file resolves."
+        "Match each input feature on its own to the overlay feature it "
+        "overlaps most. By default the whole input file goes to the one "
+        "overlay feature most of it falls in. Use this when an input file "
+        "spans several overlay features, e.g. an admin4 layer fitted into many "
+        "admin3 units. Only works with a single input file."
     ),
 )
 @_add_fill_options
@@ -1486,11 +1630,13 @@ def edge_match(  # noqa: PLR0913, PLR0917
     code_field: str | None,
     depth_column: str,
 ) -> None:
-    """Match one or more input layers to an overlay layer by largest overlap.
+    """Fit an input layer into the polygons of a coarser overlay layer.
 
-    OUTPUT_FILE defaults to INPUT_FILE with a "_matched" suffix if omitted;
-    it is required when INPUT_FILE is a glob matching more than one file, or
-    when --input is given.
+    Each input file is matched to the overlay feature it overlaps most,
+    extended to fill gaps, clipped to that feature, then stitched so the
+    edges line up. OUTPUT_FILE defaults to INPUT_FILE with a "_matched"
+    suffix. It's required when INPUT_FILE is a pattern matching more than
+    one file, or when --input is given.
 
     \b
     Examples:
@@ -1498,32 +1644,39 @@ def edge_match(  # noqa: PLR0913, PLR0917
       topo-tools edge-match adm4.geojson adm0.geojson
 
     \b
-      # Fit admin3 into admin2 groups, each cleaned against its own overlay feature
+      # Fit admin3 into admin2, each group of units into its own admin2 unit
       topo-tools edge-match adm3.gpkg adm2.gpkg adm3_matched.gpkg
 
     \b
-      # Combine several raw countries' admin1 layers, matched and extended
-      # together against one shared overlay
+      # Fit several countries' admin1 layers into one shared overlay together
       topo-tools edge-match sen_adm1.parquet world_adm0.geojson out.parquet \\
         --input gmb_adm1.parquet,gnb_adm1.parquet
 
     \b
-      # Prefer an existing pcode join over spatial overlap where they disagree
+      # Match on a shared p-code column, overriding overlap where they disagree
       topo-tools edge-match adm3.gpkg adm2.gpkg --match-column pcode
 
     \b
-      # Copy just iso_3/adm0_name onto every matched input feature
+      # Copy only iso_3 and adm0_name onto every matched input feature
       topo-tools edge-match adm3.gpkg adm2.gpkg \\
         --merge --overlay-include iso_3,adm0_name
 
     \b
-      # Keep the overlay's version automatically on a name collision
+      # Keep the overlay's column when both layers have one with the same name
       topo-tools edge-match adm3.gpkg adm2.gpkg --merge --prefer overlay
 
     \b
-      # A poorly-digitized admin4 layer whose features legitimately
-      # scatter across many different admin3 units
+      # An admin4 layer whose units fall in many different admin3 units
       topo-tools edge-match adm4.gpkg adm3.gpkg --per-feature
+
+    \b
+      # Choose the output and the issues report
+      topo-tools edge-match adm3.gpkg adm0.gpkg adm3_matched.gpkg \\
+        --issues-file match_report.gpkg
+
+    \b
+      # Also fill empty finer admin columns from coarser ones before writing
+      topo-tools edge-match adm3.gpkg adm0.gpkg adm3_matched.gpkg --fill-schema
     """
     logger.info("--debug=%s", debug)
     if any(ch in input_file for ch in "*?["):
@@ -1578,8 +1731,8 @@ def edge_match(  # noqa: PLR0913, PLR0917
     envvar="EXTRA_INPUTS",
     multiple=True,
     help=(
-        "Additional input file beyond INPUT_FILE, combined with it "
-        "[may be repeated, and each value MAY be comma-separated]."
+        "Another input file to process together with INPUT_FILE. Repeat it "
+        "or separate files with commas."
     ),
 )
 @click.option(
@@ -1588,16 +1741,17 @@ def edge_match(  # noqa: PLR0913, PLR0917
     envvar="ORIGINAL_FILES",
     multiple=True,
     help=(
-        "Pre-extension original layer, used to decide whether a clip-detached "
-        "piece merges; without it every such piece is only reported [may be "
-        "repeated, and each value MAY be comma-separated]."
+        "The original layer before extension. It decides whether a piece "
+        "cut off by clipping is merged into a neighbor. Without it, such pieces "
+        "are only reported. Repeat it or separate files with commas."
     ),
 )
 @click.option(
     "--issues-file",
     envvar="ISSUES_FILE",
     default=None,
-    help='Issues report path. Defaults to OUTPUT_FILE with an "_issues" suffix.',
+    help="Path for the issues report. Defaults to OUTPUT_FILE with an "
+    '"_issues" suffix.',
 )
 @click.option(
     "--overwrite",
@@ -1605,51 +1759,61 @@ def edge_match(  # noqa: PLR0913, PLR0917
     type=bool,
     default=True,
     show_default=True,
-    help="Overwrite an existing output; pass --overwrite=false to error instead.",
+    help="Replace output files that already exist. Pass --overwrite=false to "
+    "stop with an error instead.",
 )
 @click.option(
-    "--threads", envvar="THREADS", type=int, default=None, help="DuckDB thread count."
+    "--threads",
+    envvar="THREADS",
+    type=int,
+    default=None,
+    help="Number of threads DuckDB uses (default: all CPU cores).",
 )
 @click.option(
     "--debug",
     envvar="DEBUG",
     is_flag=True,
-    help="Keep intermediate tables, export to Parquet, log timing/memory per query.",
+    help="Keep intermediate tables, export them to Parquet, and log the time "
+    "and memory each query takes.",
 )
 @click.option(
     "--tmp-dir",
     envvar="TMP_DIR",
     default=None,
-    help="Intermediate DuckDB + Parquet location.",
+    help="Folder for the working DuckDB database and intermediate files "
+    "(default: a new temporary folder, deleted afterwards unless --debug is set).",
 )
 @click.option(
     "--step",
     envvar="STEP",
     type=click.Choice(["inputs", "assign", "clip", "stitch", "outputs"]),
     default=None,
-    help="Run only one named stage.",
+    help="Run only this step of the tool, for debugging.",
 )
 @click.option(
     "--match-column",
     envvar="MATCH_COLUMN",
     default=None,
     help=(
-        "Column name shared by both layers, used as an exact code join "
-        "(e.g. a pcode) that wins over spatial overlap on disagreement. "
-        "Mutually exclusive with --overlay-match-column/--input-match-column."
+        "Column in both layers, such as a p-code, used to match input "
+        "features to overlay features. It wins over overlap where the two "
+        "disagree. Can't be combined with --overlay-match-column or "
+        "--input-match-column."
     ),
 )
 @click.option(
     "--overlay-match-column",
     envvar="OVERLAY_MATCH_COLUMN",
     default=None,
-    help="Overlay-side code column, when it's named differently than the input's.",
+    help="Matching column in the overlay, when its name differs from the "
+    "input's. Give it with --input-match-column.",
 )
 @click.option(
     "--input-match-column",
     envvar="INPUT_MATCH_COLUMN",
     default=None,
-    help="Input-side code column, when it's named differently than the overlay's.",
+    help="Matching column in the input, when its name differs from the "
+    "overlay's. Give it with --overlay-match-column.",
 )
 @_add_merge_options
 @_add_fill_options
@@ -1681,39 +1845,44 @@ def edge_mosaic(  # noqa: PLR0913, PLR0917
 ) -> None:
     """Fit an already-extended input layer into a new overlay layer.
 
-    OUTPUT_FILE defaults to INPUT_FILE with a "_mosaicked" suffix if omitted;
-    it is required when INPUT_FILE is a glob matching more than one file, or
-    when --input is given.
+    Like edge-match, but skips the extending step, for input already run
+    through edge-extend. OUTPUT_FILE defaults to INPUT_FILE with a
+    "_mosaicked" suffix. It's required when INPUT_FILE is a pattern matching
+    more than one file, or when --input is given.
 
     \b
     Examples:
-      # Re-clip a pre-extended admin3 layer against a new admin0 boundary
+      # Clip an extended admin3 layer to a new admin0 boundary
       topo-tools edge-mosaic adm3_extended.parquet adm0_new.geojson
 
     \b
-      # Combine every country's pre-extended layer, re-clip against a world admin0
+      # Clip every country's extended layer to a world admin0 layer
       topo-tools edge-mosaic "*/latest/adm2/extended.parquet" world_adm0.geojson \\
         out.parquet
 
     \b
-      # Combine explicit files instead of a glob (--input MAY be repeated
-      # and/or comma-separated)
+      # List files instead of a pattern (repeat --input or use commas)
       topo-tools edge-mosaic afg.parquet world_adm0.geojson out.parquet \\
         --input ago.parquet,are.parquet
 
     \b
-      # Prefer an existing pcode join over spatial overlap where they disagree
+      # Match on a shared p-code column, overriding overlap where they disagree
       topo-tools edge-mosaic adm3_extended.parquet adm0_new.geojson --match-column pcode
 
     \b
-      # Keep an overlay feature's own boundary when no input file covers it
+      # Keep an overlay feature's own shape where no input file covers it
       topo-tools edge-mosaic "*/latest/adm4/extended.parquet" world_adm0.geojson \\
         out.parquet --merge
 
     \b
-      # Keep the overlay's version automatically on a name collision
+      # Keep the overlay's column when both layers have one with the same name
       topo-tools edge-mosaic adm3_extended.parquet adm0_new.geojson \\
         --merge --prefer overlay
+
+    \b
+      # Re-clip an extended layer to a new overlay, with an issues report
+      topo-tools edge-mosaic adm3_extended.parquet adm0_new.geojson \\
+        adm3_mosaicked.parquet --issues-file mosaic_report.parquet
     """
     logger.info("--debug=%s", debug)
     if any(ch in input_file for ch in "*?["):
@@ -1767,15 +1936,16 @@ def edge_mosaic(  # noqa: PLR0913, PLR0917
     envvar="EXTRA_INPUTS",
     multiple=True,
     help=(
-        "Additional already-tiled file beyond INPUT_FILE, combined with it "
-        "[may be repeated, and each value MAY be comma-separated]."
+        "Another clipped file to stitch together with INPUT_FILE. Repeat it "
+        "or separate files with commas."
     ),
 )
 @click.option(
     "--issues-file",
     envvar="ISSUES_FILE",
     default=None,
-    help='Issues report path. Defaults to OUTPUT_FILE with an "_issues" suffix.',
+    help="Path for the issues report. Defaults to OUTPUT_FILE with an "
+    '"_issues" suffix.',
 )
 @click.option(
     "--overwrite",
@@ -1783,29 +1953,36 @@ def edge_mosaic(  # noqa: PLR0913, PLR0917
     type=bool,
     default=True,
     show_default=True,
-    help="Overwrite an existing output; pass --overwrite=false to error instead.",
+    help="Replace output files that already exist. Pass --overwrite=false to "
+    "stop with an error instead.",
 )
 @click.option(
-    "--threads", envvar="THREADS", type=int, default=None, help="DuckDB thread count."
+    "--threads",
+    envvar="THREADS",
+    type=int,
+    default=None,
+    help="Number of threads DuckDB uses (default: all CPU cores).",
 )
 @click.option(
     "--debug",
     envvar="DEBUG",
     is_flag=True,
-    help="Keep intermediate tables, export to Parquet, log timing/memory per query.",
+    help="Keep intermediate tables, export them to Parquet, and log the time "
+    "and memory each query takes.",
 )
 @click.option(
     "--tmp-dir",
     envvar="TMP_DIR",
     default=None,
-    help="Intermediate DuckDB + Parquet location.",
+    help="Folder for the working DuckDB database and intermediate files "
+    "(default: a new temporary folder, deleted afterwards unless --debug is set).",
 )
 @click.option(
     "--step",
     envvar="STEP",
     type=click.Choice(["inputs", "clean", "outputs"]),
     default=None,
-    help="Run only one named stage.",
+    help="Run only this step of the tool, for debugging.",
 )
 @_add_fill_options
 def edge_stitch(  # noqa: PLR0913, PLR0917
@@ -1823,10 +2000,11 @@ def edge_stitch(  # noqa: PLR0913, PLR0917
     code_field: str | None,
     depth_column: str,
 ) -> None:
-    """Close seams in an already-tiled polygon layer via coverage-clean.
+    """Close the seams between pieces of a layer that was clipped in parts.
 
-    OUTPUT_FILE defaults to INPUT_FILE with a "_stitched" suffix if omitted;
-    it is required when INPUT_FILE is a glob matching more than one file, or
+    Removes the slivers and overlaps left where clipped pieces meet.
+    OUTPUT_FILE defaults to INPUT_FILE with a "_stitched" suffix. It's
+    required when INPUT_FILE is a pattern matching more than one file, or
     when --input is given.
 
     \b
@@ -1839,17 +2017,16 @@ def edge_stitch(  # noqa: PLR0913, PLR0917
       topo-tools edge-stitch tiled.gpkg stitched.gpkg
 
     \b
-      # Combine every already-clipped file into one global stitched output
+      # Stitch every clipped file into one output
       topo-tools edge-stitch "tmp/clipped/*.parquet" stitched.parquet
 
     \b
-      # Combine explicit files instead of a glob (--input MAY be repeated
-      # and/or comma-separated)
+      # List files instead of a pattern (repeat --input or use commas)
       topo-tools edge-stitch afg.parquet stitched.parquet \\
         --input ago.parquet,are.parquet
 
     \b
-      # Error instead of silently overwriting an existing output
+      # Stop with an error if the output already exists
       topo-tools edge-stitch tiled.parquet stitched.parquet --overwrite=false
     """
     logger.info("--debug=%s", debug)
@@ -1891,15 +2068,17 @@ def edge_stitch(  # noqa: PLR0913, PLR0917
     "--name-field",
     envvar="NAME_FIELD",
     default=None,
-    help="Name-field template, e.g. 'adm{n}_name' (requires --code-field; "
-    "default: structural auto-detection).",
+    help="Name column of each level, with {n} for the level number, e.g. "
+    "'adm{n}_name'. Give it with --code-field. Without both, levels are "
+    "detected from the data.",
 )
 @click.option(
     "--code-field",
     envvar="CODE_FIELD",
     default=None,
-    help="Code-field template, e.g. 'adm{n}_code' (requires --name-field; "
-    "default: structural auto-detection).",
+    help="Code column of each level, with {n} for the level number, e.g. "
+    "'adm{n}_code'. Give it with --name-field. Without both, levels are "
+    "detected from the data.",
 )
 @click.option(
     "--overwrite",
@@ -1907,36 +2086,44 @@ def edge_stitch(  # noqa: PLR0913, PLR0917
     type=bool,
     default=True,
     show_default=True,
-    help="Overwrite an existing output; pass --overwrite=false to error instead.",
+    help="Replace output files that already exist. Pass --overwrite=false to "
+    "stop with an error instead.",
 )
 @click.option(
-    "--threads", envvar="THREADS", type=int, default=None, help="DuckDB thread count."
+    "--threads",
+    envvar="THREADS",
+    type=int,
+    default=None,
+    help="Number of threads DuckDB uses (default: all CPU cores).",
 )
 @click.option(
     "--debug",
     envvar="DEBUG",
     is_flag=True,
-    help="Keep intermediate tables, export to Parquet, log timing/memory per query.",
+    help="Keep intermediate tables, export them to Parquet, and log the time "
+    "and memory each query takes.",
 )
 @click.option(
     "--tmp-dir",
     envvar="TMP_DIR",
     default=None,
-    help="Intermediate DuckDB + Parquet location.",
+    help="Folder for the working DuckDB database and intermediate files "
+    "(default: a new temporary folder, deleted afterwards unless --debug is set).",
 )
 @click.option(
     "--step",
     envvar="STEP",
     type=click.Choice(["inputs", "fill", "outputs"]),
     default=None,
-    help="Run only one named stage.",
+    help="Run only this step of the tool, for debugging.",
 )
 @click.option(
     "--depth-column",
     envvar="DEPTH_COLUMN",
     default="adm_lvl",
     show_default=True,
-    help="Name of the new column stamping each row's real, pre-fill depth.",
+    help="Name of the added column holding each row's own admin level, "
+    "taken before filling.",
 )
 def schema_fill(  # noqa: PLR0913, PLR0917
     input_file: str,
@@ -1950,9 +2137,17 @@ def schema_fill(  # noqa: PLR0913, PLR0917
     step: str | None,
     depth_column: str,
 ) -> None:
-    """Cascade each admin-hierarchy column down from its nearest shallower level.
+    """Fill each row's empty finer admin columns from its coarser ones.
 
-    Pinned to each row's own real depth; stamps a new depth column ("adm_lvl").
+    A row for an admin2 unit in an admin4 file gets its admin2 code and
+    name copied into the admin3 and admin4 columns. A column for the row's
+    own admin level ("adm_lvl") is added first, so filled rows can be told
+    apart. A missing value at a row's own level is left empty.
+
+    \b
+    Examples:
+      # Basic run, levels detected from the data
+      topo-tools schema-fill admin4.geojson
     """
     logger.info("--debug=%s", debug)
     try:
@@ -1980,21 +2175,24 @@ def schema_fill(  # noqa: PLR0913, PLR0917
     "--issues-output",
     envvar="ISSUES_OUTPUT",
     default=None,
-    help="Issues report path (default: OUTPUT_FILE with an '_issues' suffix).",
+    help="Path for the issues report. Defaults to OUTPUT_FILE with an "
+    '"_issues" suffix.',
 )
 @click.option(
     "--name-field",
     envvar="NAME_FIELD",
     default=None,
-    help="Name-field template, e.g. 'adm{n}_name' (requires --code-field; "
-    "default: structural auto-detection).",
+    help="Name column of each level, with {n} for the level number, e.g. "
+    "'adm{n}_name'. Give it with --code-field. Without both, levels are "
+    "detected from the data.",
 )
 @click.option(
     "--code-field",
     envvar="CODE_FIELD",
     default=None,
-    help="Code-field template, e.g. 'adm{n}_code' (requires --name-field; "
-    "default: structural auto-detection).",
+    help="Code column of each level, with {n} for the level number, e.g. "
+    "'adm{n}_code'. Give it with --name-field. Without both, levels are "
+    "detected from the data.",
 )
 @click.option(
     "--min-overlap",
@@ -2003,8 +2201,8 @@ def schema_fill(  # noqa: PLR0913, PLR0917
     default=MIN_OVERLAP_DEFAULT,
     show_default=True,
     help=(
-        "Flag an input feature whose best join feature covers less than "
-        "this share of its area."
+        "Report an input feature when its best-matching join feature covers "
+        "less than this share of its area."
     ),
 )
 @click.option(
@@ -2013,29 +2211,36 @@ def schema_fill(  # noqa: PLR0913, PLR0917
     type=bool,
     default=True,
     show_default=True,
-    help="Overwrite an existing output; pass --overwrite=false to error instead.",
+    help="Replace output files that already exist. Pass --overwrite=false to "
+    "stop with an error instead.",
 )
 @click.option(
-    "--threads", envvar="THREADS", type=int, default=None, help="DuckDB thread count."
+    "--threads",
+    envvar="THREADS",
+    type=int,
+    default=None,
+    help="Number of threads DuckDB uses (default: all CPU cores).",
 )
 @click.option(
     "--debug",
     envvar="DEBUG",
     is_flag=True,
-    help="Keep intermediate tables, export to Parquet, log timing/memory per query.",
+    help="Keep intermediate tables, export them to Parquet, and log the time "
+    "and memory each query takes.",
 )
 @click.option(
     "--tmp-dir",
     envvar="TMP_DIR",
     default=None,
-    help="Intermediate DuckDB + Parquet location.",
+    help="Folder for the working DuckDB database and intermediate files "
+    "(default: a new temporary folder, deleted afterwards unless --debug is set).",
 )
 @click.option(
     "--step",
     envvar="STEP",
     type=click.Choice(["inputs", "assign", "join", "outputs"]),
     default=None,
-    help="Run only one named stage.",
+    help="Run only this step of the tool, for debugging.",
 )
 def schema_join(  # noqa: PLR0913, PLR0917
     input_file: str,
@@ -2051,9 +2256,22 @@ def schema_join(  # noqa: PLR0913, PLR0917
     tmp_dir: str | None,
     step: str | None,
 ) -> None:
-    """Copy each input feature's best-overlap join feature's hierarchy columns onto it.
+    """Copy admin columns from a join layer onto the input features they overlap.
 
-    Geometry is never modified; conflicting values are kept side by side.
+    Each input feature takes the columns of the join feature it overlaps
+    most. Geometry is not changed. When a column already has a different
+    value, both are kept: the join layer's value goes in a new numbered
+    column (adm2_name1).
+
+    \b
+    Examples:
+      # Copy admin2 columns onto an admin3 layer
+      topo-tools schema-join admin3.geojson admin2.geojson
+
+    \b
+      # Build up a full hierarchy one level at a time, coarsest first
+      topo-tools schema-join admin2.parquet admin1.parquet admin2_join.parquet
+      topo-tools schema-join admin3.parquet admin2_join.parquet admin3_join.parquet
     """
     logger.info("--debug=%s", debug)
     try:
@@ -2083,51 +2301,51 @@ def schema_join(  # noqa: PLR0913, PLR0917
     "csv_input",
     envvar="CSV",
     default=None,
-    help="Apply this (edited) crosswalk CSV instead of mapping one; output "
-    "columns follow its row order.",
+    help="Apply this crosswalk CSV, usually an edited one, instead of making "
+    "one. Output columns follow its row order.",
 )
 @click.option(
     "--csv-output",
     envvar="CSV_OUTPUT",
     default=None,
-    help="Where to write the mapped crosswalk CSV (default: INPUT_FILE with a "
-    "'_crosswalk.csv' name).",
+    help="Path for the crosswalk CSV. Defaults to INPUT_FILE with a "
+    '"_crosswalk.csv" ending.',
 )
 @click.option(
     "--map-only",
     envvar="MAP_ONLY",
     is_flag=True,
-    help="Only write the crosswalk CSV, not the mapped layer.",
+    help="Write only the crosswalk CSV, not the renamed layer.",
 )
 @click.option(
     "--name-field",
     envvar="NAME_FIELD",
     default=None,
-    help="Name-field template, e.g. 'adm{n}_name' (requires --code-field; "
-    "default: 'adm{n}_name').",
+    help="Target name for each level's name column, with {n} for the level "
+    "number. Give it with --code-field. Default: 'adm{n}_name'.",
 )
 @click.option(
     "--code-field",
     envvar="CODE_FIELD",
     default=None,
-    help="Code-field template, e.g. 'adm{n}_code' (requires --name-field; "
-    "default: 'adm{n}_code').",
+    help="Target name for each level's code column, with {n} for the level "
+    "number. Give it with --name-field. Default: 'adm{n}_code'.",
 )
 @click.option(
     "--level",
     envvar="LEVEL",
     type=click.IntRange(min=0),
     default=None,
-    help="The file's own admin level, numbering its finest level (default: "
-    "coarsest level numbered 1, a single-value country column 0).",
+    help="Admin level of the file's finest units, used to number the levels. "
+    "By default the coarsest level is 1, or 0 for a column with a single "
+    "country value.",
 )
 @click.option(
     "--layer",
     envvar="LAYER",
     default=None,
-    help="Layer name, for a multi-layer source (e.g. FileGDB). Auto-detected "
-    "when possible; required if auto-detection can't resolve it to exactly "
-    "one geometry-bearing layer.",
+    help="Layer to read from a file with several layers, such as a FileGDB. "
+    "Needed only when the file has more than one layer with geometry.",
 )
 @click.option(
     "--overwrite",
@@ -2135,29 +2353,36 @@ def schema_join(  # noqa: PLR0913, PLR0917
     type=bool,
     default=True,
     show_default=True,
-    help="Overwrite an existing output; pass --overwrite=false to error instead.",
+    help="Replace output files that already exist. Pass --overwrite=false to "
+    "stop with an error instead.",
 )
 @click.option(
-    "--threads", envvar="THREADS", type=int, default=None, help="DuckDB thread count."
+    "--threads",
+    envvar="THREADS",
+    type=int,
+    default=None,
+    help="Number of threads DuckDB uses (default: all CPU cores).",
 )
 @click.option(
     "--debug",
     envvar="DEBUG",
     is_flag=True,
-    help="Keep intermediate tables, export to Parquet, log timing/memory per query.",
+    help="Keep intermediate tables, export them to Parquet, and log the time "
+    "and memory each query takes.",
 )
 @click.option(
     "--tmp-dir",
     envvar="TMP_DIR",
     default=None,
-    help="Intermediate DuckDB + Parquet location.",
+    help="Folder for the working DuckDB database and intermediate files "
+    "(default: a new temporary folder, deleted afterwards unless --debug is set).",
 )
 @click.option(
     "--step",
     envvar="STEP",
     type=click.Choice(["inputs", "map", "apply", "outputs"]),
     default=None,
-    help="Run only one named stage.",
+    help="Run only this step of the tool, for debugging.",
 )
 def schema_map(  # noqa: PLR0913, PLR0917
     input_file: str,
@@ -2175,14 +2400,13 @@ def schema_map(  # noqa: PLR0913, PLR0917
     tmp_dir: str | None,
     step: str | None,
 ) -> None:
-    """Map columns onto a target schema: rename/drop them via a crosswalk.
+    """Rename a layer's admin columns to a standard schema, using a crosswalk.
 
-    By default, maps a crosswalk from the file's structure, writes it as CSV,
-    and applies it. To iterate, edit the CSV (retarget, blank to drop, move
-    rows to reorder) and re-run with --csv. --map-only writes the CSV
-    alone. OUTPUT_FILE defaults to INPUT_FILE with a "_mapped" suffix.
-    Target names default to "adm{n}_name"/"adm{n}_code"; override with
-    --name-field/--code-field.
+    The admin levels and which columns hold codes or names are worked out
+    from the data, not the column names. The result is written as a
+    crosswalk CSV and applied. To adjust it, edit the CSV (change a target,
+    blank it to drop the column, move rows to reorder) and run again with
+    --csv. OUTPUT_FILE defaults to INPUT_FILE with a "_mapped" suffix.
 
     \b
     Examples:
@@ -2194,11 +2418,11 @@ def schema_map(  # noqa: PLR0913, PLR0917
       topo-tools schema-map example.geojson --csv example_crosswalk.csv
 
     \b
-      # Only write the crosswalk, numbering levels from the file's own level
+      # Only write the crosswalk, for a file whose finest level is admin3
       topo-tools schema-map admin3.geojson --map-only --level 3
 
     \b
-      # Custom target field naming
+      # Use different target column names
       topo-tools schema-map example.geojson --name-field adm{n}_name \\
         --code-field adm{n}_pcode
     """
@@ -2233,15 +2457,16 @@ def schema_map(  # noqa: PLR0913, PLR0917
     envvar="ISSUES_FILE",
     default=None,
     help=(
-        "Issues report path, only used with --match-column/--overlay-match-column. "
-        'Defaults to OUTPUT_FILE with an "_issues" suffix.'
+        "Path for the issues report, written only with --match-column or "
+        '--overlay-match-column. Defaults to OUTPUT_FILE with an "_issues" '
+        "suffix."
     ),
 )
 @click.option(
     "--name",
     envvar="NAME",
     default=None,
-    help="Run name for internal tables/tmp files.",
+    help="Name used for the run's working tables and temporary files.",
 )
 @click.option(
     "--overwrite",
@@ -2249,51 +2474,61 @@ def schema_map(  # noqa: PLR0913, PLR0917
     type=bool,
     default=True,
     show_default=True,
-    help="Overwrite an existing output; pass --overwrite=false to error instead.",
+    help="Replace output files that already exist. Pass --overwrite=false to "
+    "stop with an error instead.",
 )
 @click.option(
-    "--threads", envvar="THREADS", type=int, default=None, help="DuckDB thread count."
+    "--threads",
+    envvar="THREADS",
+    type=int,
+    default=None,
+    help="Number of threads DuckDB uses (default: all CPU cores).",
 )
 @click.option(
     "--debug",
     envvar="DEBUG",
     is_flag=True,
-    help="Keep intermediate tables, export to Parquet, log timing/memory per query.",
+    help="Keep intermediate tables, export them to Parquet, and log the time "
+    "and memory each query takes.",
 )
 @click.option(
     "--tmp-dir",
     envvar="TMP_DIR",
     default=None,
-    help="Intermediate DuckDB + Parquet location.",
+    help="Folder for the working DuckDB database and intermediate files "
+    "(default: a new temporary folder, deleted afterwards unless --debug is set).",
 )
 @click.option(
     "--step",
     envvar="STEP",
     type=click.Choice(["inputs", "assign", "clip", "outputs"]),
     default=None,
-    help="Run only one named stage.",
+    help="Run only this step of the tool, for debugging.",
 )
 @click.option(
     "--match-column",
     envvar="MATCH_COLUMN",
     default=None,
     help=(
-        "Column name shared by both layers, used as an exact code join "
-        "(e.g. a pcode) that wins over spatial overlap on disagreement. "
-        "Mutually exclusive with --overlay-match-column/--input-match-column."
+        "Column in both layers, such as a p-code, used to match input "
+        "features to overlay features. It wins over overlap where the two "
+        "disagree. Can't be combined with --overlay-match-column or "
+        "--input-match-column."
     ),
 )
 @click.option(
     "--overlay-match-column",
     envvar="OVERLAY_MATCH_COLUMN",
     default=None,
-    help="Overlay-side code column, when it's named differently than the input's.",
+    help="Matching column in the overlay, when its name differs from the "
+    "input's. Give it with --input-match-column.",
 )
 @click.option(
     "--input-match-column",
     envvar="INPUT_MATCH_COLUMN",
     default=None,
-    help="Input-side code column, when it's named differently than the overlay's.",
+    help="Matching column in the input, when its name differs from the "
+    "overlay's. Give it with --overlay-match-column.",
 )
 @click.option(
     "--carry-column",
@@ -2301,8 +2536,8 @@ def schema_map(  # noqa: PLR0913, PLR0917
     envvar="CARRY_COLUMNS",
     multiple=True,
     help=(
-        "Overlay column to copy onto each matched input feature [may be repeated, "
-        "and each value MAY be comma-separated]."
+        "Overlay column to copy onto each matched input feature. Repeat it or "
+        "separate columns with commas."
     ),
 )
 @click.option(
@@ -2311,8 +2546,9 @@ def schema_map(  # noqa: PLR0913, PLR0917
     envvar="ORIGINAL_FILE",
     default=None,
     help=(
-        "Pre-extension original layer, used to decide whether a clip-detached "
-        "piece merges; without it every such piece is only reported."
+        "The original layer before extension. It decides whether a piece "
+        "cut off by clipping is merged into a neighbor. Without it, such pieces "
+        "are only reported."
     ),
 )
 def edge_clip(  # noqa: PLR0913, PLR0917
@@ -2332,12 +2568,11 @@ def edge_clip(  # noqa: PLR0913, PLR0917
     carry_columns: tuple[str, ...],
     original_file: str | None,
 ) -> None:
-    """Assign each input feature to an overlay feature, then clip it to that geometry.
+    """Clip an input layer to the overlay feature it overlaps most.
 
-    INPUT_FILE and OVERLAY_FILE are both raw polygon layers; INPUT_FILE's
-    features are assigned to OVERLAY_FILE's features internally (assign-one)
-    before clipping. OUTPUT_FILE defaults to INPUT_FILE with a "_clipped"
-    suffix if omitted.
+    The whole input file is matched to the one overlay feature most of it
+    falls in, then clipped to that feature's shape. OUTPUT_FILE defaults to
+    INPUT_FILE with a "_clipped" suffix.
 
     \b
     Examples:
@@ -2349,7 +2584,7 @@ def edge_clip(  # noqa: PLR0913, PLR0917
       topo-tools edge-clip input.parquet adm1.geojson clipped.parquet
 
     \b
-      # Prefer an existing pcode join over spatial overlap where they disagree
+      # Match on a shared p-code column, overriding overlap where they disagree
       topo-tools edge-clip input.parquet adm1.geojson --match-column pcode
 
     \b

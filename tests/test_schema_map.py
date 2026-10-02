@@ -89,7 +89,7 @@ def noise_input(tmp_path):
 def test_cli_help():
     result = CliRunner().invoke(cli, ["schema-map", "--help"])
     assert result.exit_code == 0
-    assert "Map columns onto a target schema" in result.output
+    assert "Rename a layer's admin columns" in result.output
     assert "Examples:" in result.output
 
 

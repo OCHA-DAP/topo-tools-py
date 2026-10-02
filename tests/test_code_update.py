@@ -68,7 +68,7 @@ def _rows_where(rows: list[dict], **kwargs) -> list[dict]:
 def test_cli_help():
     result = CliRunner().invoke(cli, ["code-update", "--help"])
     assert result.exit_code == 0
-    assert "Reconcile an already-coded OLD layer" in result.output
+    assert "Code a new release so units that carry over" in result.output
 
 
 _ALL_CLASSES_OLD_ROWS = [

@@ -62,9 +62,7 @@ def no_defects_input(tmp_path):
 def test_cli_help():
     result = CliRunner().invoke(cli, ["topo-detect", "--help"])
     assert result.exit_code == 0
-    assert "Scan a single polygon layer for gap/overlap coverage defects" in (
-        result.output
-    )
+    assert "Find gaps and overlaps between the polygons" in (result.output)
     assert "Examples:" in result.output
 
 

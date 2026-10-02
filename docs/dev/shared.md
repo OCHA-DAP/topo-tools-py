@@ -21,9 +21,9 @@ in sync.
 - The `edge-match` tool MAY reuse `edge-extend`'s logic; `edge-extend` MUST NOT depend on
   `edge-match`.
 - The `edge-mosaic` tool MUST NOT depend on `edge-extend` or `edge-match`, and neither
-  MUST depend on `edge-mosaic` (see `docs/pages/3-edge/explanation/edge_mosaic.md`).
+  MUST depend on `edge-mosaic` (see `docs/dev/explanation/3-edge/edge_mosaic.md`).
 - The `topo-clean` tool MAY reuse `topo-detect`'s logic; `topo-detect` MUST NOT depend on
-  `topo-clean` (see `docs/pages/2-topology/explanation/topo_detect.md`, `docs/adr/0028`).
+  `topo-clean` (see `docs/dev/explanation/2-topology/topo_detect.md`, `docs/adr/0028`).
 - The shared constants, coverage-validation, file I/O, database-connection,
   units, assign, edge-clip, topo-detect, and edge-stitch helpers MUST NOT depend on any
   of the five tool packages (`edge-extend`, `edge-match`, `topo-clean`, `change`,
@@ -33,7 +33,7 @@ in sync.
 - `schema-map`'s apply stages (`core.schema_crosswalk`) MAY reuse
   `core.schema_map`'s and `core.schema_refactor`'s logic directly; neither
   of those MUST depend on `core.schema_crosswalk`, or on each other (see
-  `docs/pages/1-schema/explanation/schema_map.md`).
+  `docs/dev/explanation/1-schema/schema_map.md`).
 - `schema-fill`, `schema-join`, `package-polygons`, `package-points`, and
   `package-lines` MAY all depend on `schema-map`'s
   `name_field`/`code_field`/level-detection helpers
@@ -83,7 +83,7 @@ in sync.
   level's prefix and number, then its code-template columns, numbered
   siblings in numeric order. Every other column follows in input order.
   `schema-map` applying a crosswalk via `--csv` follows its row order instead
-  (see `docs/pages/1-schema/reference/schema_map.md`).
+  (see `docs/dev/reference/1-schema/schema_map.md`).
 - `schema-join` MUST keep the input layer's columns in input order. It MUST
   place each numbered sibling it adds right after the last existing column
   of that sibling's family, and every column absent from the input layer
@@ -230,7 +230,7 @@ CLI maps flags/env vars onto those same kwargs 1:1.
 - `edge-stitch` MUST raise if its final output has any overlap, or any gap at
   or below `SNAP_TOLERANCE` (see `docs/adr/0038`). It MUST NOT raise over
   a wider gap, but MUST log a warning and record it in the issues report
-  described in `docs/pages/3-edge/reference/edge_stitch.md`.
+  described in `docs/dev/reference/3-edge/edge_stitch.md`.
 - `edge-clip` performs no topology hard gate at all: it clips an input feature to its
   assigned overlay feature's geometry one `overlay_fid` at a time and does not
   itself validate whole-layer coverage. It MAY still produce an issues
@@ -264,7 +264,7 @@ None of `edge-match`/`edge-mosaic`/`edge-clip`/`edge-stitch`'s *main*
 output carries a `source_file` column at all, even though every one of
 them tags it internally on the input table: it exists only to let
 `assign-one` group a file's input features for its per-file majority vote (see
-`docs/pages/3-edge/explanation/assign.md`), not as a user-facing column, and each
+`docs/dev/explanation/3-edge/assign.md`), not as a user-facing column, and each
 tool's outputs stage strips it before export (see `docs/adr/0087`).
 `topo-clean`'s issues report keeps a `source_file` column for schema
 compatibility, always null (it's a single-layer tool with no per-feature
@@ -275,8 +275,8 @@ row for any input feature whose clip intersection with its assigned overlay feat
 back empty (see `docs/adr/0082`): `unit_a` MUST hold the input feature's fid,
 `overlay_fid` its assigned overlay feature's fid, `reason` MUST explain the
 intersection was empty. `edge-mosaic` and `edge-match` both additionally
-have a `kind='gap-fill'` row (see `docs/pages/3-edge/reference/edge_mosaic.md`,
-`docs/pages/3-edge/reference/edge_match.md`) for an overlay feature matched by zero input features,
+have a `kind='gap-fill'` row (see `docs/dev/reference/3-edge/edge_mosaic.md`,
+`docs/dev/reference/3-edge/edge_match.md`) for an overlay feature matched by zero input features,
 kept unclipped in the output when `merge` is set: `overlay_fid` MUST hold
 the gap-filled overlay feature's fid, `unit_a` and `source_file` MUST be null (see
 `docs/adr/0083`, `docs/adr/0088`).
@@ -313,7 +313,7 @@ default spatial-overlap assignment wherever a code match exists, even when
 it disagrees with the spatial result, and falls back to the spatial result
 when an input feature's (or, for `assign-one`, a file's) code has no
 overlapping-overlay match at all (see `docs/adr/0045`,
-`docs/pages/3-edge/explanation/assign.md`). Both outcomes MUST be recorded as issues
+`docs/dev/explanation/3-edge/assign.md`). Both outcomes MUST be recorded as issues
 rows, reusing the schema above:
 
 - `kind='code-mismatch'`: the code match won but disagreed with the spatial
@@ -324,12 +324,12 @@ rows, reusing the schema above:
 
 This gives standalone `edge-clip` its only issues-report capability: it produces
 one only when `match_column`/`overlay_match_column`/`input_match_column` is
-supplied and it yields at least one row (see `docs/pages/3-edge/reference/edge_clip.md`).
+supplied and it yields at least one row (see `docs/dev/reference/3-edge/edge_clip.md`).
 
 ## Hierarchical code format and retention
 
-`code-create` and `code-update` (`docs/pages/4-codes/reference/code_create.md`,
-`docs/pages/4-codes/reference/code_update.md`) share one `CodeFormat` primitive
+`code-create` and `code-update` (`docs/dev/reference/4-codes/code_create.md`,
+`docs/dev/reference/4-codes/code_update.md`) share one `CodeFormat` primitive
 (`core.code`, `root_code`/`delimiter`/`min_width`, no default values) and
 its supporting functions:
 
@@ -384,7 +384,7 @@ the SQL layer to reject on its own, see `docs/adr/0077`).
 Standalone `edge-clip` exposes this as a plain `carry_columns` list (CLI:
 repeatable, comma-splittable `--carry-column`), attribute-carrying only,
 with no gap-fill concept of its own (`edge-clip` is a strict 1:1
-primitive, see `docs/pages/3-edge/reference/edge_clip.md`).
+primitive, see `docs/dev/reference/3-edge/edge_clip.md`).
 
 `edge-mosaic` and `edge-match` both expose this as a plain boolean
 `merge: bool = False` (CLI: `--merge`), coupled with two passthrough
@@ -404,14 +404,14 @@ mutually exclusive with their own pair, and mutually exclusive with
 that never matched any overlay feature (dropped as `unassigned`) never gains
 carried columns through a join; a gap-filled overlay feature's own row carries
 them directly, since the row is the overlay feature itself, not a joined input feature
-(see `docs/pages/3-edge/reference/edge_mosaic.md`).
+(see `docs/dev/reference/3-edge/edge_mosaic.md`).
 
 The two tools' input passthrough implementations differ, since their
 pipelines do: `edge-mosaic`'s passthrough geometry is already a finished,
 validated `edge_extend()` output, unioned in directly. `edge-match`'s
 passthrough groups every zero-overlap input feature (whole file under
 `assign-one`, individual input feature under `--per-feature`'s `assign-many`,
-see `docs/pages/3-edge/explanation/assign.md`) into one orphan group of its own and
+see `docs/dev/explanation/3-edge/assign.md`) into one orphan group of its own and
 extends it fresh, alone, with zero neighboring-overlay context and no
 majority/plurality vote to catch a bad extension, a materially weaker
 safety profile than `edge-mosaic`'s (see `docs/adr/0081`). Overlay

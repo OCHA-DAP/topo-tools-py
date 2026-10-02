@@ -1,6 +1,8 @@
 ---
-status: draft
 title: "Edge matching"
+sidebar:
+  order: 2
+  label: "How-to"
 ---
 
 Fit the topology-cleaned

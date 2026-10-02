@@ -64,7 +64,7 @@ def synthetic_inputs(tmp_path):
 def test_cli_help():
     result = CliRunner().invoke(cli, ["edge-clip", "--help"])
     assert result.exit_code == 0
-    assert "assign-one" in result.output
+    assert "overlay feature it overlaps most" in result.output
     assert "Examples:" in result.output
 
 

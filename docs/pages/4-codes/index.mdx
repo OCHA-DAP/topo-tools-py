@@ -1,0 +1,35 @@
+---
+title: "Codes"
+sidebar:
+  order: 0
+---
+
+import { Card, CardGrid } from "@astrojs/starlight/components";
+
+Fourth step of boundary cleaning. This step gives every unit a code: its
+code from the previous release where the unit carries over, and a new
+one where it doesn't.
+
+<CardGrid>
+
+<Card title="How-to" icon="setting">
+
+Task-oriented. Reconcile a release against the previous one with
+`code-update`, or start codes from scratch with `code-create` for
+a first release.
+
+[How-to](how-to.md)
+
+</Card>
+
+<Card title="Reference" icon="open-book">
+
+Information-oriented. What `code-create`, `code-update` and
+`change` do, with their options and outputs.
+
+[Reference](reference/code_create.md)
+
+</Card>
+
+
+</CardGrid>

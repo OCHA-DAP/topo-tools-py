@@ -110,7 +110,7 @@ def admin1_only_input(tmp_path):
 def test_cli_help():
     result = CliRunner().invoke(cli, ["schema-fill", "--help"])
     assert result.exit_code == 0
-    assert "Cascade each admin-hierarchy column" in result.output
+    assert "Fill each row's empty finer admin columns" in result.output
 
 
 def test_fills_down_and_stamps_depth(leaf_input, tmp_path):

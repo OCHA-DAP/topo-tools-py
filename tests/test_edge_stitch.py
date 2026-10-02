@@ -78,7 +78,7 @@ def tiny_gap_split(tmp_path):
 def test_cli_help():
     result = CliRunner().invoke(cli, ["edge-stitch", "--help"])
     assert result.exit_code == 0
-    assert "Close seams" in result.output
+    assert "Close the seams" in result.output
     assert "Examples:" in result.output
 
 

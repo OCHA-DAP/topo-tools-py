@@ -96,7 +96,7 @@ def test_inputs_cleans_input_but_loads_overlay_raw(tmp_path):
 def test_cli_help():
     result = CliRunner().invoke(cli, ["edge-match", "--help"])
     assert result.exit_code == 0
-    assert "Match one or more input layers to an overlay" in result.output
+    assert "Fit an input layer into the polygons" in result.output
     assert "Examples:" in result.output
     assert "--match-column" in result.output
     assert "--overlay-match-column" in result.output

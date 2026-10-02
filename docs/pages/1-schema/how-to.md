@@ -1,5 +1,8 @@
 ---
 title: "Schema"
+sidebar:
+  order: 2
+  label: "How-to"
 ---
 
 Run `schema-map` on each supplied level below admin0:

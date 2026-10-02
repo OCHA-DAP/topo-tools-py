@@ -21,7 +21,7 @@ classifiers = [
 
 [project.urls]
 Homepage = "https://github.com/OCHA-DAP/topo-tools-py"
-Documentation = "https://ocha-dap.github.io/topo-tools-py/"
+Documentation = "https://topo-tools.org/docs/"
 Repository = "https://github.com/OCHA-DAP/topo-tools-py"
 Issues = "https://github.com/OCHA-DAP/topo-tools-py/issues"
 
@@ -30,7 +30,6 @@ topo-tools = "topo_tools.cli.main:cli"
 
 [dependency-groups]
 dev = ["import-linter", "pre-commit", "pytest", "pytest-xdist", "ruff"]
-docs = ["zensical>=0.0.58"]
 
 [tool.pytest.ini_options]
 addopts = "-n auto"

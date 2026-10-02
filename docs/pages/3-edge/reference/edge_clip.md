@@ -1,92 +1,59 @@
 ---
-status: draft
 title: "edge-clip"
+description: "Clip an input layer to the overlay feature it overlaps most."
+sidebar:
+  order: 4
 ---
 
-## Inputs
+Clip an input layer to the overlay feature it overlaps most.
 
-- `edge-clip` MUST load the input layer and the overlay layer raw,
-  neither coverage-checked nor -cleaned.
-- `edge-clip` MUST NOT require or read an `overlay_fid` column on the input features
-  layer.
-- `edge-clip` MUST accept exactly one input file and exactly one
-  overlay file per call, a strict 1:1 primitive (see `docs/adr/0080`);
-  batching many input files against one shared overlay load is
-  `edge-mosaic`'s job (see `docs/pages/3-edge/reference/edge_mosaic.md`).
-- The output row MUST carry a `source_file` column recording the path of
-  the input file it came from.
+## Synopsis
 
-## Assignment
+```text
+topo-tools edge-clip [OPTIONS] INPUT_FILE OVERLAY_FILE [OUTPUT_FILE]
+```
 
-- `edge-clip` MUST internally assign every input feature to exactly one overlay feature before
-  clipping, via `assign-one`'s file-wide majority-vote strategy (see
-  `docs/pages/3-edge/explanation/assign.md`): every input feature is forced onto the one overlay feature
-  that wins a majority vote by count, unconditionally, not evaluated per
-  input feature. An input feature with zero individual overlap with the winner is not
-  dropped at this stage; it still gets clipped against the winner and MAY
-  drop later if that clip result is empty (see Clipping).
-- A whole input file with no overlap against any overlay feature at all MUST be
-  dropped, not clipped against the wrong overlay feature.
+## Description
 
-## Clipping
+The whole input file is matched to the one overlay feature most of it falls in, then clipped to that feature's shape. OUTPUT_FILE defaults to INPUT_FILE with a "_clipped" suffix.
 
-- `edge-clip` MUST clip each row to its own `overlay_fid`'s geometry via
-  `ST_Intersection`, one distinct `overlay_fid` at a time, each in its own
-  spawned OS subprocess.
-- Within one `overlay_fid`'s subprocess, `edge-clip` MUST grid-subdivide that
-  overlay feature's boundary into small tiles before intersecting once its vertex
-  count exceeds an adaptive threshold, sizing the tile grid from that
-  overlay feature's own vertex density, and MUST join input features to tiles via bbox
-  comparison, never `ST_Intersects`.
-- An input feature whose clipped result is empty MUST be dropped from the output,
-  not treated as fatal, and MUST be recorded in the issues report as a
-  `kind='clip-empty'` row (see Outputs).
-- `edge-clip` MUST merge or keep every clip-detached piece in the clipped result, recording each one with an edge
-  neighbour as a `kind='detached-part'` row.
-- `edge-clip` MUST merge or drop every micro-polygon in the clipped result, recording each as a
-  `kind='micro-polygon'` row.
-- `edge-clip` MUST raise immediately on the first `overlay_fid` whose subprocess
-  fails, aborting the whole run rather than skipping just that `overlay_fid`.
+## Options
 
-## Outputs
-
-- `edge-clip` MUST NOT run the coverage check
-  on its own output: closing seams between clipped pieces is `edge-stitch`'s
-  job, not `edge-clip`'s.
-- `edge-clip` MUST raise `RuntimeError` if the clipped result has zero rows.
-- `edge-clip` MUST export the clipped layer to the output file.
-- `edge-clip` MUST export an issues report alongside it, using the same columns as every other tool's issues report, whenever it has at least one
-  `kind='clip-empty'`, `kind='detached-part'` or `kind='micro-polygon'` row (or, when a code join is given, one
-  `code-mismatch`/`code-fallback` row); when it would be empty, no file
-  MUST be written (and a stale file from a previous run at that path MUST
-  be removed).
-
-## Configuration (`api.edge_clip.clip()` / CLI)
-
-- The output path MUST default to the input path with a `_clipped` suffix.
-  The issues-report path MUST default to the output path with an `_issues`
-  suffix.
-- `edge-clip` MUST raise `FileExistsError` if either output path already
-  exists and overwriting wasn't requested.
-- `step`, if given, MUST be one of `inputs`, `assign`, `edge-clip`, `outputs`;
-  any other value MUST raise `ValueError`.
-- `edge-clip` MAY accept `match_column`/`overlay_match_column`/`input_match_column`
-  to override spatial assignment with an exact code join (see `docs/pages/3-edge/explanation/assign.md`), adding
-  `code-mismatch`/`code-fallback` rows to the issues report alongside any
-  `clip-empty` rows.
-- `edge-clip` MAY accept `carry_columns` (CLI: `--carry-column`) to copy
-  named overlay columns onto every matched input feature (see `docs/adr/0077`).
-- `edge-clip` MAY accept `original_path` (CLI: `--original`, env
-  `ORIGINAL_FILE`), the input layer's pre-extension original, in any
-  supported format or as a URL. Without it, no clip-detached piece merges.
+- `--issues-file TEXT`: Path for the issues report, written only with `--match-column` or `--overlay-match-column`. Defaults to OUTPUT_FILE with an "_issues" suffix.
+- `--name TEXT`: Name used for the run's working tables and temporary files.
+- `--overwrite BOOLEAN`: Replace output files that already exist. Pass `--overwrite=false` to stop with an error instead. [default: True]
+- `--threads INTEGER`: Number of threads DuckDB uses (default: all CPU cores).
+- `--debug`: Keep intermediate tables, export them to Parquet, and log the time and memory each query takes.
+- `--tmp-dir TEXT`: Folder for the working DuckDB database and intermediate files (default: a new temporary folder, deleted afterwards unless `--debug` is set).
+- `--step [inputs|assign|clip|outputs]`: Run only this step of the tool, for debugging.
+- `--match-column TEXT`: Column in both layers, such as a p-code, used to match input features to overlay features. It wins over overlap where the two disagree. Can't be combined with `--overlay-match-column` or `--input-match-column`.
+- `--overlay-match-column TEXT`: Matching column in the overlay, when its name differs from the input's. Give it with `--input-match-column`.
+- `--input-match-column TEXT`: Matching column in the input, when its name differs from the overlay's. Give it with `--overlay-match-column`.
+- `--carry-column TEXT`: Overlay column to copy onto each matched input feature. Repeat it or separate columns with commas.
+- `--original TEXT`: The original layer before extension. It decides whether a piece cut off by clipping is merged into a neighbor. Without it, such pieces are only reported.
 
 ## Examples
 
-### Example 1: clip an input layer against an overlay layer, explicit output
+Clip an input layer against an overlay layer:
 
-    topo-tools edge-clip input.parquet adm1.geojson clipped.parquet
+```sh
+  topo-tools edge-clip input.parquet adm1.geojson
+```
 
-### Example 2: custom issues report path
+Explicit output:
 
-    topo-tools edge-clip input.parquet adm1.geojson clipped.parquet \
-      --issues-file clip_report.parquet
+```sh
+topo-tools edge-clip input.parquet adm1.geojson clipped.parquet
+```
+
+Match on a shared p-code column, overriding overlap where they disagree:
+
+```sh
+topo-tools edge-clip input.parquet adm1.geojson --match-column pcode
+```
+
+Copy overlay columns onto every matched input feature:
+
+```sh
+topo-tools edge-clip input.parquet adm1.geojson --carry-column iso_3,adm0_name
+```

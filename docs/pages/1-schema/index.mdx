@@ -1,0 +1,35 @@
+---
+title: "Schema"
+sidebar:
+  order: 0
+---
+
+import { Card, CardGrid } from "@astrojs/starlight/components";
+
+First step of boundary cleaning. A source delivery arrives with its own
+column names. This step maps every level's names and codes to the
+release schema (`adm{n}_name`, `adm{n}_code`) and copies each parent's
+columns onto its children.
+
+<CardGrid>
+
+<Card title="How-to" icon="setting">
+
+Task-oriented. Map each level below admin0, review the crosswalk,
+then join each parent onto its children.
+
+[How-to](how-to.md)
+
+</Card>
+
+<Card title="Reference" icon="open-book">
+
+Information-oriented. What `schema-map`, `schema-join` and
+`schema-fill` do, with their options and outputs.
+
+[Reference](reference/schema_map.md)
+
+</Card>
+
+
+</CardGrid>
