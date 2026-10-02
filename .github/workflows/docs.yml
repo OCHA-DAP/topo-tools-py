@@ -1,95 +1,24 @@
-name: Deploy docs to GitHub Pages
+name: Deploy docs to topo-tools.org
 
 on:
   push:
     branches: [main]
     paths:
-      - "docs/**"
-      - "plugins/**"
-      - ".github/workflows/docs.yml"
-  pull_request:
-    paths:
-      - "docs/**"
+      - "docs/pages/**"
       - "plugins/**"
       - ".github/workflows/docs.yml"
   workflow_dispatch:
 
-concurrency:
-  group: ${{ github.event_name == 'pull_request' && format('docs-{0}', github.ref) || 'pages' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
 jobs:
-  build:
+  dispatch:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v7
-      - run: uv sync --group docs
-      - uses: actions/configure-pages@v6
-        if: github.event_name != 'pull_request'
-      - working-directory: docs
-        run: uv run zensical build --clean
-      - name: Build git-free plugin archive
+      - name: Trigger topo-tools-js deploy
+        env:
+          TOKEN: ${{ secrets.JS_DISPATCH_TOKEN }}
         run: |
-          set -euo pipefail
-          mtime="$(git log -1 --format=%ct HEAD -- plugins/topo-tools)"
-          git archive --format=zip \
-            --mtime="@${mtime} +0000" \
-            --prefix=topo-tools/ \
-            -o docs/site/topo-tools-plugin.zip \
-            HEAD:plugins/topo-tools
-      - name: Generate marketplace manifest
-        run: |
-          set -euo pipefail
-          sha256="$(sha256sum docs/site/topo-tools-plugin.zip | cut -d' ' -f1)"
-          plugin_name="$(jq -r '.name' plugins/topo-tools/.claude-plugin/plugin.json)"
-          plugin_description="$(jq -r '.description' plugins/topo-tools/.claude-plugin/plugin.json)"
-          jq -n \
-            --arg name "$plugin_name" \
-            --arg description "$plugin_description" \
-            --arg sha256 "$sha256" \
-            '{
-              name: "topo-tools",
-              owner: { name: "OCHA-DAP" },
-              plugins: [
-                {
-                  name: $name,
-                  description: $description,
-                  source: {
-                    source: "archive",
-                    url: "https://ocha-dap.github.io/topo-tools-py/topo-tools-plugin.zip",
-                    sha256: $sha256
-                  }
-                }
-              ]
-            }' > docs/site/marketplace.json
-          jq empty docs/site/marketplace.json
-      - name: Prepare link check root
-        run: |
-          mkdir -p /tmp/lychee-root
-          ln -s "$GITHUB_WORKSPACE/docs/site" /tmp/lychee-root/topo-tools-py
-      - name: Check for broken links
-        uses: lycheeverse/lychee-action@v2.9.0
-        with:
-          args: --offline --no-progress --root-dir /tmp/lychee-root 'docs/site/**/*.html'
-          lycheeVersion: v0.24.2
-      - uses: actions/upload-pages-artifact@v5
-        if: github.event_name != 'pull_request'
-        with:
-          path: docs/site
-
-  deploy:
-    needs: build
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v5
+          curl -sS -f -X POST \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/OCHA-DAP/topo-tools-js/dispatches \
+            -d '{"event_type":"py-docs-updated"}'

@@ -45,7 +45,7 @@ def _fetch_lines(path):
 def test_cli_help():
     result = CliRunner().invoke(cli, ["package-lines", "--help"])
     assert result.exit_code == 0
-    assert "boundary lines" in result.output
+    assert "line layer of admin boundaries" in result.output
     assert "Examples:" in result.output
 
 

@@ -46,7 +46,7 @@ def _fetch(path, columns: str, order_by: str):
 def test_cli_help():
     result = CliRunner().invoke(cli, ["code-create", "--help"])
     assert result.exit_code == 0
-    assert "Cold-start a hierarchical code" in result.output
+    assert "Give every unit a new hierarchical code" in result.output
 
 
 def test_gadm_style_cold_start_admin0_passthrough(tmp_path):

@@ -1,79 +1,65 @@
 ---
-status: draft
 title: "edge-stitch"
+description: "Close the seams between pieces of a layer that was clipped in parts."
+sidebar:
+  order: 5
 ---
 
-## Inputs
+Close the seams between pieces of a layer that was clipped in parts.
 
-- `edge-stitch` MUST read the input and reproject it to EPSG:4326.
-- `edge-stitch` MUST NOT coverage-clean the input before stitching: whatever
-  seams or defects the input has are exactly what the stitch pass exists
-  to close.
+## Synopsis
 
-## Stitching
+```text
+topo-tools edge-stitch [OPTIONS] INPUT_FILE [OUTPUT_FILE]
+```
 
-- `edge-stitch` MUST run one whole-table `ST_CoverageClean` pass over the
-  input, using a fixed snapping-distance-scale gap-closing width, not a
-  shape-based heuristic.
+## Description
 
-## Outputs
+Removes the slivers and overlaps left where clipped pieces meet. OUTPUT_FILE defaults to INPUT_FILE with a "_stitched" suffix. It's required when INPUT_FILE is a pattern matching more than one file, or when `--input` is given.
 
-- `edge-stitch`'s final output MUST pass the coverage check (no overlap; unlike other tools, an unfilled
-  gap does not block export, see `docs/adr/0027`).
-- `edge-stitch` MUST export the final cleaned layer, and MUST NOT carry a
-  `source_file` column on it even if the input already had one (e.g. a
-  re-stitched `edge-mosaic`/`edge-match` output), silently dropping it
-  (see `docs/adr/0087`).
-- `edge-stitch` MUST also export an issues report alongside it, using the same columns as every other tool's issues report, listing every leftover gap
-  wider than `SNAP_TOLERANCE`, so a human can audit what may need review.
-  `area_m2`, `max_width_m`, and `thinness_ratio` MUST be populated for
-  each row; every other column MUST be null.
-- `edge-stitch` MUST produce the issues report only when it has at least one
-  row; when it would be empty, no file MUST be written (and a stale file
-  from a previous run at that path MUST be removed).
+## Options
 
-## Configuration (`api.edge_stitch.stitch()` / CLI)
-
-- `edge-stitch`'s input role MAY span multiple already-tiled files, combined
-  internally into one table before the clean pass. The CLI additionally
-  accepts `--input` (repeatable and comma-separable) alongside the
-  glob-capable `INPUT_FILE` positional, matching `edge-mosaic`'s own `--input`
-  idiom.
-- With a single input file, the output path MUST default to that input
-  path with a `_stitched` suffix. With multiple input files, `output_path`
-  MUST be given explicitly. The issues-report path MUST default to the
-  output path with an `_issues` suffix.
-- `edge-stitch` MUST raise `FileExistsError` if either output path already
-  exists and overwriting wasn't requested.
-- `step`, if given, MUST be one of `inputs`, `topo-clean`, `outputs`; any other
-  value MUST raise `ValueError`.
-- `edge-stitch` MAY opt into cascading admin-hierarchy columns via
-  `fill_schema`/`--fill-schema`, right after cleaning and before export.
-  `name_field`/`code_field`/`--name-field`/`--code-field` (given together
-  or both omitted; omitted falls back to structural auto-detection) and
-  `depth_column`/`--depth-column` (default `adm_lvl`) narrow it; all MUST
-  raise `ValueError` if given without `fill_schema=True`.
-  `edge-stitch` MUST raise `ValueError` if `depth_column` already names an
-  existing column when `fill_schema` is set (see `docs/adr/0095`).
+- `--input TEXT`: Another clipped file to stitch together with INPUT_FILE. Repeat it or separate files with commas.
+- `--issues-file TEXT`: Path for the issues report. Defaults to OUTPUT_FILE with an "_issues" suffix.
+- `--overwrite BOOLEAN`: Replace output files that already exist. Pass `--overwrite=false` to stop with an error instead. [default: True]
+- `--threads INTEGER`: Number of threads DuckDB uses (default: all CPU cores).
+- `--debug`: Keep intermediate tables, export them to Parquet, and log the time and memory each query takes.
+- `--tmp-dir TEXT`: Folder for the working DuckDB database and intermediate files (default: a new temporary folder, deleted afterwards unless `--debug` is set).
+- `--step [inputs|clean|outputs]`: Run only this step of the tool, for debugging.
+- `--fill-schema`: Before writing the output, fill each row's empty finer admin columns from its coarser ones and add a column with the row's own admin level. Set the columns with `--name-field` and `--code-field`, and the level column's name with `--depth-column`.
+- `--name-field TEXT`: Name column of each level, with {n} for the level number, e.g. 'adm{n}_name'. Needs `--fill-schema` and `--code-field`. Without both, levels are detected from the data.
+- `--code-field TEXT`: Code column of each level, with {n} for the level number, e.g. 'adm{n}_code'. Needs `--fill-schema` and `--name-field`. Without both, levels are detected from the data.
+- `--depth-column TEXT`: Name of the added column holding each row's own admin level. Needs `--fill-schema`. [default: adm_lvl]
 
 ## Examples
 
-### Example 1: basic run, output name chosen automatically
+Basic run, output name chosen automatically:
 
-    topo-tools edge-stitch tiled.geojson
+```sh
+  topo-tools edge-stitch tiled.geojson
+```
 
-### Example 2: explicit output
+Explicit output:
 
-    topo-tools edge-stitch tiled.gpkg stitched.gpkg
+```sh
+topo-tools edge-stitch tiled.gpkg stitched.gpkg
+```
 
-### Example 3: custom issues report path
+Stitch every clipped file into one output:
 
-    topo-tools edge-stitch tiled.parquet stitched.parquet --issues-file stitch_report.parquet
+```sh
+topo-tools edge-stitch "tmp/clipped/*.parquet" stitched.parquet
+```
 
-### Example 4: combine every already-clipped file into one global output
+List files instead of a pattern (repeat `--input` or use commas):
 
-    topo-tools edge-stitch "tmp/clipped/*.parquet" stitched.parquet
+```sh
+topo-tools edge-stitch afg.parquet stitched.parquet \
+  --input ago.parquet,are.parquet
+```
 
-### Example 5: cascade admin-hierarchy columns and stamp each row's depth before export
+Stop with an error if the output already exists:
 
-    topo-tools edge-stitch tiled.parquet stitched.parquet --fill-schema
+```sh
+topo-tools edge-stitch tiled.parquet stitched.parquet --overwrite=false
+```

@@ -1,5 +1,8 @@
 ---
 title: "Topology"
+sidebar:
+  order: 2
+  label: "How-to"
 ---
 
 Run `topo-detect` first to list the dataset's gaps and overlaps:

@@ -67,7 +67,11 @@ protected and only accepts merges via PR.
 - [ ] `uv run ruff format && uv run ruff check` clean
 - [ ] Docs updated (README, `CLAUDE.md`, or `docs/*.md`) if user-facing
       behavior changed; a new public API/CLI option gets an example in
-      `docs/pages/{phase}/reference/{tool}.md`'s Examples section
+      its command's `Examples:` docstring block, then
+      `uv run python .github/scripts/gen_reference.py` regenerates
+      `docs/pages/{phase}/reference/{tool}.md`. Preview
+      with `npm run dev` in a sibling `topo-tools-js` checkout, which
+      serves `docs/pages` at `/docs/`
 - [ ] `CHANGELOG.md` updated under `## [Unreleased]` for user-visible
       changes
 

@@ -1,59 +1,40 @@
 ---
-status: draft
 title: "topo-detect"
+description: "Find gaps and overlaps between the polygons of one layer."
+sidebar:
+  order: 3
 ---
 
-## Inputs
+Find gaps and overlaps between the polygons of one layer.
 
-- `topo-detect` MUST read the input and reproject it to EPSG:4326 without
-  correcting any topology defects first, so the issues stage sees the
-  original, unmodified geometry.
+## Synopsis
 
-## Detecting gaps, overlaps and micro-polygons
+```text
+topo-tools topo-detect [OPTIONS] INPUT_FILE [OUTPUT_FILE]
+```
 
-- `topo-detect` MUST report every fully-enclosed hole in the combined shape of
-  all input polygons as a gap, regardless of its size. An open,
-  non-enclosed inlet between two polygons MUST NOT be reported as a gap.
-- `topo-detect` MUST report every case where two polygons' interiors genuinely
-  overlap, or one fully contains the other, as an overlap, regardless of
-  its size, whenever the input has any coverage violation at all. If the
-  input has no coverage violations, `topo-detect` MUST report zero overlaps
-  without running the overlap check. Two polygons that only share a
-  boundary edge MUST NOT be reported as an overlap.
-- `topo-detect` MUST report every micro-polygon part as a `micro-polygon`, identifying the unit
-  it belongs to.
-- If detecting one kind of defect fails, `topo-detect` MUST still report the
-  other kinds rather than failing entirely.
-- The issues report MUST list, for every defect: a unique key, its kind
-  (gap, overlap or micro-polygon), its area, its width, and its geometry.
-  A gap entry MUST also carry a compactness score (how thin and elongated
-  its shape is, as opposed to round and plausible); an overlap entry MUST
-  also identify the two units involved. Neither MUST appear on the other
-  kinds' entries.
+## Description
 
-## Outputs
+Writes the problems found without changing the layer. OUTPUT_FILE defaults to INPUT_FILE with an "_issues" suffix.
 
-- `topo-detect` performs no topology hard gate at all; it is a read-only
-  inspection, not a fix.
-- `topo-detect` MUST always produce an issues report, even when the input had
-  zero defects.
+## Options
 
-## Configuration (`api.topo_detect.detect()` / CLI)
-
-- `topo-detect` MUST process exactly one input file per call.
-- The issues-report path MUST default to the input path with an
-  `_issues` suffix.
-- `topo-detect` MUST raise `FileExistsError` if the output path already
-  exists and overwriting wasn't requested.
-- `step`, if given, MUST be one of `inputs`, `issues`, `outputs`; any
-  other value MUST raise `ValueError`.
+- `--overwrite BOOLEAN`: Replace output files that already exist. Pass `--overwrite=false` to stop with an error instead. [default: True]
+- `--threads INTEGER`: Number of threads DuckDB uses (default: all CPU cores).
+- `--debug`: Keep intermediate tables, export them to Parquet, and log the time and memory each query takes.
+- `--tmp-dir TEXT`: Folder for the working DuckDB database and intermediate files (default: a new temporary folder, deleted afterwards unless `--debug` is set).
+- `--step [inputs|issues|outputs]`: Run only this step of the tool, for debugging.
 
 ## Examples
 
-### Example 1: basic run, output name chosen automatically
+Basic run, output name chosen automatically:
 
-    topo-tools topo-detect example.geojson
+```sh
+  topo-tools topo-detect example.geojson
+```
 
-### Example 2: explicit output
+Explicit output:
 
-    topo-tools topo-detect example.gpkg example_issues.gpkg
+```sh
+topo-tools topo-detect example.gpkg example_issues.gpkg
+```

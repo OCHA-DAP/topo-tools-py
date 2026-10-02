@@ -1,6 +1,7 @@
 ---
-status: draft
 title: "Names"
+sidebar:
+  order: 0
 ---
 
 Fifth step of boundary cleaning. Continues from the coded output of

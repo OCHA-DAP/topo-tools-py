@@ -95,7 +95,7 @@ def _class_of(rows, code_a=None, code_b=None):
 def test_cli_help():
     result = CliRunner().invoke(cli, ["change", "--help"])
     assert result.exit_code == 0
-    assert "Compare two polygon layer versions" in result.output
+    assert "Compare two versions of a polygon layer" in result.output
     assert "Examples:" in result.output
 
 

@@ -1,61 +1,41 @@
 ---
-status: draft
 title: "package"
+description: "Run package-polygons, package-points and package-lines on one input."
+sidebar:
+  order: 3
 ---
 
-## Behavior
+Run package-polygons, package-points and package-lines on one input.
 
-- `package` MUST call `package-polygons`, `package-points`, and
-  `package-lines` against the same input path and the same `name_field`/
-  `code_field` (or the same auto-detection, when both are omitted), each
-  reading and reprojecting the input independently (no shared connection
-  or table across the three).
-- `package` MUST NOT expose `--step` or a separate issues-path option; each
-  sub-tool manages its own connection and derives its own issues path from
-  its own output path.
+## Synopsis
 
-## Output path templating
+```text
+topo-tools package [OPTIONS] INPUT_FILE
+```
 
-- `output_path`, if given, MUST contain a literal `{x}` placeholder;
-  `package` MUST raise `ValueError` if it is given without one.
-- `{x}` MUST be substituted per sub-call with a fixed word: `admin{n}` for
-  `package-polygons` (itself still `{n}`-templated per level), `points`
-  for `package-points`, `lines` for `package-lines`. No other placeholder
-  is exposed.
-- If `output_path` is omitted, every sub-tool MUST receive `output_path=None`
-  and fall back to its own default naming.
+## Options
 
-## Configuration (`api.package.package()` / CLI)
-
-- `package` MUST process exactly one input file per call.
-- `overwrite`, `threads`, `tmp_dir`, `debug`, `name_field`, and `code_field`
-  MUST be passed through unchanged to all three sub-calls.
-- `aggregations` (CLI: repeatable `--aggregation column=function`) MUST be
-  passed through to `package-polygons` only; `package-points` and
-  `package-lines` have no equivalent override.
-- `output_name_field`/`output_code_field` (CLI:
-  `--output-name-field`/`--output-code-field`) MUST be passed through to
-  `package-polygons` only; `package-points` and `package-lines` write
-  generic per-role columns, not template-named ones.
-- `package` MUST NOT expose `depth_column`: `package-points` and
-  `package-lines` each run with their own default (`adm_lvl`). An input
-  that already has its own `adm_lvl` column (raising `ValueError` in
-  either sub-tool) MUST be run through `package-points`/`package-lines`
-  directly with a non-colliding `--depth-column` instead of through
-  `package`.
+- `--output TEXT`: Output path containing "{x}", replaced by "admin{n}", "points" or "lines" for each output. Without it, each tool's default name is used.
+- `--name-field TEXT`: Name column of each level, with {n} for the level number, e.g. 'adm{n}_name'. Give it with `--code-field`. Without both, levels are detected from the data.
+- `--code-field TEXT`: Code column of each level, with {n} for the level number, e.g. 'adm{n}_code'. Give it with `--name-field`. Without both, levels are detected from the data.
+- `--output-name-field TEXT`: Rename the `--name-field` columns to this pattern in every output, e.g. 'adm{n}_label'. Needs `--name-field` and `--code-field`.
+- `--output-code-field TEXT`: Rename the `--code-field` columns to this pattern in every output, e.g. 'adm{n}_pcode'. Needs `--name-field` and `--code-field`.
+- `--aggregation TEXT`: How package-polygons combines a column whose values differ inside one unit, as 'column=function', where function is sum, min, max, avg or first. By default numbers are summed and other columns dropped. Repeat for more columns.
+- `--overwrite BOOLEAN`: Replace output files that already exist. Pass `--overwrite=false` to stop with an error instead. [default: True]
+- `--threads INTEGER`: Number of threads DuckDB uses (default: all CPU cores).
+- `--debug`: Keep intermediate tables, export them to Parquet, and log the time and memory each query takes.
+- `--tmp-dir TEXT`: Folder for the working DuckDB database and intermediate files (default: a new temporary folder, deleted afterwards unless `--debug` is set).
 
 ## Examples
 
-### Example 1: defaults for all three outputs
+Defaults for all three outputs:
 
-Each sub-tool falls back to its own default naming
-(`_admin{n}`/`_points`/`_lines`):
+```sh
+  topo-tools package admin3.geojson
+```
 
-    topo-tools package adm3.geojson
+Choose where the outputs go:
 
-### Example 2: explicit output template
-
-`{x}` MUST appear in `--output` if given; it's substituted per sub-tool
-(`admin{n}`, `points`, `lines`):
-
-    topo-tools package adm3.geojson --output "web/{x}.geojson"
+```sh
+topo-tools package admin3.geojson --output "web/{x}.geojson"
+```

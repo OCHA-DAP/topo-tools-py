@@ -1,6 +1,8 @@
 ---
-status: draft
 title: "Packaging"
+sidebar:
+  order: 2
+  label: "How-to"
 ---
 
 Run `package` against

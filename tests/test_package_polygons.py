@@ -76,7 +76,7 @@ def admin2_input(tmp_path):
 def test_cli_help():
     result = CliRunner().invoke(cli, ["package-polygons", "--help"])
     assert result.exit_code == 0
-    assert "Dissolve a polygon layer" in result.output
+    assert "Merge a polygon layer" in result.output
     assert "Examples:" in result.output
 
 

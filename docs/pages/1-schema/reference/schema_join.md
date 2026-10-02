@@ -1,107 +1,45 @@
 ---
-status: draft
 title: "schema-join"
+description: "Copy admin columns from a join layer onto the input features they overlap."
+sidebar:
+  order: 4
 ---
 
-## Inputs
+Copy admin columns from a join layer onto the input features they overlap.
 
-- `schema-join` MUST read one input file and one join file, reprojecting
-  both to EPSG:4326 the same way every other tool does, via
-  `core.assign.load_input()`/`load_overlay()`.
-- `schema-join` MAY take the same `name_field`/`code_field` pair
-  `schema-map` takes (each containing a `{n}` placeholder); both MUST be
-  given together, or both omitted. When given, the join layer's hierarchy
-  columns MUST be every column in a `{n}`-numbered family under
-  `name_field`'s or `code_field`'s prefix, for every level `detect_levels()` finds on the
-  join layer, raising `ValueError` under the same missing-level rules as
-  `schema-fill`.
-- When `name_field`/`code_field` are omitted, `schema-join` MUST instead
-  structurally auto-detect the join layer's hierarchy columns (every level's
-  identity columns from `core.schema_map`'s cardinality/containment
-  matcher, no naming convention assumed), raising `ValueError` if no level
-  is detected.
-- Only the join layer's hierarchy columns are ever copied; any other join layer
-  column MUST be ignored.
+## Synopsis
 
-## Assignment
+```text
+topo-tools schema-join [OPTIONS] INPUT_FILE JOIN_FILE [OUTPUT_FILE]
+```
 
-- `schema-join` MUST assign each input feature to the single join feature it shares the
-  most area with (`core.assign.assign_many()`, per-feature plurality, ties
-  broken by lowest join fid), measured in `EQUAL_AREA_CRS`.
-- An input feature overlapping no join feature MUST stay in the output, with every copied
-  join column NULL.
+## Description
 
-## Joining
+Each input feature takes the columns of the join feature it overlaps most. Geometry is not changed. When a column already has a different value, both are kept: the join layer's value goes in a new numbered column (adm2_name1).
 
-For each join layer hierarchy column:
+## Options
 
-- absent from the input layer: `schema-join` MUST add it, filled from the
-  input feature's assigned join feature;
-- present on the input layer and equal (`IS NOT DISTINCT FROM`) on every
-  assigned input feature: `schema-join` MUST skip it, leaving the input layer's column
-  as-is;
-- present on the input layer and different on any assigned input feature:
-  `schema-join` MUST leave the input layer's column untouched and add the
-  join feature's values under the next free numbered sibling name (`adm2_name1`,
-  then `adm2_name2` if `adm2_name1` is taken on either layer), logging a
-  warning with the differing row count.
-
-`schema-join` MUST NOT raise on a conflicting value, and MUST NOT
-overwrite any input value (see `docs/adr/0109`).
-
-## Outputs
-
-- `schema-join` MUST NOT modify geometry, and so performs no topology
-  hard gate at all.
-- The output MUST keep every input row, using `name_field`/`code_field`, or
-  `adm{n}_name`/`adm{n}_code` when omitted. Columns MUST keep input order,
-  each added numbered sibling right after the last existing column of its
-  family, and every column absent from the input layer after all input
-  columns, in template order (see `docs/adr/0119`). Rows MUST be sorted by
-  the deepest level's own code column, as in `schema-map`.
-- `schema-join` MUST write an issues file in the shared issues-table
-  column schema, with one row per:
-  - `no-overlap`: an input feature overlapping no join feature;
-  - `low-overlap`: an input feature whose assigned join feature covers less than
-    `min_overlap` of its own area, with `area_m2` set to the input feature's area
-    outside that join feature and `reason` stating the covered share;
-  - `value-mismatch`: an input feature and column where the input feature's value and its
-    join feature's value are both non-NULL and differ, with `reason` naming the
-    column and both values.
-- `unit_a` MUST hold the input feature's 1-based row number in the output file, not
-  its input fid, since rows are re-sorted by code.
-- `schema-join` MUST NOT write an empty issues file, and MUST remove a
-  stale one at the issues path instead.
-
-## Configuration (`api.schema_join.join()` / CLI)
-
-- `schema-join` MUST process exactly one input file and one join file per
-  call; either MAY be an `http://`/`https://` URL to a `.parquet` file.
-- The output path MUST default to the input path with a `_join` stem
-  suffix, and the issues path to the output path with an `_issues` stem
-  suffix (`issues_path`/`--issues-output` to override).
-- `schema-join` MUST raise `FileExistsError` if either the output or the
-  issues path already exists and overwriting wasn't requested.
-- `min_overlap`/`--min-overlap` MUST default to `0.5` and MUST raise
-  `ValueError` outside `(0, 1]`.
-- `step`, if given, MUST be one of `inputs`, `assign`, `join`, `outputs`;
-  any other value MUST raise `ValueError`.
+- `--issues-output TEXT`: Path for the issues report. Defaults to OUTPUT_FILE with an "_issues" suffix.
+- `--name-field TEXT`: Name column of each level, with {n} for the level number, e.g. 'adm{n}_name'. Give it with `--code-field`. Without both, levels are detected from the data.
+- `--code-field TEXT`: Code column of each level, with {n} for the level number, e.g. 'adm{n}_code'. Give it with `--name-field`. Without both, levels are detected from the data.
+- `--min-overlap FLOAT`: Report an input feature when its best-matching join feature covers less than this share of its area. [default: 0.5]
+- `--overwrite BOOLEAN`: Replace output files that already exist. Pass `--overwrite=false` to stop with an error instead. [default: True]
+- `--threads INTEGER`: Number of threads DuckDB uses (default: all CPU cores).
+- `--debug`: Keep intermediate tables, export them to Parquet, and log the time and memory each query takes.
+- `--tmp-dir TEXT`: Folder for the working DuckDB database and intermediate files (default: a new temporary folder, deleted afterwards unless `--debug` is set).
+- `--step [inputs|assign|join|outputs]`: Run only this step of the tool, for debugging.
 
 ## Examples
 
-### Example 1: basic run, structural auto-detection, output name chosen automatically
+Copy admin2 columns onto an admin3 layer:
 
-    topo-tools schema-join admin3.parquet admin2.parquet
+```sh
+  topo-tools schema-join admin3.geojson admin2.geojson
+```
 
-### Example 2: chain levels coarsest-first
+Build up a full hierarchy one level at a time, coarsest first:
 
-    topo-tools schema-join admin2.parquet admin1.parquet admin2_join.parquet
-    topo-tools schema-join admin3.parquet admin2_join.parquet admin3_join.parquet
-
-### Example 3: custom target naming
-
-    topo-tools schema-join admin3.parquet admin2.parquet --name-field adm{n}_name --code-field adm{n}_pcode
-
-### Example 4: explicit issues path and a stricter overlap threshold
-
-    topo-tools schema-join admin3.gpkg admin2.gpkg admin3_join.gpkg --issues-output review.gpkg --min-overlap 0.9
+```sh
+topo-tools schema-join admin2.parquet admin1.parquet admin2_join.parquet
+topo-tools schema-join admin3.parquet admin2_join.parquet admin3_join.parquet
+```

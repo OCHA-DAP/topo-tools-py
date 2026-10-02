@@ -193,7 +193,8 @@ PNGs using the JSON sidecar's pixel mapping and font, never by importing
 4. [Codes](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/4-codes/how-to.md)
 
    Show a few code values from each level of the file to code, and ask
-   whether they are government codes to use as the source of truth. Then:
+   whether they are source codes to keep as given (issued by the government
+   or agreed with the country office). Then:
 
    - Yes: `code-create --root-code {ISO2} --delimiter '' --min-width auto --source-codes embed`
      with `--code-field`/`--name-field` templates naming each level's

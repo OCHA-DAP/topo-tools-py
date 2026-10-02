@@ -1,5 +1,7 @@
 ---
-title: Other agents
+title: "Other agents"
+sidebar:
+  order: 2
 ---
 
 Paste this into the agent's prompt:

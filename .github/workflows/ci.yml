@@ -19,6 +19,7 @@ jobs:
       - run: uv run ruff format --check
       - run: uv run ruff check
       - run: uv run lint-imports
+      - run: uv run python .github/scripts/gen_reference.py --check
 
   skill-links:
     runs-on: ubuntu-latest

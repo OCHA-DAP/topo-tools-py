@@ -1,89 +1,35 @@
 ---
-status: draft
 title: "package-lines"
+description: "Make one line layer of admin boundaries, each line drawn once."
+sidebar:
+  order: 6
 ---
 
-## Inputs
+Make one line layer of admin boundaries, each line drawn once.
 
-- `package-lines` MUST read the input, reproject it to EPSG:4326 and
-  merge or drop its micro-polygons.
-- `package-lines` MUST detect every admin level present, either
-  structurally (`core.schema_map`'s cardinality/containment matcher, no
-  naming convention assumed, the default when `name_field`/`code_field`
-  are omitted) or via an explicit `name_field`/`code_field` pair, raising
-  `ValueError` if no level is found.
+## Synopsis
 
-## Boundary extraction
+```text
+topo-tools package-lines [OPTIONS] INPUT_FILE [OUTPUT_FILE]
+```
 
-- `package-lines` MUST dissolve the input once, at the finest detected
-  level only; every coarser boundary is already contained in that level's
-  own adjacency, so no per-level repeat dissolve is needed.
-- `package-lines` MUST derive each pair of touching units' shared boundary
-  from `ST_Boundary` and `ST_Intersection`, never a PostGIS-style
-  shared-paths function (not available in this DuckDB spatial build), and
-  MUST merge the result with `ST_LineMerge` before dumping to atomic rows:
-  an unmerged intersection returns one fragment per matching edge segment,
-  not one line, even where both sides' vertices exactly coincide.
-- A shared-boundary row MUST be produced exactly once per touching pair
-  (`left_fid < right_fid`), never twice. A pair whose polygons only touch
-  at a point (corner touch) MUST produce zero shared rows.
-- `package-lines` MUST dump every multi-part shared or exterior geometry
-  into atomic `LineString` rows; a unit with multiple disjoint exterior
-  segments MUST produce one row per segment, never a single
-  `MultiLineString`.
-- Every output row MUST carry each side's own finest-level identity under
-  single-letter-prefixed generic columns, `a_*` for one side and `b_*` for
-  the other (e.g. `a_pcode`/`b_pcode`, `a_name`/`b_name`), one pair of
-  columns per identity kind the finest level's own naming family
-  detects (`group_families_by_level()`/`level_family_names()`, or an
-  explicit schema's fixed `code`/`name`), never a raw `fid`. Single-letter
-  prefixes keep every generated field name within a Shapefile DBF field's
-  10-character limit. There is no `boundary_type` column: a row is
-  exterior exactly when every `b_*` column is `NULL`, never shared.
-- `package-lines` MUST classify every shared row by the coarsest detected
-  level at which its two sides' code columns first differ, and every
-  exterior row one level coarser than the coarsest detected level
-  (`min(levels) - 1`), into a depth column (`adm_lvl` by default,
-  overridable via `depth_column`).
-- `package-lines` MUST raise `ValueError` if any finest-level unit is
-  absent from every output row (matched internally by `fid`, dropped from
-  the output once the `a_*`/`b_*` columns resolve each side's identity).
-- `package-lines` MUST raise `ValueError` if `depth_column` collides with
-  one of its own fixed output column names (`left_fid`, `right_fid`,
-  `geom`).
+## Description
 
-## Outputs
+Lines between two units and along the outer edge are included, each tagged with the coarsest admin level it belongs to. OUTPUT_FILE defaults to INPUT_FILE with a "_lines" suffix.
 
-- `package-lines` performs no topology hard gate; it is a derived
-  cartographic layer, not a coverage layer.
-- `package-lines` MUST combine shared and exterior rows from every level
-  into one output file, deduplicated so no boundary segment repeats across
-  levels.
+## Options
 
-## Configuration (`api.package_lines.package_lines()` / CLI)
-
-- `package-lines` MUST process exactly one input file per call.
-- The output path MUST default to the input path with a `_lines` suffix.
-- `package-lines` MUST raise `FileExistsError` if the output path already
-  exists and overwriting wasn't requested.
-- `step`, if given, MUST be one of `inputs`, `boundaries`, `outputs`; any
-  other value MUST raise `ValueError`.
-- `name_field`/`code_field` MUST be given together, or both omitted; when
-  both are omitted, `package-lines` MUST fall back to full structural
-  auto-detection of every level.
+- `--name-field TEXT`: Name column of each level, with {n} for the level number, e.g. 'adm{n}_name'. Give it with `--code-field`. Without both, levels are detected from the data.
+- `--code-field TEXT`: Code column of each level, with {n} for the level number, e.g. 'adm{n}_code'. Give it with `--name-field`. Without both, levels are detected from the data.
+- `--depth-column TEXT`: Name of the added column holding the coarsest admin level each boundary line belongs to. [default: adm_lvl]
+- `--overwrite BOOLEAN`: Replace output files that already exist. Pass `--overwrite=false` to stop with an error instead. [default: True]
+- `--threads INTEGER`: Number of threads DuckDB uses (default: all CPU cores).
+- `--debug`: Keep intermediate tables, export them to Parquet, and log the time and memory each query takes.
+- `--tmp-dir TEXT`: Folder for the working DuckDB database and intermediate files (default: a new temporary folder, deleted afterwards unless `--debug` is set).
+- `--step [inputs|boundaries|outputs]`: Run only this step of the tool, for debugging.
 
 ## Examples
 
-### Example 1: default naming
-
-Produces `adm3_lines.geojson`, combining shared and exterior boundaries
-from every detected level, deduplicated so no segment repeats:
-
-    topo-tools package-lines adm3.geojson
-
-### Example 2: style by boundary depth
-
-`adm_lvl` (or a custom `--depth-column`) lets a web map style an
-international boundary (level 0) differently from a sub-national one:
-
-    topo-tools package-lines adm3.geojson --depth-column boundary_level
+```sh
+topo-tools package-lines admin3.geojson
+```

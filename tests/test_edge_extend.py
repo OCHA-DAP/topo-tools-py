@@ -56,7 +56,7 @@ def synthetic_input(tmp_path):
 def test_cli_help():
     result = CliRunner().invoke(cli, ["edge-extend", "--help"])
     assert result.exit_code == 0
-    assert "Extend polygon boundaries" in result.output
+    assert "Extend polygons outward" in result.output
     assert "Examples:" in result.output
 
 

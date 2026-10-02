@@ -27,6 +27,12 @@ repos:
         entry: uv run lint-imports
         language: system
         pass_filenames: false
+      - id: reference-pages
+        name: reference pages match CLI help
+        entry: uv run python .github/scripts/gen_reference.py --check
+        language: system
+        files: ^(topo_tools/cli/|docs/pages/.*/reference/|\.github/scripts/gen_reference\.py$)
+        pass_filenames: false
       - id: skill-links
         name: skill-links (lychee)
         entry: .github/scripts/check_skill_links.sh

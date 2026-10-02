@@ -1,81 +1,35 @@
 ---
-status: draft
 title: "package-points"
+description: "Make one label point for each admin unit, at every level, in one file."
+sidebar:
+  order: 5
 ---
 
-## Inputs
+Make one label point for each admin unit, at every level, in one file.
 
-- `package-points` MUST read the input, reproject it to EPSG:4326 and
-  merge or drop its micro-polygons.
-- `package-points` MUST detect every admin level present, either
-  structurally (`core.schema_map`'s cardinality/containment matcher, no
-  naming convention assumed, the default when `name_field`/`code_field`
-  are omitted) or via an explicit `name_field`/`code_field` pair, raising
-  `ValueError` if no level is found.
-- With auto-detection, a whole-table-constant column family sharing the
-  detected levels' own naming style (e.g. `adm0_*` beside a detected
-  `adm1_*`/`adm2_*`, or a word-anchored `country_*` beside `state_*`/
-  `county_*`) MUST be treated as its own coarsest level, dissolved to a
-  single row.
+## Synopsis
 
-## Point extraction
+```text
+topo-tools package-points [OPTIONS] INPUT_FILE [OUTPUT_FILE]
+```
 
-- `package-points` MUST dissolve the input once per detected level,
-  grouping by that level's own code column, then reduce each dissolved
-  unit to a single point via `ST_MaximumInscribedCircle(geom).center` (the
-  pole of inaccessibility), never the centroid.
-- `package-points` MUST raise `ValueError` if a level's dissolved row count
-  does not equal that level's distinct code-column count in the input, or
-  if any output point is not covered by its own source polygon
-  (`ST_Covers`).
-- Every level's points MUST be tagged with a depth column (`adm_lvl` by
-  default, overridable via `depth_column`), holding that level's own
-  numeric depth. `package-points` MUST raise `ValueError` if `depth_column`
-  already exists as a column on the input, rather than silently producing
-  a renamed duplicate column.
-- Every level's own identity columns, including a whole-table-constant
-  root's, MUST land under one name shared across every level: the source
-  file's own naming convention (e.g. `pcode`, `name`, derived by stripping
-  each level's own naming anchor), or an explicit schema's fixed
-  `code`/`name`. No level-numbered column (e.g. `adm1_pcode`) MUST ever
-  appear in the output: an ancestor level's identity columns are excluded
-  from a finer level's own dissolve, the same as any other level's, rather
-  than kept as a repeated, numbered ancestor value.
+## Description
 
-## Outputs
+Each point is the spot inside the unit farthest from its edges, so it always falls inside the unit, unlike a centroid. OUTPUT_FILE defaults to INPUT_FILE with a "_points" suffix.
 
-- `package-points` performs no topology hard gate; it is a derived
-  cartographic layer, not a coverage layer.
-- `package-points` MUST combine every level's points into one output file.
-  A column that cannot generalize to every level combined into the output
-  (a finer level's own identity column, or an attribute that would only
-  ever be `NULL` on a coarser level's rows) MUST be excluded from the
-  combined output entirely, never carried through as an always-`NULL`
-  column; the combine MUST NOT assume a fixed column set across levels.
+## Options
 
-## Configuration (`api.package_points.package_points()` / CLI)
-
-- `package-points` MUST process exactly one input file per call.
-- The output path MUST default to the input path with a `_points` suffix.
-- `package-points` MUST raise `FileExistsError` if the output path already
-  exists and overwriting wasn't requested.
-- `step`, if given, MUST be one of `inputs`, `points`, `outputs`; any
-  other value MUST raise `ValueError`.
-- `name_field`/`code_field` MUST be given together, or both omitted; when
-  both are omitted, `package-points` MUST fall back to full structural
-  auto-detection of every level.
+- `--name-field TEXT`: Name column of each level, with {n} for the level number, e.g. 'adm{n}_name'. Give it with `--code-field`. Without both, levels are detected from the data.
+- `--code-field TEXT`: Code column of each level, with {n} for the level number, e.g. 'adm{n}_code'. Give it with `--name-field`. Without both, levels are detected from the data.
+- `--depth-column TEXT`: Name of the added column holding each point's admin level. [default: adm_lvl]
+- `--overwrite BOOLEAN`: Replace output files that already exist. Pass `--overwrite=false` to stop with an error instead. [default: True]
+- `--threads INTEGER`: Number of threads DuckDB uses (default: all CPU cores).
+- `--debug`: Keep intermediate tables, export them to Parquet, and log the time and memory each query takes.
+- `--tmp-dir TEXT`: Folder for the working DuckDB database and intermediate files (default: a new temporary folder, deleted afterwards unless `--debug` is set).
+- `--step [inputs|points|outputs]`: Run only this step of the tool, for debugging.
 
 ## Examples
 
-### Example 1: default naming
-
-Produces `adm3_points.geojson`, one combined file covering every detected
-level:
-
-    topo-tools package-points adm3.geojson
-
-### Example 2: custom depth column
-
-Rename the stamped level column from `adm_lvl` to something else:
-
-    topo-tools package-points adm3.geojson --depth-column level
+```sh
+topo-tools package-points admin3.geojson
+```

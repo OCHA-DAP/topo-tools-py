@@ -1,6 +1,6 @@
 """Structurally discovers a source file's admin hierarchy and code/name roles.
 
-See docs/pages/1-schema/explanation/schema_map.md and docs/adr/0054, 0064-0066 for the
+See docs/dev/explanation/1-schema/schema_map.md and docs/adr/0054, 0064-0066 for the
 algorithm and why.
 """
 

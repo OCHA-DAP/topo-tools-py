@@ -1,0 +1,77 @@
+---
+title: "Topology Tools"
+---
+
+import { TabItem, Tabs } from "@astrojs/starlight/components";
+
+Topology Tools cleans and reconciles administrative boundary polygons,
+and comes in two forms that share the same steps. The [web app](/) on this
+site runs each tool in the browser, with nothing to install. The CLI and
+Python library documented here run the same steps with DuckDB on your own
+machine, for scripting, batch runs, and files too large for the browser.
+
+## Installation
+
+Install the `topo-tools` CLI and Python library with:
+
+<Tabs>
+<TabItem label="uv">
+
+```sh
+uv tool install topo-tools   # CLI
+uv add topo-tools            # Python library
+```
+
+</TabItem>
+<TabItem label="pip">
+
+```sh
+pip install topo-tools       # CLI or library
+pipx install topo-tools      # CLI
+```
+
+</TabItem>
+<TabItem label="conda">
+
+```sh
+conda install -c conda-forge topo-tools   # CLI or library
+```
+
+Recommended on Windows. `mamba` and `pixi` install it from the same channel.
+
+</TabItem>
+<TabItem label="Homebrew">
+
+```sh
+brew install OCHA-DAP/topo-tools/topo-tools
+```
+
+macOS/Linux, with no Python tooling required.
+
+</TabItem>
+</Tabs>
+
+Inputs and outputs: GeoParquet, GeoPackage, Shapefile and GeoJSON. The
+output format matches the input format.
+
+## Using with agents
+
+Run the whole boundary cleaning workflow with an AI agent. The agent
+installs the CLI itself, so it skips the Installation step above.
+
+- **[Claude Code](agents/claude-code.mdx)**: install the plugin in VS Code
+  or a terminal, then run it from Claude Code.
+- **[Other agents](agents/other-agents.md)**: paste one prompt into any
+  agent that can read a URL. Nothing to install.
+
+## Boundary cleaning
+
+1. **[Schema](1-schema/index.mdx)**: map source columns to admin code and name columns, then apply the crosswalk.
+2. **[Topology](2-topology/index.mdx)**: find gaps and overlaps between units, then clean them.
+3. **[Edge matching](3-edge/index.mdx)**: fit units to a reference boundary so the outer edge follows the agreed outline.
+4. **[Codes](4-codes/index.mdx)**: keep the previous release's codes for units that carry over, or cold-start codes when there is no previous release.
+5. **[Names](5-names/index.md)**: review names by hand for duplicates under the same parent, near-duplicate typos, blanks and placeholders, and encoding artifacts.
+6. **[Packaging](6-packaging/index.mdx)**: build per-level polygons, label points, and the boundary line network for release.
+
+Each step except Names has a how-to guide and a reference page per tool,
+listing its options with examples. Names is a manual review checklist.
