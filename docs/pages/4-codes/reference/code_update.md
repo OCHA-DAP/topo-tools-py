@@ -22,7 +22,11 @@ title: "code-update"
   `docs/adr/0106`), rather than silently skipping that level. With
   explicit templates, a level-0 code column MUST be left untouched, and a
   NEW level with a name column but no code column MUST get one seeded from
-  its names.
+  its names, prefixed by its parent's code so same-named units under
+  different parents stay apart.
+- `code-update` MUST raise `ValueError` if any row on either side has no
+  code (or, for a seeded level, no name) at any level, or if a code has
+  more than one name.
 - `code-update` MUST raise `ValueError` in structural mode on either side
   ("group units like a level") if detection sets any column aside as a
   supplemental coarser grouping, and ("a coarser level merged into this
@@ -102,6 +106,9 @@ parent codes:
 - A new code MUST be numbered above every code its parent had at that
   level in OLD, retired codes included, so no OLD code is ever issued to a
   different unit (see `docs/adr/0126`).
+- A retained code rewritten under a new parent MUST NOT repeat any OLD
+  code at that level or another retained code; that unit gets a new code
+  instead (outcome `new`, `predecessor_code` its OLD code).
 - A `modified` unit MUST keep its code (outcome `retained`, reason
   `geometry modified, code retained (lenient: codes without a delimiter)`)
   when the format has no delimiter, and MUST get a new code when it has

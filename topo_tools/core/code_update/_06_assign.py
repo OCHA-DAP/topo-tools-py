@@ -31,6 +31,9 @@ _REASONS = {
     ("merge", "new"): "formed by merging OLD units, new code assigned",
     ("complex", "new"): "formed by a complex N:M change, new code assigned",
 }
+_COLLIDED_REASON = (
+    "moved under a new parent where its code is already taken, new code assigned"
+)
 
 
 @dataclass
@@ -64,6 +67,22 @@ def _reduce_match_methods(
     """Collapse every linked pair's own match_method to one value, joined if mixed."""
     methods = {lookup[p] for p in pairs if p in lookup}
     return "+".join(sorted(methods)) if methods else None
+
+
+def _collisions(
+    rewritten: dict[int, str], original: dict[int, str], old_codes: set[str]
+) -> set[int]:
+    """Return clusters whose rewritten code repeats an OLD code or another rewrite."""
+    taken = {code for code in rewritten.values() if code in old_codes}
+    collided: set[int] = set()
+    for key in sorted(rewritten, key=lambda k: rewritten[k]):
+        if rewritten[key] == original[key]:
+            continue
+        if rewritten[key] in taken:
+            collided.add(key)
+        else:
+            taken.add(rewritten[key])
+    return collided
 
 
 def main(  # noqa: C901, PLR0913, PLR0915
@@ -136,13 +155,29 @@ def main(  # noqa: C901, PLR0913, PLR0915
     new_batch_meta: dict[str, dict] = {}
     level_new_codes: dict[int, str] = {}
 
+    old_codes = {c for c in old_code_by_fid.values() if c is not None}
+    # A code kept as-is wins; a rewritten one that repeats any OLD code or an
+    # earlier rewrite (a unit moved under a new parent) gets a new code.
+    rewritten = {
+        cluster_id: rewrite_child_code(
+            old_code_by_fid[c["a"][0]], new_parent_code(c["b"][0]), fmt
+        )
+        for cluster_id, c in clusters.items()
+        if c["class"] in retain_classes
+    }
+    collided = _collisions(
+        rewritten,
+        {k: old_code_by_fid[clusters[k]["a"][0]] for k in rewritten},
+        old_codes,
+    )
+
     for cluster_id, c in clusters.items():
         rel, a_fids, b_fids = c["class"], c["a"], c["b"]
 
-        if rel in retain_classes:
+        if rel in retain_classes and cluster_id not in collided:
             a_fid, b_fid = a_fids[0], b_fids[0]
             old_code = old_code_by_fid[a_fid]
-            new_code = rewrite_child_code(old_code, new_parent_code(b_fid), fmt)
+            new_code = rewritten[cluster_id]
             level_new_codes[b_fid] = new_code
             retained_codes.append(new_code)
             changelog.append(
@@ -234,7 +269,7 @@ def main(  # noqa: C901, PLR0913, PLR0915
             }
             continue
 
-        if rel in _SINGLE_PREDECESSOR_CLASSES:
+        if rel in _SINGLE_PREDECESSOR_CLASSES or cluster_id in collided:
             a_fid, b_fid = a_fids[0], b_fids[0]
             old_code = old_code_by_fid[a_fid]
             fid_key = f"n{n}_{b_fid}"
@@ -247,6 +282,7 @@ def main(  # noqa: C901, PLR0913, PLR0915
                 "cluster_id": cluster_id,
                 "class": rel,
                 "match_method": pair_method.get((a_fid, b_fid)),
+                "reason": _COLLIDED_REASON if cluster_id in collided else None,
             }
             continue
 
@@ -312,7 +348,7 @@ def main(  # noqa: C901, PLR0913, PLR0915
                     cluster_id=meta["cluster_id"],
                     match_method=meta["match_method"],
                     code_outcome="new",
-                    reason=_REASONS[(meta["class"], "new")],
+                    reason=meta.get("reason") or _REASONS[(meta["class"], "new")],
                     predecessor_code=meta["predecessor"],
                     b_fid=meta["b_fid"],
                 )
