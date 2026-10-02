@@ -23,7 +23,8 @@ title: "code-update"
   explicit templates, a level-0 code column MUST be left untouched, and a
   NEW level with a name column but no code column MUST get one seeded from
   its names, prefixed by its parent's code so same-named units under
-  different parents stay apart.
+  different parents stay apart. At the finest level, a name repeating
+  under one parent MUST raise `ValueError`.
 - `code-update` MUST raise `ValueError` if any row on either side has no
   code (or, for a seeded level, no name) at any level, or if a code has
   more than one name.
