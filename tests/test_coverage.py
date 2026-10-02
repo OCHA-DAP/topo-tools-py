@@ -160,6 +160,22 @@ def test_coverage_clean_removes_whole_micro_feature_instead_of_emptying_it():
         assert conn.execute("SELECT unit_a, unit_b FROM micro").fetchall() == [(3, 2)]
 
 
+@pytest.mark.parametrize("order", ["ASC", "DESC"])
+def test_coverage_clean_ignores_input_row_order(order):
+    """The overlap goes to the same feature whichever row comes first."""
+    with duckdb.connect() as conn:
+        conn.execute("INSTALL spatial; LOAD spatial;")
+        conn.execute(f"""--sql
+            CREATE TABLE synth AS SELECT fid, ST_GeomFromText(wkt) AS geom FROM (VALUES
+                (1, 'POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))'),
+                (2, 'POLYGON((0.9 0, 2 0, 2 1, 0.9 1, 0.9 0))')) v(fid, wkt)
+            ORDER BY fid {order}
+        """)
+        coverage_clean(conn, "synth", "out", fids=None)
+        rows = conn.execute("SELECT fid, ST_Area(geom) FROM out ORDER BY fid")
+        assert [(f, round(a, 6)) for f, a in rows.fetchall()] == [(1, 0.9), (2, 1.1)]
+
+
 # Detached-part fixtures use 1e-3 deg units (~111 m), so pieces stay under the
 # merge cap in square meters and only the ratio rule decides.
 S = 1e-3

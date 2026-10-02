@@ -755,7 +755,9 @@ def coverage_clean(  # noqa: PLR0913 (each param is a distinct required input, n
     cc = f"ST_CoverageClean(list(geom ORDER BY rn), {snap_arg}, {gap_arg})"
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE _clean_all AS
-        SELECT row_number() OVER () AS rnid, * FROM "{source}"
+        -- ST_CoverageClean's result depends on input order, so fix it by content.
+        SELECT row_number() OVER (ORDER BY hash(s.geom), hash(s)) AS rnid, *
+        FROM "{source}" AS s
     """)
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{table_out}" AS
