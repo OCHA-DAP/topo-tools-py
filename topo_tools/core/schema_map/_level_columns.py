@@ -9,6 +9,8 @@ from duckdb import DuckDBPyConnection
 from topo_tools.core.duckdb_utils import quote_identifier
 from topo_tools.core.schema_map._02_map import (
     _WINNER_MAX_COLLAPSE_RATIO,
+    _has_geometry_column,
+    _spatially_coherent,
     resolve_columns,
 )
 from topo_tools.core.schema_map._constants import CONFIDENCE_SUPPLEMENTAL
@@ -238,6 +240,16 @@ def supplemental_columns(conn: DuckDBPyConnection, table: str) -> list[str]:
     """Columns detection set aside as a coarser grouping, never as a level."""
     rows = resolve_columns(conn, table, DEFAULT_TARGET_SCHEMA)
     return [c for c, r in rows.items() if r.note.startswith(CONFIDENCE_SUPPLEMENTAL)]
+
+
+def level_like_columns(conn: DuckDBPyConnection, table: str) -> list[str]:
+    """Supplemental columns whose groups cluster on the map, as a missed level would."""
+    has_geom = _has_geometry_column(conn, table)
+    return [
+        c
+        for c in supplemental_columns(conn, table)
+        if not has_geom or _spatially_coherent(conn, table, c)
+    ]
 
 
 def detect_level_codes(conn: DuckDBPyConnection, table: str) -> dict[int, str]:

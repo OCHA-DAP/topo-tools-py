@@ -118,6 +118,13 @@ def test_levels_undetected_is_reported_not_raised(tmp_path):
     }
 
 
+def test_grouping_column_is_a_warning_not_a_refusal(tmp_path):
+    select = (
+        "SELECT *, CASE WHEN adm1_pcode = 'XY3' THEN 'S' ELSE 'N' END AS zone FROM base"
+    )
+    assert _kinds(tmp_path, select) == {("supplemental-column", "warn", None, "zone")}
+
+
 @pytest.mark.parametrize("fields", [_FIELDS, {}], ids=["explicit", "structural"])
 def test_nameless_layer_reports_levels_undetected(tmp_path, fields):
     select = "SELECT COLUMNS('pcode'), geom FROM base"

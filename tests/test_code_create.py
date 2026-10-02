@@ -418,6 +418,28 @@ def test_supplemental_grouping_raises(tmp_path):
         code_create(input_path, root_code="AA", delimiter=".", min_width=3)
 
 
+def test_scattered_type_column_does_not_stop_coding(tmp_path):
+    """A unit type spread across the map can't be a missed level."""
+    names = ["Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot"]
+    rows = [
+        {
+            "adm1_code": f"P{i // 6 + 1}",
+            "adm1_name": ["North", "South"][i // 6],
+            "adm2_code": f"P{i // 6 + 1}{i % 6 + 1:02d}",
+            "adm2_name": f"{names[i % 6]} {['North', 'South'][i // 6]}",
+            "unit_type": ["city", "district", "town"][i % 3],
+            "wkt": f"POLYGON(({i} 0, {i + 1} 0, {i + 1} 1, {i} 1, {i} 0))",
+        }
+        for i in range(12)
+    ]
+    input_path = tmp_path / "typed.parquet"
+    _write_synthetic(input_path, rows)
+    output_path = tmp_path / "typed_coded.parquet"
+    code_create(input_path, output_path, root_code="AA", delimiter=".", min_width=2)
+    result = _fetch(output_path, "adm1_code, adm2_code", "adm2_code")
+    assert result[0] == ("AA.01", "AA.01.01")
+
+
 def _source_coded_rows(adm3_codes=("0101", "0102", "0201", "0202")):
     units = [
         ("51", "North", "Hidd", adm3_codes[0]),

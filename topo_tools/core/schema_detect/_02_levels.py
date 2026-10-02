@@ -133,8 +133,8 @@ def _structural_rows(conn: DuckDBPyConnection, table: str) -> list[_Row]:
             None,
             column,
             problem="supplemental-column",
-            reason="set aside as a coarser grouping, not a level; name-detect "
-            "and code-detect need --name-field/--code-field for this layer",
+            reason="set aside as a coarser grouping, not a level; if it is one, "
+            "pass --name-field/--code-field",
         )
         for column in supplemental_columns(conn, table)
     )
