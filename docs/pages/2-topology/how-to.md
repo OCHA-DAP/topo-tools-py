@@ -1,5 +1,5 @@
 ---
-title: "2. Topology"
+title: "Topology"
 ---
 
 Run `topo-detect` first to list the dataset's gaps and overlaps:

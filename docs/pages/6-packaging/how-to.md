@@ -1,6 +1,6 @@
 ---
 status: draft
-title: "6. Packaging"
+title: "Packaging"
 ---
 
 Run `package` against

@@ -1,5 +1,81 @@
+@font-face {
+  font-family: Merriweather;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../assets/fonts/merriweather-700.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: Roboto;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("../assets/fonts/roboto.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Roboto Mono";
+  font-weight: 100 700;
+  font-display: swap;
+  src: url("../assets/fonts/roboto-mono.woff2") format("woff2");
+}
+
 :root {
+  --md-text-font: "Roboto";
+  --md-code-font: "Roboto Mono";
   --md-status--draft: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497zM15 5l4 4"/></svg>');
+}
+
+[data-md-color-scheme="default"] {
+  --md-default-bg-color: var(--hdx-neutral-01);
+  --md-default-fg-color: var(--hdx-neutral-9);
+  --md-default-fg-color--light: var(--hdx-neutral-7);
+  --md-default-fg-color--lighter: var(--hdx-neutral-5);
+  --md-default-fg-color--lightest: var(--hdx-neutral-2);
+  --md-typeset-a-color: var(--hdx-primary-5);
+  --md-accent-fg-color: var(--hdx-primary-9);
+  --md-accent-fg-color--transparent: var(--hdx-primary-05);
+}
+
+.md-header {
+  color: var(--hdx-neutral-0);
+  background-color: var(--hdx-brand-7);
+  backdrop-filter: none;
+}
+
+.md-tabs {
+  color: var(--hdx-brand-05);
+  background-color: var(--hdx-brand-7);
+  box-shadow: none;
+}
+
+.md-tabs__item--active .md-tabs__link,
+.md-tabs__link:hover {
+  color: var(--hdx-neutral-0);
+}
+
+.md-tabs__item--active {
+  border-bottom-color: var(--hdx-neutral-0);
+}
+
+.md-header .md-search__button {
+  color: var(--hdx-neutral-0);
+  background-color: var(--hdx-overlay-white-15);
+}
+
+.md-header .md-search__button::before {
+  background-color: var(--hdx-neutral-0);
+}
+
+.md-header .md-search__button::after {
+  color: var(--hdx-neutral-0);
+  background-color: var(--hdx-overlay-white-20);
+}
+
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3 {
+  font-family: var(--hdx-font-display);
+  font-weight: 700;
 }
 
 .md-status--draft::after {
@@ -63,8 +139,8 @@
   width: 1.6rem;
   height: 1.6rem;
   border-radius: 50%;
-  background: var(--md-default-fg-color);
-  color: var(--md-default-bg-color);
+  background: var(--hdx-brand-7);
+  color: var(--hdx-neutral-0);
   font-size: 0.7rem;
   font-weight: 600;
 }
@@ -84,12 +160,10 @@
   position: absolute;
   z-index: -1;
   inset: 0 0 0 2.6rem;
-  border: 1px solid var(--md-default-fg-color--lightest);
-  border-radius: 0.7rem;
-  background: var(--md-default-bg-color);
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.03),
-    0 2px 6px rgba(0, 0, 0, 0.03);
+  border: 1px solid var(--hdx-neutral-1);
+  border-radius: var(--hdx-radius-md);
+  background: var(--hdx-neutral-0);
+  box-shadow: var(--hdx-shadow-sm);
   transition:
     border-color 120ms ease,
     box-shadow 120ms ease,
@@ -97,10 +171,8 @@
 }
 
 [dir] .md-typeset .phase-steps ol li:hover p:first-child::before {
-  border-color: var(--md-default-fg-color--lighter);
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.04),
-    0 4px 12px rgba(0, 0, 0, 0.04);
+  border-color: var(--hdx-neutral-2);
+  box-shadow: var(--hdx-shadow-md);
   transform: translateY(-1px);
 }
 

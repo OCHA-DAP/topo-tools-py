@@ -1,6 +1,6 @@
 ---
 status: draft
-title: "5. Names"
+title: "Names"
 ---
 
 Fifth step of boundary cleaning. Continues from the coded output of

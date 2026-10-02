@@ -1,6 +1,6 @@
 ---
 status: draft
-title: "3. Edge matching"
+title: "Edge matching"
 ---
 
 Fit the topology-cleaned

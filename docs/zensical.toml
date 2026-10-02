@@ -8,10 +8,10 @@ edit_uri = "edit/main/docs/pages/"
 
 docs_dir = "pages"
 site_dir = "site"
-extra_css = ["stylesheets/extra.css"]
+extra_css = ["stylesheets/hdx-tokens.css", "stylesheets/extra.css"]
 
 nav = [
-  { "1. Schema" = [
+  { "Schema" = [
     "1-schema/index.md",
     { "Tutorial" = "1-schema/tutorial.md" },
     { "How-to" = "1-schema/how-to.md" },
@@ -27,7 +27,7 @@ nav = [
       "1-schema/explanation/schema_fill.md",
     ] },
   ] },
-  { "2. Topology" = [
+  { "Topology" = [
     "2-topology/index.md",
     { "Tutorial" = "2-topology/tutorial.md" },
     { "How-to" = "2-topology/how-to.md" },
@@ -41,7 +41,7 @@ nav = [
       "2-topology/explanation/topo_clean.md",
     ] },
   ] },
-  { "3. Edge matching" = [
+  { "Edge matching" = [
     "3-edge/index.md",
     { "Tutorial" = "3-edge/tutorial.md" },
     { "How-to" = "3-edge/how-to.md" },
@@ -63,7 +63,7 @@ nav = [
       "3-edge/explanation/voronoi-memory.md",
     ] },
   ] },
-  { "4. Codes" = [
+  { "Codes" = [
     "4-codes/index.md",
     { "Tutorial" = "4-codes/tutorial.md" },
     { "change tutorial" = "4-codes/change-tutorial.md" },
@@ -81,10 +81,10 @@ nav = [
       "4-codes/explanation/change.md",
     ] },
   ] },
-  { "5. Names" = [
+  { "Names" = [
     "5-names/index.md",
   ] },
-  { "6. Packaging" = [
+  { "Packaging" = [
     "6-packaging/index.md",
     { "Tutorial" = "6-packaging/tutorial.md" },
     { "How-to" = "6-packaging/how-to.md" },
@@ -118,6 +118,8 @@ draft = "Draft, not yet reviewed"
 
 [project.theme]
 custom_dir = "overrides"
+# Self-hosted in extra.css, so the site works offline.
+font = false
 language = "en"
 favicon = "assets/images/icon.png"
 logo = "assets/images/icon.png"
@@ -140,22 +142,8 @@ features = [
   "search.highlight",
 ]
 
-[[project.theme.palette]]
-media = "(prefers-color-scheme)"
-toggle.icon = "lucide/sun-moon"
-toggle.name = "Switch to light mode"
-
-[[project.theme.palette]]
-media = "(prefers-color-scheme: light)"
+[project.theme.palette]
 scheme = "default"
-toggle.icon = "lucide/sun"
-toggle.name = "Switch to dark mode"
-
-[[project.theme.palette]]
-media = "(prefers-color-scheme: dark)"
-scheme = "slate"
-toggle.icon = "lucide/moon"
-toggle.name = "Switch to system preference"
 
 [project.markdown_extensions]
 abbr = {}

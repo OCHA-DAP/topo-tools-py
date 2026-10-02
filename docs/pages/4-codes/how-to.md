@@ -1,6 +1,6 @@
 ---
 status: draft
-title: "4. Codes"
+title: "Codes"
 ---
 
 Reconcile the edge-matched output of [step 3](../3-edge/how-to.md) against

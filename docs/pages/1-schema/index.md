@@ -1,5 +1,5 @@
 ---
-title: "1. Schema"
+title: "Schema"
 ---
 
 First step of boundary cleaning. A source delivery arrives with its own

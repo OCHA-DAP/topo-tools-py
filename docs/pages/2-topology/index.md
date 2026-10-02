@@ -1,5 +1,5 @@
 ---
-title: "2. Topology"
+title: "Topology"
 ---
 
 Second step of boundary cleaning. This step removes gaps and overlaps
