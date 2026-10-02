@@ -2,7 +2,9 @@
 
 from .api import (
     change,
+    code_create,
     code_detect,
+    code_update,
     edge_clip,
     edge_extend,
     edge_match,
@@ -27,7 +29,9 @@ from .cli.main import cli
 __all__ = [
     "change",
     "cli",
+    "code_create",
     "code_detect",
+    "code_update",
     "edge_clip",
     "edge_extend",
     "edge_match",

@@ -32,7 +32,7 @@ Runs schema-detect, topo-detect, code-detect and name-detect on INPUT_FILE, each
 Reports and summary beside the input:
 
 ```sh
-  topo-tools validate admin3.parquet
+topo-tools validate admin3.parquet
 ```
 
 Reports in their own folder, explicit level columns:

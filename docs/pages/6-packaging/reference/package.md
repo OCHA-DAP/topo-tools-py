@@ -31,7 +31,7 @@ topo-tools package [OPTIONS] INPUT_FILE
 Defaults for all three outputs:
 
 ```sh
-  topo-tools package admin3.geojson
+topo-tools package admin3.geojson
 ```
 
 Choose where the outputs go:

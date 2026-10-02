@@ -30,7 +30,7 @@ Each polygon grows into the empty space next to it (coastlines, water bodies, di
 Basic run, output name chosen automatically:
 
 ```sh
-  topo-tools edge-extend example.geojson
+topo-tools edge-extend example.geojson
 ```
 
 Explicit output:

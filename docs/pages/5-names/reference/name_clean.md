@@ -32,7 +32,7 @@ Runs the same checks as name-detect, then fixes only what can't change a name's 
 Basic run, output and CSV report named automatically:
 
 ```sh
-  topo-tools name-clean admin3.parquet
+topo-tools name-clean admin3.parquet
 ```
 
 Explicit level columns and output names:

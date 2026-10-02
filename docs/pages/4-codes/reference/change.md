@@ -40,7 +40,7 @@ Each unit is classed as unchanged, renamed, modified, relocated, split, merged, 
 Basic run, matching units by overlap only:
 
 ```sh
-  topo-tools change admin2_2020.geojson admin2_2024.geojson
+topo-tools change admin2_2020.geojson admin2_2024.geojson
 ```
 
 Also match units that keep the same p-code:

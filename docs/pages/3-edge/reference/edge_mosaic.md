@@ -46,7 +46,7 @@ Like edge-match, but skips the extending step, for input already run through edg
 Clip an extended admin3 layer to a new admin0 boundary:
 
 ```sh
-  topo-tools edge-mosaic adm3_extended.parquet adm0_new.geojson
+topo-tools edge-mosaic adm3_extended.parquet adm0_new.geojson
 ```
 
 Clip every country's extended layer to a world admin0 layer:

@@ -33,5 +33,5 @@ A row for an admin2 unit in an admin4 file gets its admin2 code and name copied 
 Basic run, levels detected from the data:
 
 ```sh
-  topo-tools schema-fill admin4.geojson
+topo-tools schema-fill admin4.geojson
 ```

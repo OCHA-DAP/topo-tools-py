@@ -226,6 +226,12 @@ PNGs using the JSON sidecar's pixel mapping and font, never by importing
    final `name-detect`.
 6. [Packaging](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/6-packaging/how-to.md)
 
+   First run `validate` on the file to package, with the
+   `--code-field`/`--name-field` templates and
+   `--output-dir 06_packaging/validate/`. Show the user every `error` row
+   of the summary and package only once they are fixed or the user
+   accepts them.
+
    When the name-cleaned file in `05_names/` has more units than the stage 3
    output (the full geometry was coded first), ask whether to package it
    as is, or rerun `edge-match` on it with the same admin0, overwriting
@@ -238,7 +244,7 @@ After stage 6, export each release candidate (`rc`) sent for review:
 1. Set `{NN}` to the next candidate number after the highest in
    `03_outputs/{iso3}/{version}/`, starting at `01`. Never overwrite an
    existing candidate.
-2. Write every `06_packaging/` parquet as one layer of
+2. Write every parquet directly in `06_packaging/` (not `validate/`) as one layer of
    `03_outputs/{iso3}/{version}/{iso3}_{version}_rc{NN}.gdb` with
    `uv run <skill-dir>/scripts/convert.py to-gdb {gdb} {parquet}...`.
 3. Write `{iso3}_{version}_rc{NN}_review.gdb` alongside it with

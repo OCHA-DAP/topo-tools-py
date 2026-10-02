@@ -51,7 +51,7 @@ def split_help(text: str) -> tuple[str, list[str], list[list[str]]]:
     body, _, examples_text = text.partition("Examples:")
     paragraphs = [" ".join(p.split()) for p in body.split("\n\n") if p.strip()]
     examples = []
-    for block in re.split(r"\n\s*\n", examples_text.strip()):
+    for block in re.split(r"\n\s*\n", textwrap.dedent(examples_text).strip()):
         lines = [line for line in textwrap.dedent(block).splitlines() if line.strip()]
         if lines:
             examples.append(lines)

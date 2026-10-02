@@ -36,7 +36,7 @@ Units are dissolved by their code at every admin level found in the file. OUTPUT
 Default naming: input_admin1.geojson, input_admin2.geojson, ...:
 
 ```sh
-  topo-tools package-polygons admin3.geojson
+topo-tools package-polygons admin3.geojson
 ```
 
 Choose the output names and the level columns:

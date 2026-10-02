@@ -37,7 +37,7 @@ The whole input file is matched to the one overlay feature most of it falls in, 
 Clip an input layer against an overlay layer:
 
 ```sh
-  topo-tools edge-clip input.parquet adm1.geojson
+topo-tools edge-clip input.parquet adm1.geojson
 ```
 
 Explicit output:

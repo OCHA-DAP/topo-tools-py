@@ -32,7 +32,7 @@ Checks that admin levels can be detected with none skipped, that every level has
 Basic run, CSV report named automatically:
 
 ```sh
-  topo-tools schema-detect admin3.parquet
+topo-tools schema-detect admin3.parquet
 ```
 
 Explicit level columns:

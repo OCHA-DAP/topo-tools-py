@@ -32,7 +32,7 @@ Checks every name column of every level: blank and placeholder names, duplicates
 Basic run, CSV report named automatically:
 
 ```sh
-  topo-tools name-detect admin3.parquet
+topo-tools name-detect admin3.parquet
 ```
 
 Explicit level columns, report with geometry:

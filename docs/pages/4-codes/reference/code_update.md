@@ -46,7 +46,7 @@ OLD_FILE is the previous release, already coded. NEW_FILE is the new release. Un
 Basic run, code format and levels detected from OLD_FILE:
 
 ```sh
-  topo-tools code-update admin1_old.geojson admin1_new.geojson
+topo-tools code-update admin1_old.geojson admin1_new.geojson
 ```
 
 Also match units by a shared source ID, for units that moved:

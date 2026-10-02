@@ -30,7 +30,7 @@ Writes the problems found without changing the layer. OUTPUT_FILE defaults to IN
 Basic run, output name chosen automatically:
 
 ```sh
-  topo-tools topo-detect example.geojson
+topo-tools topo-detect example.geojson
 ```
 
 Explicit output:

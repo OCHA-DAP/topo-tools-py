@@ -1,7 +1,9 @@
 """Public functions library callers import, no click dependency."""
 
 from .change import change
+from .code_create import code_create
 from .code_detect import detect as code_detect
+from .code_update import code_update
 from .edge_clip import clip as edge_clip
 from .edge_extend import extend as edge_extend
 from .edge_match import match as edge_match
@@ -23,7 +25,9 @@ from .validate import validate
 
 __all__ = [
     "change",
+    "code_create",
     "code_detect",
+    "code_update",
     "edge_clip",
     "edge_extend",
     "edge_match",

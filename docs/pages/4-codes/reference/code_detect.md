@@ -32,7 +32,7 @@ Checks every level's codes: blank codes, a code with more than one name, a fines
 Basic run, CSV report named automatically:
 
 ```sh
-  topo-tools code-detect admin3.parquet
+topo-tools code-detect admin3.parquet
 ```
 
 Explicit level columns:
