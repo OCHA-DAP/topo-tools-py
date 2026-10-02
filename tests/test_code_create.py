@@ -624,3 +624,91 @@ def test_min_width_list_must_match_level_count(tmp_path):
         code_create(
             input_path, root_code="BHR", delimiter=".", min_width="2,3", **_TEMPLATES
         )
+
+
+def test_all_blank_code_column_is_numbered_by_name(tmp_path):
+    input_path, output_path = tmp_path / "in.parquet", tmp_path / "out.parquet"
+    rows = _source_coded_rows()
+    for row, blank in zip(rows, [None, "", " ", None], strict=True):
+        row["adm3_code"] = blank
+    _write_synthetic(input_path, rows)
+    code_create(
+        input_path, output_path, root_code="BH", delimiter="", min_width=1, **_TEMPLATES
+    )
+    assert _fetch(output_path, "adm3_code, adm3_name", "adm3_code") == [
+        ("BH111", "102"),
+        ("BH121", "101"),
+        ("BH211", "202"),
+        ("BH221", "201"),
+    ]
+
+
+@pytest.mark.parametrize("source_codes", ["replace", "copy", "embed"])
+def test_partly_missing_codes_raise(tmp_path, source_codes):
+    input_path = tmp_path / "in.parquet"
+    rows = _source_coded_rows()
+    rows[1]["adm3_code"] = ""
+    _write_synthetic(input_path, rows)
+    with pytest.raises(ValueError, match="1 row\\(s\\) with no source code"):
+        code_create(
+            input_path,
+            root_code="BH",
+            delimiter="",
+            min_width="auto",
+            source_codes=source_codes,
+            **_TEMPLATES,
+        )
+
+
+def test_integer_source_codes(tmp_path):
+    input_path, output_path = tmp_path / "in.parquet", tmp_path / "out.parquet"
+    rows = [
+        {
+            "adm0_code": 13,
+            "adm1_code": c1,
+            "adm1_name": f"A{c1}",
+            "adm2_code": c2,
+            "adm2_name": f"B{c2}",
+            "wkt": f"POLYGON(({i} 0, {i + 1} 0, {i + 1} 1, {i} 1, {i} 0))",
+        }
+        for i, (c1, c2) in enumerate([(7, 70), (7, 71), (8, 80)])
+    ]
+    _write_synthetic(input_path, rows)
+    code_create(
+        input_path,
+        output_path,
+        root_code="XY",
+        delimiter="",
+        min_width="auto",
+        source_codes="copy",
+        **_TEMPLATES,
+    )
+    assert _fetch(
+        output_path,
+        "adm0_code, adm0_code1, adm1_code, adm1_code1, adm2_code, adm2_code1",
+        "adm2_code",
+    ) == [
+        ("XY", "13", "XY1", "7", "XY11", "70"),
+        ("XY", "13", "XY1", "7", "XY12", "71"),
+        ("XY", "13", "XY2", "8", "XY21", "80"),
+    ]
+
+
+def test_structural_detection_ignores_empty_alternate_names(tmp_path):
+    input_path, output_path = tmp_path / "in.parquet", tmp_path / "out.parquet"
+    rows = [
+        {
+            "adm1_pcode": f"XY{p}",
+            "adm1_name": f"P{p}",
+            "adm2_pcode": f"XY{p}{c}",
+            "adm2_name": f"C{p}{c}",
+            "adm2_name1": None,
+            "wkt": f"POLYGON(({i} 0, {i + 1} 0, {i + 1} 1, {i} 1, {i} 0))",
+        }
+        for i, (p, c) in enumerate(
+            (p, c) for p in ("01", "02") for c in ("01", "02", "03", "04", "05")
+        )
+    ]
+    _write_synthetic(input_path, rows)
+    code_create(input_path, output_path, root_code="XY", delimiter="", min_width=2)
+    assert _fetch(output_path, "count(DISTINCT adm2_pcode)", "1") == [(10,)]
