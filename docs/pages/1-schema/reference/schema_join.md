@@ -2,7 +2,7 @@
 title: "schema-join"
 description: "Copy admin columns from a join layer onto the input features they overlap."
 sidebar:
-  order: 4
+  order: 5
 ---
 
 Copy admin columns from a join layer onto the input features they overlap.

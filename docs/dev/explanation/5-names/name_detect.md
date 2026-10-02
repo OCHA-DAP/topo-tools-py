@@ -35,10 +35,9 @@ trimmed and collapsed spaces). `suggested` comes from these.
 ## Real-data results
 
 Run on the finest level of every country in the portolan catalog (112
-countries, explicit `adm{n}_name`/`adm{n}_pcode`): about 820 rows, mostly
-missing names (KGZ, LKA, LBN), same-named units under one parent (COL, UKR,
-EGY, real places but still ambiguous for users), one code carrying 17 ward
-names (MMR), units with no code (MMR) and mojibake (COL). BHR stage 4
+countries, explicit `adm{n}_name`/`adm{n}_pcode`): mostly missing names
+(KGZ, LKA, LBN), same-named units under one parent (COL, UKR, EGY, real
+places but still ambiguous for users) and mojibake (COL). BHR stage 4
 reports one row, `KING FAHAD CAUSWAY`. The global OCHA, FAO and SALB layers
 (up to 216k rows) run in under 25 seconds at about 3 GB peak memory; a
 layer holding several countries and no level 0 code column reports

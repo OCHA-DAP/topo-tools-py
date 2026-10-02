@@ -1,7 +1,7 @@
 ---
 title: "schema-fill"
 sidebar:
-  order: 5
+  order: 6
   badge:
     text: Draft
     variant: caution

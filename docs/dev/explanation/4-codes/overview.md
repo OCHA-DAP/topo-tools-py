@@ -16,3 +16,5 @@ Why code-create and code-update share one hierarchical-code engine
   convention.
 - [code-update](code_update.md): reconciles an already-coded layer,
   retaining/replacing/retiring per unit.
+- [code-detect](code_detect.md): checks an already-coded layer's codes,
+  changing nothing.

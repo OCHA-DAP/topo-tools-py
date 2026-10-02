@@ -4,11 +4,9 @@ ERROR = "error"
 WARN = "warn"
 
 SEVERITY = {
-    "blank-code": ERROR,
     "blank-name": ERROR,
     "placeholder-name": ERROR,
     "duplicate-name": WARN,
-    "name-conflict": ERROR,
     "encoding-artifact": ERROR,
     "normalized-duplicate-name": WARN,
     "invisible-character": WARN,

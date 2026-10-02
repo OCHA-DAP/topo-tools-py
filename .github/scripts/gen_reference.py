@@ -20,9 +20,10 @@ PAGES = ROOT / "docs" / "pages"
 
 # command -> (docs step directory, sidebar order within that step)
 LAYOUT = {
-    "schema-map": ("1-schema", 3),
-    "schema-join": ("1-schema", 4),
-    "schema-fill": ("1-schema", 5),
+    "schema-detect": ("1-schema", 3),
+    "schema-map": ("1-schema", 4),
+    "schema-join": ("1-schema", 5),
+    "schema-fill": ("1-schema", 6),
     "topo-detect": ("2-topology", 3),
     "topo-clean": ("2-topology", 4),
     "edge-extend": ("3-edge", 3),
@@ -30,6 +31,7 @@ LAYOUT = {
     "edge-stitch": ("3-edge", 5),
     "edge-match": ("3-edge", 6),
     "edge-mosaic": ("3-edge", 7),
+    "code-detect": ("4-codes", 3),
     "code-create": ("4-codes", 4),
     "code-update": ("4-codes", 5),
     "change": ("4-codes", 6),
@@ -39,6 +41,7 @@ LAYOUT = {
     "package-polygons": ("6-packaging", 4),
     "package-points": ("6-packaging", 5),
     "package-lines": ("6-packaging", 6),
+    "validate": ("6-packaging", 7),
 }
 
 

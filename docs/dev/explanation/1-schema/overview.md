@@ -9,8 +9,9 @@ sidebar:
 ---
 
 Why schema-map's structural level detection (no naming convention
-assumed) underpins schema-map, schema-fill, and schema-join.
+assumed) underpins schema-detect, schema-map, schema-fill, and schema-join.
 
+- [schema-detect](schema_detect.md)
 - [schema-map](schema_map.md)
 - [schema-fill](schema_fill.md)
 - [schema-join](schema_join.md)

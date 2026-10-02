@@ -2,7 +2,7 @@
 title: "schema-fill"
 description: "Fill each row's empty finer admin columns from its coarser ones."
 sidebar:
-  order: 5
+  order: 6
 ---
 
 Fill each row's empty finer admin columns from its coarser ones.

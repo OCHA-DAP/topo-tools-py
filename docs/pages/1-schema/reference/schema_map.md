@@ -2,7 +2,7 @@
 title: "schema-map"
 description: "Rename a layer's admin columns to a standard schema, using a crosswalk."
 sidebar:
-  order: 3
+  order: 4
 ---
 
 Rename a layer's admin columns to a standard schema, using a crosswalk.

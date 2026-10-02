@@ -45,7 +45,6 @@ _EXPECTED = {
     "placeholder-name": ("XY0206", "error"),
     "blank-name": ("XY0207", "error"),
     "code-in-name": ("XY0208", "warn"),
-    "name-conflict": ("XY02", "error"),
 }
 
 _STEPS = ["inputs", "levels", "checks", "outputs"]
@@ -272,8 +271,7 @@ def test_code_in_name_needs_a_whole_pcode_token(tmp_path):
     assert found == {"XY0199"}
 
 
-def test_null_code_reported_once_per_parent(tmp_path):
-    found = _report_for(tmp_path, [])
+def test_uncoded_units_are_not_reported(tmp_path):
     path = tmp_path / "nocode.parquet"
     rows = [
         ("XY01", "North", f"XY01{i:02d}", n, f"اسم {i}") for i, n in enumerate(_FILLER)
@@ -282,10 +280,7 @@ def test_null_code_reported_once_per_parent(tmp_path):
     _write(path, rows)
     out = tmp_path / "issues.csv"
     detect(path, out, **_FIELDS)
-    report = _read(out)
-    assert [r["kind"] for r in report] == ["blank-code"]
-    assert report[0]["reason"].startswith("2 units under XY01 have no code")
-    assert found == set()
+    assert _read(out) == []
 
 
 def test_numbered_names_are_not_normalized_duplicates(tmp_path):

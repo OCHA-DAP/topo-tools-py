@@ -2,6 +2,7 @@
 
 from .api import (
     change,
+    code_detect,
     edge_clip,
     edge_extend,
     edge_match,
@@ -13,17 +14,20 @@ from .api import (
     package_lines,
     package_points,
     package_polygons,
+    schema_detect,
     schema_fill,
     schema_join,
     schema_map,
     topo_clean,
     topo_detect,
+    validate,
 )
 from .cli.main import cli
 
 __all__ = [
     "change",
     "cli",
+    "code_detect",
     "edge_clip",
     "edge_extend",
     "edge_match",
@@ -35,9 +39,11 @@ __all__ = [
     "package_lines",
     "package_points",
     "package_polygons",
+    "schema_detect",
     "schema_fill",
     "schema_join",
     "schema_map",
     "topo_clean",
     "topo_detect",
+    "validate",
 ]
