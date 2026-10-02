@@ -5,6 +5,7 @@
 """Render layers over OpenStreetMap and EOxCloudless base layers as PNG previews."""
 
 import argparse
+import functools
 import io
 import json
 import logging
@@ -29,7 +30,12 @@ log = logging.getLogger(__name__)
 _UA = "topo-tools-cod-ab-preview/1.0 (+https://github.com/OCHA-DAP/topo-tools-py)"
 _CACHE = Path(tempfile.gettempdir()) / "topo-tools-tiles"
 _CACHE_SECONDS = 7 * 24 * 3600
-_FONT = Path(__file__).parent / "fonts" / "NotoSans-CondensedSemiBold.ttf"
+_FONT_NAME = "NotoSans-CondensedSemiBold.ttf"
+_FONT = Path(__file__).parent / "fonts" / _FONT_NAME
+_FONT_URL = (
+    "https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/"
+    f"plugins/topo-tools/skills/cod-ab/scripts/fonts/{_FONT_NAME}"
+)
 _TILE = 256
 _PANEL_PX = 800
 _MAX_TILES = 30
@@ -261,8 +267,20 @@ def _overlay(view: _View, layers: dict) -> Image.Image:
     return big.resize(view.size, Image.Resampling.LANCZOS)
 
 
+@functools.cache
+def _font_path() -> Path:
+    # `uv run <url>` executes a temp copy of this script, without the fonts/ dir
+    if _FONT.exists():
+        return _FONT
+    path = Path(tempfile.gettempdir()) / "topo-tools-fonts" / _FONT_NAME
+    if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(_fetch(_FONT_URL))
+    return path
+
+
 def _font(size: int) -> ImageFont.FreeTypeFont:
-    return ImageFont.truetype(str(_FONT), size)
+    return ImageFont.truetype(str(_font_path()), size)
 
 
 def _tag(img: Image.Image, text: str, *, bottom: bool, size: int) -> None:
@@ -455,7 +473,7 @@ def basemap(args: argparse.Namespace) -> None:
         "pixel": "x = (lon + 180) / 360 * 256 * 2**zoom, "
         "y = (1 - asinh(tan(lat)) / pi) / 2 * 256 * 2**zoom; "
         "pixel = ((x, y) - origin) * scale",
-        "font": str(_FONT),
+        "font": str(_font_path()),
         "images": images,
     }
     out = args.out.with_name(f"{args.out.name}.json")

@@ -50,3 +50,11 @@ Install the [`topo-tools`](https://github.com/OCHA-DAP/topo-tools-py/blob/main/p
 </Tabs>
 
 3. Open an empty folder and run `/topo-tools:cod-ab`.
+
+## Without the plugin
+
+If the plugin install fails (for example, a network filter blocks topo-tools.org), open an empty folder and paste this prompt into Claude Code:
+
+```text
+Download https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/plugins/topo-tools/skills/cod-ab/SKILL.md verbatim with curl (Invoke-WebRequest on Windows), not a summarizing web fetch, then follow it.
+```

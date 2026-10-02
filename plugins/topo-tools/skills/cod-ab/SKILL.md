@@ -30,6 +30,13 @@ source files to GeoParquet and GeoParquet to GDB only with
 `uv run <skill-dir>/scripts/convert.py`. Never read a GDB with DuckDB's
 `ST_Read`, which returns 0 rows on Esri-authored GDBs.
 
+`<skill-dir>` is this skill's own directory. If `<skill-dir>/scripts/`
+doesn't exist (this file was pasted or fetched, not installed as a
+plugin), use
+`https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/plugins/topo-tools/skills/cod-ab`
+as `<skill-dir>` in every command below, e.g.
+`uv run https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/plugins/topo-tools/skills/cod-ab/scripts/convert.py`.
+
 ## Setup
 
 1. Check whether `uv` resolves on `PATH`. If not, install it with its
