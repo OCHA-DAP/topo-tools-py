@@ -505,7 +505,7 @@ def test_fixed_width_overflow_raises_without_delimiter(tmp_path):
         for i in range(10)
     ]
     _write_synthetic(input_path, rows)
-    with pytest.raises(ValueError, match="needs 2 digits"):
+    with pytest.raises(ValueError, match="past the top 10%"):
         code_create(input_path, root_code="BH", delimiter="", min_width=1, **_TEMPLATES)
 
 

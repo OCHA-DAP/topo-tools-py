@@ -3,7 +3,7 @@
 from duckdb import DuckDBPyConnection
 
 from topo_tools.core.code._code_format import CodeFormat
-from topo_tools.core.code._next_available import next_available_integer
+from topo_tools.core.code._next_available import used_integers
 
 
 def _sql_literal(value: str) -> str:
@@ -25,44 +25,40 @@ def assign_new_codes(  # noqa: PLR0913
 ) -> None:
     """Assign each row in table a new sequential code within its own parent group."""
     existing_codes = existing_codes or []
-    parents = [
-        row[0]
-        for row in conn.execute(
-            f'SELECT DISTINCT "{parent_column}" FROM "{table}"'
+    counts = dict(
+        conn.execute(
+            f'SELECT "{parent_column}", COUNT(*) FROM "{table}" GROUP BY 1'
         ).fetchall()
-    ]
-    base_by_parent = {
-        parent: next_available_integer(existing_codes, parent, fmt)
-        for parent in parents
-    }
+    )
+    width = fmt.width(level)
+    numbers = []
+    for parent, count in counts.items():
+        used = used_integers(existing_codes, parent, fmt)
+        base = max(used, default=0) + 1
+        picked = range(base, base + count)
+        if fmt.delimiter == "" and width is not None and picked[-1] >= 10**width:
+            # Placeholders like 99 count down from the top; number below them.
+            cutoff = 9 * 10 ** (width - 1)
+            base = max((i for i in used if i < cutoff), default=0) + 1
+            picked = range(base, base + count)
+            if picked[-1] >= cutoff:
+                msg = (
+                    f"level {level}: {parent!r} needs codes up to {picked[-1]}, past "
+                    f"the top 10% ({cutoff}+) kept for placeholders at min_width "
+                    f"{width}; without a delimiter the code can't be split, use a "
+                    "wider width"
+                )
+                raise ValueError(msg)
+        numbers.extend((parent, rank, n) for rank, n in enumerate(picked, start=1))
 
-    base_table = f"{table}_code_base"
+    numbers_table = f"{table}_code_numbers"
     conn.execute(f"""--sql
-        CREATE OR REPLACE TEMP TABLE "{base_table}" (
-            parent_code VARCHAR, base_n INTEGER
+        CREATE OR REPLACE TEMP TABLE "{numbers_table}" (
+            parent_code VARCHAR, rank INTEGER, n INTEGER
         )
     """)
-    conn.executemany(
-        f'INSERT INTO "{base_table}" VALUES (?, ?)', list(base_by_parent.items())
-    )
+    conn.executemany(f'INSERT INTO "{numbers_table}" VALUES (?, ?, ?)', numbers)
 
-    width = fmt.width(level)
-    if fmt.delimiter == "" and width is not None:
-        widest = conn.execute(f"""--sql
-            SELECT max(length(CAST(b.base_n - 1 + c.n AS VARCHAR)))
-            FROM (
-                SELECT "{parent_column}" AS parent_code, COUNT(*) AS n
-                FROM "{table}" GROUP BY 1
-            ) c
-            JOIN "{base_table}" b ON b.parent_code = c.parent_code
-        """).fetchone()[0]
-        if widest is not None and widest > width:
-            msg = (
-                f"level {level} needs {widest} digits but its min_width is {width}; "
-                "without a delimiter the code can't be split, use a wider width "
-                "or auto"
-            )
-            raise ValueError(msg)
     if width is None:
         # auto: pad every tail at this level to the widest one, retained included.
         existing_width = max(
@@ -80,15 +76,19 @@ def assign_new_codes(  # noqa: PLR0913
         CREATE OR REPLACE TEMP TABLE "{ranked_table}" AS
         WITH numbered AS (
             SELECT
-                src."{id_column}" AS id_value,
-                src."{parent_column}" AS parent_code,
-                CAST(
-                    base.base_n - 1 + ROW_NUMBER() OVER (
+                r.id_value, r.parent_code, CAST(num.n AS VARCHAR) AS tail
+            FROM (
+                SELECT
+                    src."{id_column}" AS id_value,
+                    src."{parent_column}" AS parent_code,
+                    ROW_NUMBER() OVER (
                         PARTITION BY src."{parent_column}" ORDER BY {order_sql}
-                    ) AS VARCHAR
-                ) AS tail
-            FROM "{table}" src
-            JOIN "{base_table}" base ON base.parent_code = src."{parent_column}"
+                    ) AS rank
+                FROM "{table}" src
+            ) r
+            JOIN "{numbers_table}" num
+              ON num.parent_code IS NOT DISTINCT FROM r.parent_code
+             AND num.rank = r.rank
         )
         SELECT
             id_value,
@@ -103,5 +103,5 @@ def assign_new_codes(  # noqa: PLR0913
         FROM "{ranked_table}" r
         WHERE t."{id_column}" = r.id_value
     """)
-    conn.execute(f'DROP TABLE IF EXISTS "{base_table}"')
+    conn.execute(f'DROP TABLE IF EXISTS "{numbers_table}"')
     conn.execute(f'DROP TABLE IF EXISTS "{ranked_table}"')
