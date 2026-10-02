@@ -106,6 +106,11 @@ parent codes:
 - A new code MUST be numbered above every code its parent had at that
   level in OLD, retired codes included, so no OLD code is ever issued to a
   different unit (see `docs/adr/0126`).
+- Without a delimiter, when the next number above the parent's highest
+  code doesn't fit the level's width, new codes MUST continue above its
+  highest code below the top 10% of the range (`90` at width 2, `900` at
+  width 3), where placeholders like `99` sit, raising `ValueError` if
+  they'd reach it (see `docs/adr/0127`).
 - A retained code rewritten under a new parent MUST NOT repeat any OLD
   code at that level or another retained code; that unit gets a new code
   instead (outcome `new`, `predecessor_code` its OLD code).

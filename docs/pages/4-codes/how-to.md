@@ -13,10 +13,12 @@ code:
 The code format, including each level's width, is detected from the
 previous release's codes, with or without a delimiter (`SN0101` or
 `XYZ.001.001`). Every unit that changed gets a code above every code its
-parent had in the previous release, so no code is ever issued twice. With
-codes without a delimiter (`SN0101`), a unit matched 1:1 keeps its code
-even when its boundary was re-digitised (`modified`). With a delimiter
-(`XYZ.001.001`), it gets a new code. Review the changelog CSV it writes:
+parent had in the previous release, so no code is ever issued twice.
+Without a delimiter, codes in the top 10% of the range (`90`-`99` at width
+2) are treated as placeholders once a parent's codes reach them, and new
+codes continue below them. With codes without a delimiter (`SN0101`), a
+unit matched 1:1 keeps its code even when its boundary was re-digitised
+(`modified`). With a delimiter (`XYZ.001.001`), it gets a new code. Review the changelog CSV it writes:
 every `split`, `merge`, `created` or `removed` unit gets a new or retired
 code.
 
