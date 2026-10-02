@@ -122,7 +122,7 @@ custom_dir = "overrides"
 font = false
 language = "en"
 favicon = "assets/images/icon.png"
-logo = "assets/images/icon.png"
+logo = "assets/images/ocha-white.png"
 features = [
   "announce.dismiss",
   "content.code.annotate",
