@@ -5,10 +5,10 @@ sidebar:
   label: "How-to"
 ---
 
-Run `package` against
-the coded output of step 4, with step 5's name fixes applied.
+Run `package` against the name-cleaned output of
+[step 5](../5-names/how-to.md).
 
-    topo-tools package admin2_coded.parquet --output "release/{x}.parquet" \
+    topo-tools package admin3_names_edited.parquet --output "release/{x}.parquet" \
       --name-field "adm{n}_name" --code-field "adm{n}_code" \
       --output-code-field "adm{n}_pcode"
 
