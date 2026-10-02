@@ -42,6 +42,15 @@
   backdrop-filter: none;
 }
 
+.md-header .md-logo img {
+  height: 1.8rem;
+}
+
+/* The OCHA logo is white, so it goes dark on the drawer's white background. */
+.md-nav__title .md-logo img {
+  filter: brightness(0);
+}
+
 .md-tabs {
   color: var(--hdx-brand-05);
   background-color: var(--hdx-brand-7);
