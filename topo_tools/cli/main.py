@@ -12,6 +12,7 @@ from topo_tools.api import edge_extend as _edge_extend
 from topo_tools.api import edge_match as _edge_match
 from topo_tools.api import edge_mosaic as _edge_mosaic
 from topo_tools.api import edge_stitch as _edge_stitch
+from topo_tools.api import name_clean as _name_clean
 from topo_tools.api import name_detect as _name_detect
 from topo_tools.api import package as _package
 from topo_tools.api import schema_fill as _schema_fill
@@ -420,6 +421,113 @@ def name_detect(  # noqa: PLR0913, PLR0917
     try:
         _name_detect(
             input_file,
+            Path(issues_file) if issues_file is not None else None,
+            name_field=name_field,
+            code_field=code_field,
+            threads=threads,
+            tmp_dir=tmp_dir,
+            overwrite=overwrite,
+            debug=debug,
+            step=step,
+        )
+    except (FileExistsError, RuntimeError, ValueError) as e:
+        raise click.ClickException(str(e)) from e
+
+
+@cli.command(name="name-clean")
+@click.argument("input_file", envvar="INPUT_FILE")
+@click.argument("output_file", envvar="OUTPUT_FILE", required=False, default=None)
+@click.argument("issues_file", envvar="ISSUES_FILE", required=False, default=None)
+@click.option(
+    "--name-field",
+    envvar="NAME_FIELD",
+    default=None,
+    help="Name column of each level, with {n} for the level number, e.g. "
+    "'adm{n}_name'. Give it with --code-field. Without both, levels are "
+    "detected from the data.",
+)
+@click.option(
+    "--code-field",
+    envvar="CODE_FIELD",
+    default=None,
+    help="Code column of each level, with {n} for the level number, e.g. "
+    "'adm{n}_code'. Give it with --name-field. Without both, levels are "
+    "detected from the data.",
+)
+@click.option(
+    "--overwrite",
+    envvar="OVERWRITE",
+    type=bool,
+    default=True,
+    show_default=True,
+    help="Replace output files that already exist. Pass --overwrite=false to "
+    "stop with an error instead.",
+)
+@click.option(
+    "--threads",
+    envvar="THREADS",
+    type=int,
+    default=None,
+    help="Number of threads DuckDB uses (default: all CPU cores).",
+)
+@click.option(
+    "--debug",
+    envvar="DEBUG",
+    is_flag=True,
+    help="Keep intermediate tables, export them to Parquet, and log the time "
+    "and memory each query takes.",
+)
+@click.option(
+    "--tmp-dir",
+    envvar="TMP_DIR",
+    default=None,
+    help="Folder for the working DuckDB database and intermediate files "
+    "(default: a new temporary folder, deleted afterwards unless --debug is set).",
+)
+@click.option(
+    "--step",
+    envvar="STEP",
+    type=click.Choice(["inputs", "levels", "checks", "fix", "outputs"]),
+    default=None,
+    help="Run only this step of the tool, for debugging.",
+)
+def name_clean(  # noqa: PLR0913, PLR0917
+    input_file: str,
+    output_file: str | None,
+    issues_file: str | None,
+    name_field: str | None,
+    code_field: str | None,
+    overwrite: bool,  # noqa: FBT001
+    threads: int | None,
+    debug: bool,  # noqa: FBT001
+    tmp_dir: str | None,
+    step: str | None,
+) -> None:
+    """Fix the safe problems in the unit names of one coded layer.
+
+    Runs the same checks as name-detect, then fixes only what can't change
+    a name's meaning: spacing, invisible characters, accents stored as
+    separate characters, and text read with the wrong encoding when the
+    repair is certain. Everything else stays as it is, for review.
+    OUTPUT_FILE defaults to INPUT_FILE with a "_cleaned" suffix; ISSUES_FILE
+    defaults to INPUT_FILE with a "_name_issues" suffix, as CSV, with a
+    "fixed" column marking what was fixed.
+
+    \b
+    Examples:
+      # Basic run, output and CSV report named automatically
+      topo-tools name-clean admin3.parquet
+
+    \b
+      # Explicit level columns and output names
+      topo-tools name-clean admin3.parquet admin3_clean.parquet \\
+        admin3_name_issues.csv --name-field adm{n}_name --code-field adm{n}_code
+    """
+    logger.info("--debug=%s", debug)
+    try:
+        _name_clean(
+            input_file,
+            Path(output_file) if output_file is not None else None,
             Path(issues_file) if issues_file is not None else None,
             name_field=name_field,
             code_field=code_field,

@@ -4,7 +4,7 @@
 
 `topo-tools` is a Python package of DuckDB-powered geospatial topology utilities,
 `pip install`-able and importable, mirroring the organization of the sister JS app
-at `../topo-tools-js` (a DuckDB-WASM web app with the same tools). It ships eighteen
+at `../topo-tools-js` (a DuckDB-WASM web app with the same tools). It ships nineteen
 tools, all used for improving administrative boundary datasets and matching
 sub-national boundaries to national boundaries (import-linter contracts
 governing which tool may depend on which are in `docs/dev/shared.md`).
@@ -27,6 +27,7 @@ below them:
 - **edge-mosaic**: `assign-one` → `edge-clip` → `edge-stitch`, fitting an already-extended input layer (a prior `edge_extend()` output) into a new/different overlay layer, skipping Voronoi extension entirely. See `docs/dev/explanation/3-edge/edge_mosaic.md`.
 - **topo-clean**: `topo-detect` → fixes the reported coverage defects (gaps, overlaps) with `ST_CoverageClean`, reporting the fix outcome in the issues file for manual review. See `docs/dev/explanation/2-topology/topo_clean.md`.
 - **name-detect**: checks a coded layer's unit names (blanks, placeholders, duplicates under a parent, a code with several names, encoding errors, invisible characters, spacing, case, mixed scripts) and writes a CSV report, rule-based DuckDB SQL, never modifying the input. See `docs/dev/explanation/5-names/name_detect.md`.
+- **name-clean**: `name-detect` → fixes only the safe name defects (spacing, invisible characters, NFC, verified encoding repairs) via `name-detect`'s own `name_clean()` macro, marking them `fixed` in the issues report; case, spelling and duplicates are left for review. See `docs/dev/explanation/5-names/name_clean.md`.
 - **change**: compares an old/new polygon layer pair and classifies every unit (unchanged/renamed/modified/relocated/split/merge/complex/created/removed) via spatial overlap and optional code/name identity linking; writes a tabular changelog plus a colored spatial overlay layer. See `docs/dev/explanation/4-codes/change.md`.
 - **schema-map**: maps a source-column → target-schema crosswalk by inferring the admin hierarchy structurally (cardinality/containment, never column names) and classifying code vs. name by value shape, deterministically, no LLM, then renames/drops columns per it into a `_mapped` copy, writing the crosswalk CSV beside it. `--csv` applies a hand-edited crosswalk instead (columns in its row order), `--map-only` writes only the crosswalk (see `docs/adr/0116`). See `docs/dev/explanation/1-schema/schema_map.md`.
 - **schema-fill**: stamps a new `adm_lvl` column (overridable via `--depth-column`) with each row's real depth, then cascades each admin-hierarchy column down to that depth, pinned per row so a genuine NULL at a row's own real depth is never backfilled from a shallower ancestor; levels derived structurally by default, or via an explicit `--name-field`/`--code-field` pair; run against an already-clipped/stitched layer, then `package-polygons` to dissolve every level normally. See `docs/dev/explanation/1-schema/schema_fill.md`.
@@ -54,7 +55,7 @@ are the one exception, see `docs/dev/explanation/3-edge/edge_match.md`). Three l
 each with a specific job (mirroring `geoparquet-io`'s `core`/`api`/`cli`
 split):
 
-- `topo_tools/core/{edge_extend,assign,edge_clip,edge_stitch,topo_detect,dissolve,schema_fill,schema_join,package_polygons,package_points,package_lines,edge_match,edge_mosaic,topo_clean,change,code_create,code_update,name_detect}/`:
+- `topo_tools/core/{edge_extend,assign,edge_clip,edge_stitch,topo_detect,dissolve,schema_fill,schema_join,package_polygons,package_points,package_lines,edge_match,edge_mosaic,topo_clean,change,code_create,code_update,name_detect,name_clean}/`:
   stage implementations. `core.edge_match`/`core.edge_mosaic` call
   `core.edge_clip`/`core.edge_stitch` stage functions directly (not through
   their own `api.*()`), the same pattern `core.edge_match` uses to call
@@ -83,7 +84,7 @@ split):
   `docs/adr/0092`); `schema-fill` does not call `core.dissolve` itself, a
   caller runs `package-polygons` separately after filling (see
   `docs/dev/explanation/1-schema/schema_fill.md`).
-- `topo_tools/api/{edge_extend,edge_clip,edge_stitch,topo_detect,schema_map,schema_fill,schema_join,package_polygons,package_points,package_lines,package,edge_match,edge_mosaic,topo_clean,change,code_create,code_update,name_detect}.py`:
+- `topo_tools/api/{edge_extend,edge_clip,edge_stitch,topo_detect,schema_map,schema_fill,schema_join,package_polygons,package_points,package_lines,package,edge_match,edge_mosaic,topo_clean,change,code_create,code_update,name_detect,name_clean}.py`:
   public API functions; each chains its own tool's stages for exactly one
   file (or file pair) per call, except `edge-mosaic`'s and `edge-match`'s
   input roles, which MAY span multiple files (see
@@ -219,6 +220,9 @@ uv run topo-tools code-update admin1_old.geojson admin1_new.geojson
 
 # Run the name-detect tool (check unit names, CSV issues report)
 uv run topo-tools name-detect admin3.parquet
+
+# Run the name-clean tool (fix safe name defects, report the rest)
+uv run topo-tools name-clean admin3.parquet
 
 # Format and lint
 uv run ruff format && uv run ruff check

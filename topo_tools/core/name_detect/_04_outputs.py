@@ -21,7 +21,7 @@ _ORDER = (
 )
 
 
-def _report_sql(name: str) -> str:
+def _report_sql(name: str, fixed: str | None) -> str:
     """Per-unit findings, a column-wide per-name kind collapsed into one row."""
     kinds = ", ".join(f"'{k}'" for k in PER_NAME_KINDS)
     severity = " ".join(f"WHEN '{k}' THEN '{v}'" for k, v in SEVERITY.items())
@@ -56,23 +56,33 @@ def _report_sql(name: str) -> str:
                ) AS key,
                kind, CASE kind {severity} END AS severity, level, name_column,
                code_a, name_a, code_b, name_b, suggested, reason
+               {f", {fixed} AS fixed" if fixed else ""}
         FROM merged
     """
 
 
 def main(
-    conn: DuckDBPyConnection, name: str, dest: Path, *, debug: bool = False
+    conn: DuckDBPyConnection,
+    name: str,
+    dest: Path,
+    *,
+    fixed: str | None = None,
+    debug: bool = False,
 ) -> None:
-    """Write `{name}_04` to dest: CSV without geometry, Parquet with each unit's."""
+    """Write `{name}_04` to dest: CSV without geometry, Parquet with each unit's.
+
+    fixed, if given, is a SQL expression over a report row added as `fixed`.
+    """
+    order = f"{_ORDER}, fixed" if fixed else _ORDER
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_04" AS
-        SELECT * FROM ({_report_sql(name)})
+        SELECT * FROM ({_report_sql(name, fixed)})
         ORDER BY severity, level, name_column, kind, code_a, name_a
     """)
     dest.parent.mkdir(exist_ok=True, parents=True)
     if dest.suffix == ".csv":
         conn.execute(
-            f"COPY (SELECT {_ORDER} FROM \"{name}_04\") TO '{dest}' "
+            f"COPY (SELECT {order} FROM \"{name}_04\") TO '{dest}' "
             f"{TABLE_COPY_OPTS['.csv']}"
         )
         add_csv_bom(dest)
@@ -91,7 +101,7 @@ def main(
         )
         conn.execute(f"""--sql
             CREATE OR REPLACE TABLE "{name}_04_tmp1" AS
-            SELECT {_ORDER}, g.geom
+            SELECT {order}, g.geom
             FROM "{name}_04" LEFT JOIN ({unions}) g USING (key)
             ORDER BY severity, level, name_column, kind, code_a, name_a
         """)

@@ -5,17 +5,18 @@ sidebar:
   label: "How-to"
 ---
 
-Continues from the coded output of [step 4](../4-codes/how-to.md). List
-the name problems:
+Continues from the coded output of [step 4](../4-codes/how-to.md). Fix the
+safe name problems and list the rest:
 
-    topo-tools name-detect admin3_coded.parquet admin3_name_issues.csv \
-      --name-field adm{n}_name --code-field adm{n}_code
+    topo-tools name-clean admin3_coded.parquet admin3_names.parquet \
+      admin3_name_issues.csv --name-field adm{n}_name --code-field adm{n}_code
 
-Open the CSV in a spreadsheet. Each row names the unit by its code
-(`code_a`, and `code_b` for a pair). Fix every `error` row. Review each
-`warn` row; where `suggested` holds a value, it's the safe fix (spacing,
-invisible characters, accents stored as separate characters, or text
-read with the wrong encoding). A row with no code covers a whole column.
+This fixes spacing, invisible characters, accents stored as separate
+characters, and text read with the wrong encoding when the repair is
+certain, marking those rows `fixed`. Open the CSV in a spreadsheet and
+filter out the fixed rows. Each row names the unit by its code (`code_a`,
+and `code_b` for a pair). Fix every `error` row and review each `warn` row.
+A row with no code covers a whole column.
 
 Also check, against the reference release, each unit whose code already
 existed in `{ref_version}`: a real administrative rename is expected, a
@@ -29,6 +30,6 @@ once no row still differs from `adm{N}_name`. Keep any `adm{N}_name{k}`
 mapped from the source in stage 1, since it's an alternate name, not a
 conflict.
 
-Write the fixed names back to the coded file, then run `name-detect` again
+Write the fixed names back to the cleaned file, then run `name-detect` again
 until no `error` row is left. Keep the last issues file: it's this step's
 record, written even when empty.

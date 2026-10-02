@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   case, accents or punctuation, invisible characters, NFC, spacing, all-caps
   outliers, mixed Latin/Cyrillic/Greek words, codes inside names. Safe fixes
   are given in `suggested`. Rule-based, no new dependency.
+- `name-clean`: runs the `name-detect` checks and fixes only what can't
+  change a name's meaning (spacing, invisible characters, NFC, encoding
+  repairs that are certain), writing the cleaned layer and the report with
+  a `fixed` column. Case, spelling and duplicates are left for review.
 
 ### Changed
 

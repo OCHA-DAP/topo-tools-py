@@ -6,6 +6,7 @@ from .edge_extend import extend as edge_extend
 from .edge_match import match as edge_match
 from .edge_mosaic import mosaic as edge_mosaic
 from .edge_stitch import stitch as edge_stitch
+from .name_clean import clean as name_clean
 from .name_detect import detect as name_detect
 from .package import package
 from .package_lines import package_lines
@@ -24,6 +25,7 @@ __all__ = [
     "edge_match",
     "edge_mosaic",
     "edge_stitch",
+    "name_clean",
     "name_detect",
     "package",
     "package_lines",
