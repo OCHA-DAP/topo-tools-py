@@ -206,7 +206,9 @@ def main(
     ]
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_03_micro" AS
-        SELECT * REPLACE ('micro-polygon-' || row_number() OVER () AS key)
+        SELECT * REPLACE (
+            'micro-polygon-' || row_number() OVER (ORDER BY unit_a, hash(geom)) AS key
+        )
         FROM ({" UNION ALL BY NAME ".join(parts)})
     """)
     for tmp in (f"{name}_03_tmp1", f"{name}_03_tmp2"):

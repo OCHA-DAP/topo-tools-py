@@ -224,6 +224,7 @@ def main(
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_02" AS
         SELECT * EXCLUDE (left_fid, right_fid) FROM "{name}_02"
+        ORDER BY left_fid, right_fid NULLS LAST, hash(geom)
     """)
 
     for table in [

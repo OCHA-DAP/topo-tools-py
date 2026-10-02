@@ -32,7 +32,7 @@ def _detect_or_empty(
 def _build_gaps(conn: DuckDBPyConnection, tmp: str, table: str) -> None:
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{tmp}" AS
-        SELECT row_number() OVER () AS n, geom
+        SELECT row_number() OVER (ORDER BY hash(geom)) AS n, geom
         FROM {gap_geometries_sql(table)}
     """)
 
@@ -65,7 +65,7 @@ def _build_overlaps(conn: DuckDBPyConnection, tmp: str, table: str) -> None:
                   OR ST_Contains(b.geom, a.geom)
               )
         )
-        SELECT row_number() OVER () AS n, unit_a, unit_b, geom
+        SELECT row_number() OVER (ORDER BY unit_a, unit_b) AS n, unit_a, unit_b, geom
         FROM pairs
         WHERE geom IS NOT NULL AND NOT ST_IsEmpty(geom)
     """)
@@ -75,7 +75,7 @@ def _build_overlaps(conn: DuckDBPyConnection, tmp: str, table: str) -> None:
 def _build_micro(conn: DuckDBPyConnection, tmp: str, table: str) -> None:
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{tmp}" AS
-        SELECT row_number() OVER () AS n, fid AS unit_a, geom
+        SELECT row_number() OVER (ORDER BY fid, hash(geom)) AS n, fid AS unit_a, geom
         FROM (SELECT fid, UNNEST(ST_Dump(geom)).geom AS geom FROM "{table}")
         WHERE {is_micro_sql("geom")}
     """)
