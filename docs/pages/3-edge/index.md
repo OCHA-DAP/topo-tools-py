@@ -1,6 +1,6 @@
 ---
 status: draft
-title: "3. Edge matching"
+title: "Edge matching"
 ---
 
 Third step of boundary cleaning. This step fits the cleaned layer's

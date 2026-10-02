@@ -1,6 +1,6 @@
 ---
 status: draft
-title: "6. Packaging"
+title: "Packaging"
 ---
 
 Last step of boundary cleaning. This step writes the release files from

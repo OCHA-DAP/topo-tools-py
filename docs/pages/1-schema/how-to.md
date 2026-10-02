@@ -1,5 +1,5 @@
 ---
-title: "1. Schema"
+title: "Schema"
 ---
 
 Run `schema-map` on each supplied level below admin0:

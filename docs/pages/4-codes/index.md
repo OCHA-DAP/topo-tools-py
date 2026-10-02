@@ -1,6 +1,6 @@
 ---
 status: draft
-title: "4. Codes"
+title: "Codes"
 ---
 
 Fourth step of boundary cleaning. This step gives every unit a code: its
