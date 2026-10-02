@@ -645,3 +645,117 @@ def test_modified_keeps_code_without_delimiter(tmp_path):
         ("XY5102",),
         ("XY5201",),
     ]
+
+
+def _two_parent_rows():
+    return [
+        {
+            "adm1_code": c1,
+            "adm1_name": n1,
+            "adm2_code": f"{i:02d}",
+            "adm2_name": f"{n1}{i}",
+            "wkt": _square(i, y),
+        }
+        for c1, n1, y in (("51", "A", 0), ("52", "B", 1))
+        for i in range(1, 11)
+    ]
+
+
+def _code_old(tmp_path, rows):
+    raw_path = tmp_path / "raw.parquet"
+    _write_synthetic(raw_path, rows)
+    old_coded_path = tmp_path / "old_coded.parquet"
+    code_create(
+        raw_path,
+        old_coded_path,
+        root_code="XY",
+        delimiter="",
+        min_width="auto",
+        source_codes="embed",
+        code_field="adm{n}_code",
+        name_field="adm{n}_name",
+    )
+    return old_coded_path
+
+
+def test_moved_unit_never_takes_a_code_already_used(tmp_path):
+    """A unit moved under a parent that already has its code tail gets a new code."""
+    old_rows = _two_parent_rows()
+    old_coded_path = _code_old(tmp_path, old_rows)
+
+    new_rows = [
+        {**r, "adm2_code": f"{r['adm1_code']}{r['adm2_code']}"} for r in old_rows
+    ]
+    new_rows[9] = {**new_rows[9], "adm1_code": "52", "adm1_name": "B"}
+    new_path = tmp_path / "new.parquet"
+    _write_synthetic(new_path, new_rows)
+    output_path = tmp_path / "new_coded.parquet"
+    changelog_path = tmp_path / "changelog.csv"
+    code_update(old_coded_path, new_path, output_path, changelog_path, **_TEMPLATES_AB)
+
+    codes = [c for (c,) in _fetch(output_path, "adm2_code", "adm2_code")]
+    assert len(codes) == len(set(codes))
+    assert ("XY5211", "XY5110") in _fetch(
+        output_path, "adm2_code, predecessor_code", "adm2_code"
+    )
+    moved = _rows_where(_read_changelog(changelog_path), old_code="XY5110")
+    assert [(r["new_code"], r["code_outcome"]) for r in moved] == [("XY5211", "new")]
+
+
+def test_same_names_under_different_parents_stay_apart(tmp_path):
+    """A names-only NEW level never merges same-named units under two parents."""
+    old_rows = [{**r, "adm2_name": f"N{r['adm2_code']}"} for r in _two_parent_rows()]
+    old_coded_path = _code_old(tmp_path, old_rows)
+
+    new_rows = [{k: v for k, v in r.items() if k != "adm2_code"} for r in old_rows]
+    new_path = tmp_path / "new.parquet"
+    _write_synthetic(new_path, new_rows)
+    output_path = tmp_path / "new_coded.parquet"
+    changelog_path = tmp_path / "changelog.csv"
+    code_update(old_coded_path, new_path, output_path, changelog_path, **_TEMPLATES_AB)
+
+    columns = "adm1_code, adm2_code"
+    assert _fetch(output_path, columns, "adm2_code") == _fetch(
+        old_coded_path, columns, "adm2_code"
+    )
+
+
+@pytest.mark.parametrize(
+    ("side", "column", "value", "match"),
+    [
+        ("old", "adm2_code", None, "no code"),
+        ("new", "adm2_name", None, "no code"),
+        ("new", "adm1_name", "Z", "more than one"),
+    ],
+)
+def test_missing_code_or_mixed_name_raises(tmp_path, side, column, value, match):
+    """A NULL code (or seeding name), or a code with two names, raises up front."""
+    rows = [{**r, "adm2_name": f"N{r['adm2_code']}"} for r in _two_parent_rows()]
+    old_rows = [
+        {
+            **r,
+            "adm1_code": f"XY{r['adm1_code']}",
+            "adm2_code": f"XY{r['adm1_code']}{r['adm2_code']}",
+        }
+        for r in rows
+    ]
+    new_rows = [{k: v for k, v in r.items() if k != "adm2_code"} for r in rows]
+    target = old_rows if side == "old" else new_rows
+    target[0][column] = value
+    old_path, new_path = tmp_path / "old.parquet", tmp_path / "new.parquet"
+    _write_synthetic(old_path, old_rows)
+    _write_synthetic(new_path, new_rows)
+    with pytest.raises(ValueError, match=match):
+        code_update(old_path, new_path, tmp_path / "out.parquet", **_TEMPLATES_AB)
+
+
+def test_same_named_siblings_seeded_from_names_raise(tmp_path):
+    """Two NEW units with one name under one parent can't be told apart."""
+    old_rows = [{**r, "adm2_name": f"N{r['adm2_code']}"} for r in _two_parent_rows()]
+    old_coded_path = _code_old(tmp_path, old_rows)
+    new_rows = [{k: v for k, v in r.items() if k != "adm2_code"} for r in old_rows]
+    new_rows[1]["adm2_name"] = new_rows[0]["adm2_name"]
+    new_path = tmp_path / "new.parquet"
+    _write_synthetic(new_path, new_rows)
+    with pytest.raises(ValueError, match="repeat under one parent"):
+        code_update(old_coded_path, new_path, tmp_path / "out.parquet", **_TEMPLATES_AB)

@@ -265,3 +265,27 @@ def test_detect_undelimited_format_per_level_widths():
         assert not has_delimiter(conn, "t", "c3")
         fmt = detect_undelimited_format(conn, "t", {1: "c1", 2: "c2", 3: "c3"})
     assert fmt == _UNDELIMITED
+
+
+def test_assign_new_codes_numbers_below_placeholders_without_delimiter():
+    """A parent holding 99 at width 2 numbers past its highest code below 90."""
+    with duckdb.connect() as conn:
+        conn.execute(
+            "CREATE TABLE t (id_col INTEGER, parent_code VARCHAR, code_col VARCHAR)"
+        )
+        conn.executemany(
+            "INSERT INTO t VALUES (?, ?, ?)", [(1, "BH51", None), (2, "BH51", None)]
+        )
+        assign_new_codes(
+            conn,
+            "t",
+            id_column="id_col",
+            parent_column="parent_code",
+            sort_columns=["id_col"],
+            code_column="code_col",
+            fmt=_UNDELIMITED,
+            level=1,
+            existing_codes=["BH5101", "BH5102", "BH5104", "BH5193", "BH5198", "BH5199"],
+        )
+        rows = conn.execute("SELECT code_col FROM t ORDER BY id_col").fetchall()
+    assert rows == [("BH5105",), ("BH5106",)]

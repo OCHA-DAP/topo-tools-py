@@ -6,6 +6,7 @@ from duckdb import DuckDBPyConnection
 
 from topo_tools.core.code import (
     CodeFormat,
+    check_unique_names,
     detect_code_format,
     detect_undelimited_format,
     has_delimiter,
@@ -61,6 +62,14 @@ def _resolve_side(
             if columns[n] not in present:
                 name = names[n] if names[n] in present else None
                 seed_code_from_names(conn, table, n, columns[n], name)
+                if n - 1 in columns:
+                    # Same-named units under different parents must stay apart.
+                    conn.execute(
+                        f'UPDATE "{table}" SET "{columns[n]}" = '
+                        f'"{columns[n - 1]}"::VARCHAR || \' > \' || "{columns[n]}"'
+                    )
+                if n == max(levels):
+                    check_unique_names(conn, table, n, columns[n])
         return SideLevels(
             columns=columns, names=names, schema=schema, level_columns=None
         )
@@ -105,6 +114,36 @@ def _resolve_side(
     )
 
 
+def _check_codes_and_names(
+    conn: DuckDBPyConnection, table: str, side: SideLevels
+) -> None:
+    """Raise on a missing code, or a code with more than one name, at any level."""
+    present = {r[0] for r in conn.execute(f'DESCRIBE "{table}"').fetchall()}
+    for n, code in sorted(side.columns.items()):
+        (missing,) = conn.execute(f"""--sql
+            SELECT COUNT(*) FROM "{table}"
+            WHERE "{code}" IS NULL OR trim("{code}"::VARCHAR) = ''
+        """).fetchone()
+        if missing:
+            msg = f"level {n} ({code!r}) has {missing} row(s) with no code in {table}"
+            raise ValueError(msg)
+        name = side.names[n]
+        if name is None or name not in present:
+            continue
+        (mixed,) = conn.execute(f"""--sql
+            SELECT COUNT(*) FROM (
+                SELECT "{code}" FROM "{table}" GROUP BY 1
+                HAVING COUNT(DISTINCT "{name}") > 1
+            )
+        """).fetchone()
+        if mixed:
+            msg = (
+                f"level {n}: {mixed} {code!r} value(s) in {table} have more than "
+                f"one {name!r} value"
+            )
+            raise ValueError(msg)
+
+
 def main(  # noqa: PLR0913
     conn: DuckDBPyConnection,
     old_table: str,
@@ -131,6 +170,8 @@ def main(  # noqa: PLR0913
             "human decision, not an automatic pass"
         )
         raise ValueError(msg)
+    _check_codes_and_names(conn, old_table, side_a)
+    _check_codes_and_names(conn, new_table, side_b)
 
     if root_code is None or delimiter is None or min_width is None:
         finest = max(side_a.columns)

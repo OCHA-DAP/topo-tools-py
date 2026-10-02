@@ -30,6 +30,9 @@ title: "code-create"
   column but no code column, or a code column with no non-blank value,
   MUST get a code column seeded from its names; a level with neither MUST
   raise `ValueError`.
+- When the finest level's codes are seeded from names, `code-create` MUST
+  raise `ValueError` if a name repeats under one parent, since seeding
+  would merge those units.
 - `code-create` MUST raise `ValueError` in structural mode ("group units like a
   level") if detection sets any column aside as a supplemental coarser
   grouping, and ("a coarser level merged into this one") if any member of

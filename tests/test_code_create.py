@@ -505,7 +505,7 @@ def test_fixed_width_overflow_raises_without_delimiter(tmp_path):
         for i in range(10)
     ]
     _write_synthetic(input_path, rows)
-    with pytest.raises(ValueError, match="needs 2 digits"):
+    with pytest.raises(ValueError, match="past the top 10%"):
         code_create(input_path, root_code="BH", delimiter="", min_width=1, **_TEMPLATES)
 
 
@@ -712,3 +712,19 @@ def test_structural_detection_ignores_empty_alternate_names(tmp_path):
     _write_synthetic(input_path, rows)
     code_create(input_path, output_path, root_code="XY", delimiter="", min_width=2)
     assert _fetch(output_path, "count(DISTINCT adm2_pcode)", "1") == [(10,)]
+
+
+def test_same_named_siblings_seeded_from_names_raise(tmp_path):
+    input_path = tmp_path / "in.parquet"
+    rows = [
+        {
+            "adm1_code": "51",
+            "adm1_name": "North",
+            "adm2_name": name,
+            "wkt": f"POLYGON(({i} 0, {i + 1} 0, {i + 1} 1, {i} 1, {i} 0))",
+        }
+        for i, name in enumerate(["Hill", "Hill", "Vale"])
+    ]
+    _write_synthetic(input_path, rows)
+    with pytest.raises(ValueError, match="'51 > Hill'"):
+        code_create(input_path, root_code="XY", delimiter="", min_width=2, **_TEMPLATES)
