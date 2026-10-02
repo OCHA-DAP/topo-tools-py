@@ -33,6 +33,9 @@ sidebar:
   coarsest.
 - A level's code column MUST be the one in the naming family most levels
   use for their code.
+- `levels-undetected` MUST also be reported, with the same reason, when
+  `core.schema_map.resolve_levels()` (the resolution `code-detect` and
+  `name-detect` use) raises for the same `name_field`/`code_field`.
 - Unresolvable levels MUST be reported as rows, never raised.
 
 ## Checks
@@ -41,7 +44,7 @@ sidebar:
 
   | kind | severity | finding |
   | --- | --- | --- |
-  | `levels-undetected` | error | no admin level can be resolved |
+  | `levels-undetected` | error | no admin level can be resolved, or `code-detect` and `name-detect` can't resolve them |
   | `level-skipped` | error | a level number between the coarsest and finest found has no columns |
   | `multiple-parents` | error | one code under more than one code of the next coarser level |
   | `orphan-child` | error | a code whose next coarser level's code is blank |

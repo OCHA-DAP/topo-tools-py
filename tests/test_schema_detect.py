@@ -15,15 +15,19 @@ def _base_sql() -> str:
     """Three levels under one constant root: 3 x 3 x 3 units, two name columns."""
     return """--sql
         SELECT 'XY' AS adm0_pcode, 'Country' AS adm0_name, 'Pays' AS adm0_name1,
-               'XY' || a AS adm1_pcode, 'Region ' || a AS adm1_name,
-               'Région ' || a AS adm1_name1,
-               'XY' || a || b AS adm2_pcode, 'District ' || a || b AS adm2_name,
-               'District FR ' || a || b AS adm2_name1,
+               'XY' || a AS adm1_pcode, 'Region ' || x AS adm1_name,
+               'Région ' || x AS adm1_name1,
+               'XY' || a || b AS adm2_pcode, 'District ' || x || y AS adm2_name,
+               'District FR ' || x || y AS adm2_name1,
                'XY' || a || b || c AS adm3_pcode,
-               'Commune ' || a || b || c AS adm3_name,
-               'Commune FR ' || a || b || c AS adm3_name1,
+               'Commune ' || x || y || z AS adm3_name,
+               'Commune FR ' || x || y || z AS adm3_name1,
                ST_Point(a * 10 + b, c) AS geom
-        FROM range(1, 4) r1(a), range(1, 4) r2(b), range(1, 4) r3(c)
+        FROM (
+            SELECT a, b, c, chr(64 + a::INTEGER) AS x, chr(64 + b::INTEGER) AS y,
+                   chr(64 + c::INTEGER) AS z
+            FROM range(1, 4) r1(a), range(1, 4) r2(b), range(1, 4) r3(c)
+        )
     """
 
 
@@ -112,6 +116,15 @@ def test_levels_undetected_is_reported_not_raised(tmp_path):
     assert _kinds(tmp_path, "SELECT * FROM base", **fields) == {
         ("levels-undetected", "error", None, None)
     }
+
+
+@pytest.mark.parametrize("fields", [_FIELDS, {}], ids=["explicit", "structural"])
+def test_nameless_layer_reports_levels_undetected(tmp_path, fields):
+    select = "SELECT COLUMNS('pcode'), geom FROM base"
+    out = tmp_path / "issues.csv"
+    detect(_write(tmp_path / "in.parquet", select), out, **fields)
+    (row,) = [r for r in _read(out) if r["kind"] == "levels-undetected"]
+    assert "no admin level with both a code and a name" in row["reason"]
 
 
 def test_parquet_report(tmp_path):

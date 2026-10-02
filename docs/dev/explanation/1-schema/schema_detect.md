@@ -24,9 +24,9 @@ level columns, so the same queries run in DuckDB-WASM.
 
 Structural detection (`detect_level_columns()`) groups columns by how
 their values nest, which is right for finding levels but can fold one
-level's columns into the next: on KGZ and LBN admin3 it merges every
-`adm2_*` column into level 3, though adm2 nests cleanly. A layer then reads
-as skipping level 2. So once the detected code columns share one naming
+level's columns into the next when a level's codes don't embed its
+parent's and nothing else places it in the chain. A layer then reads as
+skipping that level. So once the detected code columns share one naming
 with the level number in it (`adm{n}_pcode`), `schema-detect` takes that
 naming as the template and assigns every column to a level by name, the
 same path an explicit `--code-field` takes. Structural membership remains
@@ -50,14 +50,21 @@ to tell which level is the odd one out.
 
 Columns that `schema-map`'s matcher sets aside as a coarser grouping
 (AFG's `regioncode`, BFA's `adm1_pcode_old`, CPV's `island`) are reported
-as `supplemental-column` warnings. They are legitimate data, but
-`name-detect` and `code-detect` refuse such a layer without explicit
-`--name-field`/`--code-field`, so the warning says so.
+as `supplemental-column` warnings. They are legitimate data, but such a
+grouping can also be a missed intermediate level whose codes are local to
+each parent, so `resolve_levels()` refuses the layer without explicit
+`--name-field`/`--code-field`. `schema-detect` reports that refusal as
+`levels-undetected`, the one place a layer's level resolution is judged,
+so `validate` can skip `code-detect` and `name-detect` with that reason.
 
 ## Real-data results
 
 Run structurally on every latest original admin1 to admin5 layer in the
-portolan catalog (281 layers): 36 rows. 26 are `supplemental-column` (14
-layers). The other 10 are all real: two adm4 codes under two adm3 codes
-each in MMR admin4 (7 rows), BGR's `adm0_bg`/`adm1_bg` with no `adm2_bg`,
-and ZAF's `adm1_id` to `adm3_id` with no `adm0_id` or `adm4_id`.
+portolan catalog (281 layers): 51 rows in 18 layers. 15 layers report
+`levels-undetected`, exactly the ones `code-detect` and `name-detect`
+refuse; 14 of them also report their 26 `supplemental-column` warnings,
+and in SVK admin1 (eight units, one level) structural detection finds
+no name column, though `adm1_name` exists. The other 10 rows are all real:
+two adm4 codes under two adm3 codes each in MMR admin4 (7 rows), BGR's
+`adm0_bg`/`adm1_bg` with no `adm2_bg`, and ZAF's `adm1_id` to `adm3_id`
+with no `adm0_id` or `adm4_id`.

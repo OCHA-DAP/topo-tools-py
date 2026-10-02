@@ -13,6 +13,7 @@ from topo_tools.core.schema_map._level_columns import (
     root_anchor,
     supplemental_columns,
 )
+from topo_tools.core.schema_map._resolve_levels import resolve_levels
 from topo_tools.core.schema_map._target_schema import resolve_explicit_target_schema
 
 _COLUMNS = (
@@ -216,6 +217,12 @@ def main(
     else:
         columns = [r[0] for r in conn.execute(f'DESCRIBE "{table}"').fetchall()]
         rows = _explicit_rows(columns, schema.code_field)
+    # code-detect and name-detect resolve levels this way, so their refusal is ours.
+    if not any(r.problem == "levels-undetected" for r in rows):
+        try:
+            resolve_levels(conn, table, name_field, code_field)
+        except ValueError as e:
+            rows.append(_Row(None, problem="levels-undetected", reason=str(e)))
     conn.execute(f'CREATE OR REPLACE TABLE "{name}_02" ({_COLUMNS})')
     fields = list(_Row.__dataclass_fields__)
     if rows:

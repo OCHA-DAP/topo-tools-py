@@ -24,9 +24,9 @@ checks need an overlay layer and have no place in a single-layer check.
 
 `code-detect` and `name-detect` need the admin levels resolved, so
 `validate` skips them when `schema-detect` reports `levels-undetected`.
-They can still refuse a layer whose levels `schema-detect` resolves, for
-instance one with `supplemental-column` warnings; that shows as a
-`failed` row naming the error.
+`schema-detect` runs the same level resolution they do, so a layer they
+would refuse is reported there once, with the reason, and a `failed` row
+means a stage broke for another reason.
 
 ## Summary
 
