@@ -44,9 +44,7 @@ are `schema-detect`'s `multiple-parents`.
 ## Real-data results
 
 Run structurally on every latest original admin1 to admin5 layer in the
-portolan catalog (281 layers), 267 were checked and 14 refused by level
-resolution (the layers `schema-detect` reports as `levels-undetected`).
-144 rows in 7 layers, all real:
+portolan catalog (281 layers): 166 rows in 8 layers, all real:
 
 - COL admin3: 36 units split across features, 44 codes one digit short,
   `COPUERTO LOPEZ` as a code, and 3 codes not starting with their
@@ -59,4 +57,8 @@ resolution (the layers `schema-detect` reports as `levels-undetected`).
   starting with their parent's code (7 of them the codes `schema-detect`
   reports under two parents), 7 duplicated, 1 unit split across features,
   6 units with no code.
+- MMR admin5: 7 units with no code, `MMR013023701504` on 17 wards with 17
+  names, 5 ward codes under `MMR017006703` built from `MMR017006701`, 2
+  units split across features, and district `MMR004002` with two Burmese
+  names in `adm2_name1`.
 - SOM admin2: one `Unspecified` code.

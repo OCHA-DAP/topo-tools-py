@@ -96,6 +96,18 @@ def test_undetected_levels_skip_code_and_name(tmp_path):
     assert not (tmp_path / "in_code_issues.csv").exists()
 
 
+def test_grouping_column_still_runs_code_and_name(tmp_path):
+    select = (
+        "SELECT *, CASE WHEN adm1_pcode = 'XY3' THEN 'S' ELSE 'N' END AS zone FROM base"
+    )
+    assert not validate(_write(tmp_path / "in.parquet", select), tmp_path)
+    rows = {
+        (r["stage"], r["kind"]) for r in _summary(tmp_path / "in_validate_summary.csv")
+    }
+    assert ("schema", "supplemental-column") in rows
+    assert {("code", None), ("name", None)} <= rows
+
+
 def test_failing_stage_recorded_others_run(tmp_path, monkeypatch):
     def broken(*_args, **_kwargs):
         msg = "boom"

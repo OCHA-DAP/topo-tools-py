@@ -33,11 +33,13 @@ sidebar:
   code (or, for a seeded level, no name) at any level, or if a code has
   more than one name.
 - `code-update` MUST raise `ValueError` in structural mode on either side
-  ("group units like a level") if detection sets any column aside as a
-  supplemental coarser grouping, and ("a coarser level merged into this
-  one") if any member of a level's group-by has over 30% fewer values than
-  its code under each parent, rather than coding a merged or skipped level
-  (see `docs/adr/0121`).
+  ("group units like a level") if detection sets a column aside as a
+  supplemental coarser grouping whose groups cluster on the map
+  (`_spatially_coherent()`, taken as true without geometry or under 10
+  rows), and ("a coarser level merged into this one") if any member of a
+  level's group-by has over 30% fewer values than its code under each
+  parent, rather than coding a merged or skipped level (see
+  `docs/adr/0121`, `docs/adr/0131`).
 - `code-update` MUST raise `ValueError` ("level mismatch") if OLD's and
   NEW's resolved level counts differ, before any dissolve/classify stage
   runs: a real level-count change needs a human decision, not an automatic

@@ -57,6 +57,5 @@ Errors (`levels-undetected`, `level-skipped`, `multiple-parents`,
 `orphan-child`) mean the hierarchy can't be trusted yet: fix them before
 coding. Warnings list columns named or present unlike the other levels'
 (`column-naming`, `column-set-mismatch`), and columns set aside as a
-coarser grouping (`supplemental-column`). A layer with such a grouping
-also reports `levels-undetected`: run it again with
-`--name-field`/`--code-field`.
+coarser grouping (`supplemental-column`). If such a grouping is a real
+admin level, run it again with `--name-field`/`--code-field`.

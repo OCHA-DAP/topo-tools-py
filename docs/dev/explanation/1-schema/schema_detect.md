@@ -49,21 +49,27 @@ to tell which level is the odd one out.
 ## Supplemental columns
 
 Columns that `schema-map`'s matcher sets aside as a coarser grouping
-(AFG's `regioncode`, BFA's `adm1_pcode_old`, CPV's `island`) are reported
-as `supplemental-column` warnings. They are legitimate data, but such a
-grouping can also be a missed intermediate level whose codes are local to
-each parent, so `resolve_levels()` refuses the layer without explicit
-`--name-field`/`--code-field`. `schema-detect` reports that refusal as
-`levels-undetected`, the one place a layer's level resolution is judged,
-so `validate` can skip `code-detect` and `name-detect` with that reason.
+(AFG's `regioncode`, CPV's `island`, VNM's `adm1_type_en`) are reported
+as `supplemental-column` warnings. Such a grouping can be a missed
+intermediate level whose codes are local to each parent, but
+`code-detect` and `name-detect` only report, so `resolve_levels()` runs
+them on the detected levels and the warning prompts the check. A missed
+level costs at most extra `duplicate-name` warnings, names compared under
+a parent one level too coarse. `resolve_levels()` refuses a layer with a
+skipped level or no level that has both a code and a name, and
+`schema-detect` reports that refusal as `levels-undetected`, the one place
+a layer's level resolution is judged, so `validate` can skip
+`code-detect` and `name-detect` with that reason.
 
 ## Real-data results
 
 Run structurally on every latest original admin1 to admin5 layer in the
-portolan catalog (281 layers): 50 rows in 17 layers. 14 layers report
-`levels-undetected`, exactly the ones `code-detect` and `name-detect`
-refuse, each beside its `supplemental-column` warnings (26 in all). The
-other 10 rows are all real:
+portolan catalog (281 layers): 36 rows in 17 layers, none
+`levels-undetected`. 26 are `supplemental-column` warnings in 14 layers:
+real coarser groupings (AFG regions, AZE economic regions, BFA's previous
+units, CPV islands, NGA senatorial districts, MMR admin5's `adm2_name1`)
+and unit types or near-empty columns (VNM `adm1_type_en`, ETH
+`adm2_alt_name`, SLE `adm4_ref`). The other 10 rows are all real:
 two adm4 codes under two adm3 codes each in MMR admin4 (7 rows), BGR's
 `adm0_bg`/`adm1_bg` with no `adm2_bg`, and ZAF's `adm1_id` to `adm3_id`
 with no `adm0_id` or `adm4_id`.

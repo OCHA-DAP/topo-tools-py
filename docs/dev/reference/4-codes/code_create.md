@@ -38,11 +38,12 @@ sidebar:
   raise `ValueError` if a name repeats under one parent, since seeding
   would merge those units.
 - `code-create` MUST raise `ValueError` in structural mode ("group units like a
-  level") if detection sets any column aside as a supplemental coarser
-  grouping, and ("a coarser level merged into this one") if any member of
-  a level's group-by has over 30% fewer values than its code under each
-  parent, rather than coding a merged or skipped level (see
-  `docs/adr/0121`).
+  level") if detection sets a column aside as a supplemental coarser
+  grouping whose groups cluster on the map (`_spatially_coherent()`, taken
+  as true without geometry or under 10 rows), and ("a coarser level merged
+  into this one") if any member of a level's group-by has over 30% fewer
+  values than its code under each parent, rather than coding a merged or
+  skipped level (see `docs/adr/0121`, `docs/adr/0131`).
 - Every resolved level MUST be renumbered to a clean, relative `1..N`
   sequence, coarsest first; a genuinely constant coarsest column (e.g. a
   single-country file's own admin0 code) is dropped before reaching this
