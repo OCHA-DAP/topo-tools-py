@@ -9,7 +9,7 @@ jobs:
   update-homebrew-tap:
     runs-on: macos-latest
     outputs:
-      bumped: ${{ steps.pypi.outputs.version != steps.tap.outputs.version }}
+      bumped: ${{ steps.tap.outputs.newer }}
       branch: bump-topo-tools-${{ steps.pypi.outputs.version }}
     steps:
       - name: Checkout topo-tools-py
@@ -45,9 +45,17 @@ jobs:
         run: |
           version=$(brew info --json=v2 OCHA-DAP/topo-tools/topo-tools | jq -r '.formulae[0].versions.stable')
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          # Bump only to a newer release; the tap can be ahead of PyPI's 1-day cutoff.
+          pypi="${{ steps.pypi.outputs.version }}"
+          newest=$(printf '%s\n%s\n' "$version" "$pypi" | sort -V | tail -1)
+          if [ "$pypi" != "$version" ] && [ "$newest" = "$pypi" ]; then
+            echo "newer=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "newer=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Open Homebrew formula bump PR
-        if: steps.pypi.outputs.version != steps.tap.outputs.version
+        if: steps.tap.outputs.newer == 'true'
         env:
           HOMEBREW_GITHUB_API_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           HOMEBREW_NO_AUTO_UPDATE: "1"
@@ -61,7 +69,7 @@ jobs:
             OCHA-DAP/topo-tools/topo-tools
 
       - name: Sync duckdb wheel resource on bump branch
-        if: steps.pypi.outputs.version != steps.tap.outputs.version
+        if: steps.tap.outputs.newer == 'true'
         env:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
@@ -84,7 +92,7 @@ jobs:
           git -C "$workdir" push origin "HEAD:$branch"
 
       - name: Install and test bump branch
-        if: steps.pypi.outputs.version != steps.tap.outputs.version
+        if: steps.tap.outputs.newer == 'true'
         env:
           HOMEBREW_NO_AUTO_UPDATE: "1"
         run: |
