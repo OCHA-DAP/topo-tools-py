@@ -7,7 +7,6 @@ from duckdb import DuckDBPyConnection
 from topo_tools.core.admin_columns import sibling_name
 from topo_tools.core.schema_map._level_columns import (
     detect_level_columns_or_single,
-    supplemental_columns,
 )
 from topo_tools.core.schema_map._levels import detect_levels
 from topo_tools.core.schema_map._target_schema import resolve_explicit_target_schema
@@ -58,7 +57,7 @@ def resolve_levels(
         # A skipped level would compare names under the wrong parent, so never guess.
         found = [n for n, _ in coded]
         skipped = not found or found != list(range(found[0], found[-1] + 1))
-        if skipped or supplemental_columns(conn, table):
+        if skipped:
             msg = (
                 f"{table}: admin levels could not be detected reliably; "
                 "pass --name-field/--code-field explicitly"
