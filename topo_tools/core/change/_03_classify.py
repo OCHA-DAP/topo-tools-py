@@ -97,9 +97,11 @@ def main(  # noqa: C901, PLR0912, PLR0913, PLR0915 (ported classification algori
 
     a_rows = conn.execute(f"""--sql
         SELECT fid, {code_expr_a} AS code, {name_expr_a} AS name FROM "{name}_a_01"
+        ORDER BY fid
     """).fetchall()
     b_rows = conn.execute(f"""--sql
         SELECT fid, {code_expr_b} AS code, {name_expr_b} AS name FROM "{name}_b_01"
+        ORDER BY fid
     """).fetchall()
 
     a_code_by_fid = {r[0]: r[1] for r in a_rows}
@@ -114,6 +116,7 @@ def main(  # noqa: C901, PLR0912, PLR0913, PLR0915 (ported classification algori
 
     pair_rows = conn.execute(f"""--sql
         SELECT a_fid, b_fid, shared_area, coverage_a, coverage_b, iou FROM "{name}_02"
+        ORDER BY a_fid, b_fid
     """).fetchall()
 
     pairs = [

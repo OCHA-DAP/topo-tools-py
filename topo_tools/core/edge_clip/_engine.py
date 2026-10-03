@@ -155,13 +155,14 @@ def _clip_one_worker(
         worker_conn.execute(f"""--sql
                 COPY (
                     SELECT * EXCLUDE (orig_geom) FROM clip_result
-                    WHERE geom IS NOT NULL AND NOT ST_IsEmpty(geom)
+                    WHERE geom IS NOT NULL AND NOT ST_IsEmpty(geom) ORDER BY fid
                 ) TO '{group_dir / "output.parquet"}' (FORMAT PARQUET)
             """)
         worker_conn.execute(f"""--sql
                 COPY (
                     SELECT * EXCLUDE (geom) RENAME (orig_geom AS geom)
                     FROM clip_result WHERE geom IS NULL OR ST_IsEmpty(geom)
+                    ORDER BY fid
                 ) TO '{group_dir / "dropped.parquet"}' (FORMAT PARQUET)
             """)
         worker_conn.close()

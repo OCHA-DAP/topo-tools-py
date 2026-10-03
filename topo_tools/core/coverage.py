@@ -91,7 +91,7 @@ def gap_issues_sql(
     width_m = f"(ST_MaximumInscribedCircle(geom)).radius * 2 * {METERS_PER_DEGREE}"
     thinness_ratio = "4 * pi() * ST_Area(geom) / POWER(ST_Perimeter(geom), 2)"
     return f"""
-        SELECT 'gap-' || row_number() OVER () AS key, 'gap' AS kind,
+        SELECT 'gap-' || row_number() OVER (ORDER BY hash(geom)) AS key, 'gap' AS kind,
                NULL::BIGINT AS unit_a, NULL::BIGINT AS unit_b,
                NULL::BIGINT AS overlay_fid, NULL::VARCHAR AS reason,
                ST_Area(geom) * {m2_per_deg2} AS area_m2, {width_m} AS max_width_m,
@@ -296,7 +296,8 @@ def merge_micro_polygons(
     """)
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{issues_table}" AS
-        SELECT 'micro-polygon-' || pid AS key, 'micro-polygon' AS kind,
+        SELECT 'micro-polygon-' || row_number() OVER (ORDER BY fid, hash(geom)) AS key,
+               'micro-polygon' AS kind,
                fid AS unit_a, dest_fid AS unit_b, NULL::BIGINT AS overlay_fid,
                CASE WHEN dest_rnid IS NULL THEN 'dropped: touches no feature'
                     ELSE 'merged into neighbouring feature' END AS reason,
@@ -307,7 +308,7 @@ def merge_micro_polygons(
                NULL::DOUBLE AS unit_a_area_change_m2,
                NULL::DOUBLE AS unit_b_area_change_m2,
                NULL::DOUBLE AS filled_area_m2, TRUE AS fixed, source_file, geom
-        FROM _micro_dest ORDER BY pid
+        FROM _micro_dest ORDER BY fid, hash(geom)
     """)
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{table_out}" AS
@@ -755,7 +756,9 @@ def coverage_clean(  # noqa: PLR0913 (each param is a distinct required input, n
     cc = f"ST_CoverageClean(list(geom ORDER BY rn), {snap_arg}, {gap_arg})"
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE _clean_all AS
-        SELECT row_number() OVER () AS rnid, * FROM "{source}"
+        -- ST_CoverageClean's result depends on input order, so fix it by content.
+        SELECT row_number() OVER (ORDER BY hash(s.geom), hash(s)) AS rnid, *
+        FROM "{source}" AS s
     """)
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{table_out}" AS

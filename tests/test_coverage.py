@@ -137,6 +137,22 @@ def test_whole_micro_feature_row_is_removed():
     assert issues == [(3, 2, "merged into neighbouring feature", True)]
 
 
+def test_micro_polygon_keys_ignore_input_row_order():
+    wkt_a = f"MULTIPOLYGON(((0 0, 1 0, 1 1, 0 1, 0 0)), {_strip(5, SLIVER)})"
+    wkt_b = f"MULTIPOLYGON(((2 0, 3 0, 3 1, 2 1, 2 0)), {_strip(7, SLIVER)})"
+    for rows in ([(1, wkt_a), (2, wkt_b)], [(2, wkt_b), (1, wkt_a)]):
+        conn = duckdb.connect()
+        conn.execute("INSTALL spatial; LOAD spatial;")
+        values = ", ".join(f"({fid}, '{wkt}')" for fid, wkt in rows)
+        conn.execute(
+            "CREATE TABLE synth AS SELECT fid, ST_GeomFromText(wkt) AS geom "
+            f"FROM (VALUES {values}) v(fid, wkt)"
+        )
+        merge_micro_polygons(conn, "synth", "out", issues_table="issues")
+        keys = conn.execute("SELECT key, unit_a FROM issues ORDER BY key").fetchall()
+        assert keys == [("micro-polygon-1", 1), ("micro-polygon-2", 2)]
+
+
 def test_small_real_island_is_kept():
     island = _strip(5, SNAP_TOLERANCE * 10, height=SNAP_TOLERANCE * 10)
     wkt_a = f"MULTIPOLYGON(((0 0, 1 0, 1 1, 0 1, 0 0)), {island})"
@@ -158,6 +174,22 @@ def test_coverage_clean_removes_whole_micro_feature_instead_of_emptying_it():
         rows = conn.execute("SELECT fid, ST_IsEmpty(geom) FROM out ORDER BY fid")
         assert rows.fetchall() == [(1, False), (2, False)]
         assert conn.execute("SELECT unit_a, unit_b FROM micro").fetchall() == [(3, 2)]
+
+
+@pytest.mark.parametrize("order", ["ASC", "DESC"])
+def test_coverage_clean_ignores_input_row_order(order):
+    """The overlap goes to the same feature whichever row comes first."""
+    with duckdb.connect() as conn:
+        conn.execute("INSTALL spatial; LOAD spatial;")
+        conn.execute(f"""--sql
+            CREATE TABLE synth AS SELECT fid, ST_GeomFromText(wkt) AS geom FROM (VALUES
+                (1, 'POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))'),
+                (2, 'POLYGON((0.9 0, 2 0, 2 1, 0.9 1, 0.9 0))')) v(fid, wkt)
+            ORDER BY fid {order}
+        """)
+        coverage_clean(conn, "synth", "out", fids=None)
+        rows = conn.execute("SELECT fid, ST_Area(geom) FROM out ORDER BY fid")
+        assert [(f, round(a, 6)) for f, a in rows.fetchall()] == [(1, 0.9), (2, 1.1)]
 
 
 # Detached-part fixtures use 1e-3 deg units (~111 m), so pieces stay under the
