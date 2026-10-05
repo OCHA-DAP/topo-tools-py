@@ -4,7 +4,7 @@
 #     "duckdb",
 # ]
 # ///
-"""Write 06_packaging/{iso3}_metadata.csv in the COD-AB metadata column order.
+"""Write 06_packaging/{iso3}_metadata.csv and .parquet in COD-AB metadata order.
 
 Run from the workspace root: uv run <skill-dir>/scripts/metadata.py <iso3> <version>
 """
@@ -49,7 +49,16 @@ _COLUMNS = [
     "methodology_pcodes",
     "caveats",
 ]
+_INTEGERS = {"admin_level_full", "admin_level_max", "update_frequency"}
 _REQUIRED = ["source", "source_url", "contributor", "methodology_dataset"]
+
+
+def _type(column: str) -> str:
+    if column.startswith("date_"):
+        return "DATE"
+    if column.endswith("_count") or column in _INTEGERS:
+        return "INTEGER"
+    return "VARCHAR"
 
 
 def level_counts(packaging: Path, iso3: str) -> dict[int, int]:
@@ -136,6 +145,11 @@ def main() -> None:
         writer = csv.DictWriter(f, fieldnames=_COLUMNS)
         writer.writeheader()
         writer.writerow(row)
+    types = {c: _type(c) for c in _COLUMNS}
+    duckdb.sql(f"""
+        COPY (SELECT * FROM read_csv('{out}', header = true, columns = {types}))
+        TO '{out.with_suffix(".parquet")}' (FORMAT PARQUET, COMPRESSION ZSTD)
+    """)
     for column in _COLUMNS:
         log.info("%-20s %s", column, row[column])
     if missing := [c for c in _REQUIRED if not str(row[c]).strip()]:
