@@ -49,7 +49,7 @@ def _paths(
     issues_path = (
         Path(issues_path)
         if issues_path is not None
-        else default_output_path(input_path, "_name_issues").with_suffix(".csv")
+        else default_output_path(input_path, "_name_issues").with_suffix(".parquet")
     )
     if issues_path.suffix not in outputs.REPORT_SUFFIXES:
         msg = f"issues_path must end in one of {outputs.REPORT_SUFFIXES}: {issues_path}"

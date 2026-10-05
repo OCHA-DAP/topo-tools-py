@@ -189,7 +189,7 @@ def test_structural_detection(tmp_path):
 
 def test_default_issues_path(names_input):
     detect(names_input, **_FIELDS)
-    assert (names_input.parent / "names_name_issues.csv").exists()
+    assert (names_input.parent / "names_name_issues.parquet").exists()
 
 
 def test_bad_issues_suffix_raises(names_input, tmp_path):

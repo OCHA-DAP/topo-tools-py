@@ -85,7 +85,7 @@ def code_create(  # noqa: PLR0913
     issues_path = (
         Path(issues_path)
         if issues_path is not None
-        else output_path.with_stem(output_path.stem + "_issues").with_suffix(".csv")
+        else output_path.with_stem(output_path.stem + "_issues").with_suffix(".parquet")
     )
     if issues_path.suffix not in TABLE_COPY_OPTS:
         msg = (

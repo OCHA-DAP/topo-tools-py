@@ -15,7 +15,7 @@ topo-tools name-clean [OPTIONS] INPUT_FILE [OUTPUT_FILE] [ISSUES_FILE]
 
 ## Description
 
-Runs the same checks as name-detect, then fixes only what can't change a name's meaning: spacing, invisible characters, accents stored as separate characters, and text read with the wrong encoding when the repair is certain. Everything else stays as it is, for review. OUTPUT_FILE defaults to INPUT_FILE with a "_cleaned" suffix; ISSUES_FILE defaults to INPUT_FILE with a "_name_issues" suffix, as CSV, with a "fixed" column marking what was fixed.
+Runs the same checks as name-detect, then fixes only what can't change a name's meaning: spacing, invisible characters, accents stored as separate characters, and text read with the wrong encoding when the repair is certain. Everything else stays as it is, for review. OUTPUT_FILE defaults to INPUT_FILE with a "_cleaned" suffix; ISSUES_FILE defaults to INPUT_FILE with a "_name_issues" suffix, as Parquet with each unit's geometry, with a "fixed" column marking what was fixed.
 
 ## Options
 
@@ -29,7 +29,7 @@ Runs the same checks as name-detect, then fixes only what can't change a name's 
 
 ## Examples
 
-Basic run, output and CSV report named automatically:
+Basic run, output and report named automatically:
 
 ```sh
 topo-tools name-clean admin3.parquet
@@ -39,5 +39,5 @@ Explicit level columns and output names:
 
 ```sh
 topo-tools name-clean admin3.parquet admin3_clean.parquet \
-  admin3_name_issues.csv --name-field adm{n}_name --code-field adm{n}_code
+  admin3_name_issues.parquet --name-field adm{n}_name --code-field adm{n}_code
 ```

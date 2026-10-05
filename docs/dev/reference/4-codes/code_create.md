@@ -122,7 +122,7 @@ sidebar:
 - `output_path`, if omitted, MUST default to `input_path` with a `_coded`
   stem suffix.
 - `issues_path`, if omitted, MUST default to `output_path` with an
-  `_issues` stem suffix and a `.csv` extension. It MUST be one of
+  `_issues` stem suffix and a `.parquet` extension. It MUST be one of
   `core.code.TABLE_COPY_OPTS`'s extensions (a tabular format; the issues
   report has no geometry column), raising `ValueError` otherwise.
 - `code-create` MUST raise `FileExistsError` for `output_path` or
@@ -144,7 +144,7 @@ sidebar:
 ### Example 3: overflow issues report
 
 Writes `admin2_coded.geojson` and, only if any parent exceeds `10 **
-min_width - 1` children, `admin2_coded_issues.csv`:
+min_width - 1` children, `admin2_coded_issues.parquet`:
 
     topo-tools code-create admin2.geojson admin2_coded.geojson --root-code AFG --delimiter . --min-width 3
 

@@ -28,9 +28,16 @@ def add_report(conn: DuckDBPyConnection, stage: str, report: Path) -> None:
     path = _literal(str(report))
     if report.suffix == ".csv":
         source = f"read_csv({path}, all_varchar = true)"
-        severity = "severity"
     else:
         source = f"read_parquet({path})"
+    columns = (
+        {r[0] for r in conn.execute(f"DESCRIBE SELECT * FROM {source}").fetchall()}
+        if report.exists()
+        else set()
+    )
+    if "severity" in columns:
+        severity = "severity"
+    else:
         cases = " ".join(f"WHEN '{k}' THEN '{v}'" for k, v in TOPO_SEVERITY.items())
         severity = f"CASE kind {cases} ELSE 'error' END"
     rows = (

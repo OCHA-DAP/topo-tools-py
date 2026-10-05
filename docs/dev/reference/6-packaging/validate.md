@@ -26,9 +26,10 @@ sidebar:
 
 ## Outputs
 
-- Reports MUST be named after the input's stem: `{stem}_schema_issues.csv`,
-  `{stem}_topo_issues.parquet`, `{stem}_code_issues.csv`,
-  `{stem}_name_issues.csv`, beside the input or in `output_dir`.
+- Reports MUST be Parquet, named after the input's stem:
+  `{stem}_schema_issues.parquet`, `{stem}_topo_issues.parquet`,
+  `{stem}_code_issues.parquet`, `{stem}_name_issues.parquet`, beside the
+  input or in `output_dir`.
 - The summary MUST be written to `{stem}_validate_summary.csv` (UTF-8 with
   a BOM), with columns `stage`, `kind`, `severity`, `count`, `report`,
   `reason`: one row per stage, kind and severity found, or one `count = 0`

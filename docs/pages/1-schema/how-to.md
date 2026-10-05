@@ -52,7 +52,7 @@ Then check the finest level's schema and nesting:
 
     topo-tools schema-detect admin2_mapped.parquet
 
-This writes `admin2_mapped_schema_issues.csv` without changing the input.
+This writes `admin2_mapped_schema_issues.parquet` without changing the input.
 Errors (`levels-undetected`, `level-skipped`, `multiple-parents`,
 `orphan-child`) mean the hierarchy can't be trusted yet: fix them before
 coding. Warnings list columns named or present unlike the other levels'

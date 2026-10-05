@@ -85,7 +85,7 @@ sidebar:
 
 - `name-detect` MUST process exactly one input file per call.
 - `issues_path` MUST default to the input path with a `_name_issues` stem
-  suffix and a `.csv` extension, and MUST end in `.csv` or `.parquet`,
+  suffix and a `.parquet` extension, and MUST end in `.csv` or `.parquet`,
   raising `ValueError` otherwise.
 - `name-detect` MUST raise `FileExistsError` if `issues_path` already exists
   and overwriting wasn't requested.
@@ -94,7 +94,7 @@ sidebar:
 
 ## Examples
 
-### Example 1: basic run, CSV report named automatically
+### Example 1: basic run, report named automatically
 
     topo-tools name-detect admin3.parquet
 

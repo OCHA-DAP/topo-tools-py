@@ -84,7 +84,7 @@ Then check the coded layer's codes:
     topo-tools code-detect admin3_coded.parquet \
       --code-field adm{n}_code --name-field adm{n}_name
 
-This writes `admin3_coded_code_issues.csv` without changing the input. Fix
+This writes `admin3_coded_code_issues.parquet` without changing the input. Fix
 every `error` row (`blank-code`, `name-conflict`, `duplicate-code`,
 `prefix-mismatch`) and review each `warn` row: `split-unit` lists one
 unit stored as several polygons, and `format-outlier`/`format-undetected`
