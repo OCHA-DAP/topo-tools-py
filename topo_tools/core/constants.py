@@ -17,6 +17,15 @@ DETACHED_MAX_ORIGINAL_SHARE = 0.5
 # Original land clipped away next to a piece, over its area; below this the
 # original drew the piece as a lobe joined only at a pinch point.
 DETACHED_MIN_NECK_RATIO = 0.1
+# Notches: unshared edges of two units within NOTCH_SPACING / 8 of each other
+# for at least NOTCH_MIN_SCORE spacings, edge-extend's default point spacing.
+NOTCH_SPACING = 0.0002
+NOTCH_MIN_SCORE = 2
+# A flagged segment's endpoint moves onto the other unit only within this
+# share of the segment's own length.
+NOTCH_MAX_GAP_RATIO = 1 / 10
+# Degrees around a notch inside which its two units are cut and rebuilt.
+NOTCH_WINDOW_MARGIN = 0.002
 # Equal Earth, used by match/change to rank/compute areas for cross-polygon
 # area comparison (never stored).
 EQUAL_AREA_CRS = "EPSG:8857"

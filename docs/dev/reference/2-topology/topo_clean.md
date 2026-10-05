@@ -26,6 +26,10 @@ detection stage directly rather than owning separate logic (see
 - `topo-clean` MUST attempt to fix the input whenever it contains any overlap,
   or any detected gap that qualifies to be filled under the requested
   mode.
+- `topo-clean` MUST close every detected notch before the fix, moving a
+  flagged segment's endpoint onto the other unit only when the gap is at
+  most `NOTCH_MAX_GAP_RATIO` of the segment's length. A notch left open
+  MUST be reported with `fixed` FALSE.
 - The default gap-fill behavior (reached by omitting `--maximum-gap-width`,
   not a named mode) MUST fill a gap only if its width is at or below
   `SNAP_TOLERANCE`, regardless of shape.
@@ -53,7 +57,7 @@ detection stage directly rather than owning separate logic (see
   feature's fixed shape is not a valid polygon; the output's total area
   falls below a floor set by a small baseline tolerance plus headroom
   sized to the total area of the overlaps actually detected; or a feature
-  with no connection to any detected gap or overlap collapses to nothing.
+  with no connection to any detected gap, overlap or notch collapses to nothing.
 - A feature that was itself party to a gap or overlap being resolved MAY
   change area substantially, including losing all of it, without
   triggering rejection. A feature untouched by any detected defect MAY

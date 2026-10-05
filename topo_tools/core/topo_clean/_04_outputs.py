@@ -5,7 +5,7 @@ from pathlib import Path
 
 from duckdb import DuckDBPyConnection
 
-from topo_tools.core.coverage import check_invalid_edges
+from topo_tools.core.coverage import check_invalid_edges, detect_notches
 from topo_tools.core.duckdb_utils import bbox_columns_sql
 from topo_tools.core.io import export_geometry_table, export_issues_table
 from topo_tools.core.units import m2_per_deg2_factor
@@ -17,9 +17,19 @@ def _add_outcome_columns(conn: DuckDBPyConnection, name: str) -> None:
     """Extend `{name}_02` with what actually happened to each issue during the fix.
 
     `fixed` is TRUE for every overlap row unconditionally, since `{name}_03`
-    is already gated overlap-free; a gap row uses point-in-union containment.
+    is already gated overlap-free; a gap row uses point-in-union containment,
+    a notch row whether a notch between its units still overlaps it in `{name}_03`.
     """
     m2_per_deg2 = m2_per_deg2_factor(conn, f"{name}_01")
+    remaining = f"{name}_04_tmp1"
+    conn.execute(
+        f'CREATE OR REPLACE TABLE "{remaining}" '
+        "(unit_a BIGINT, unit_b BIGINT, geom GEOMETRY)"
+    )
+    if conn.execute(
+        f"""SELECT count(*) FROM "{name}_02" WHERE kind = 'notch'"""
+    ).fetchone()[0]:
+        detect_notches(conn, f"{name}_03", remaining)
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_02" AS
         WITH before AS (SELECT fid, ST_Area(geom) AS area FROM "{name}_01"),
@@ -41,6 +51,7 @@ def _add_outcome_columns(conn: DuckDBPyConnection, name: str) -> None:
              )
         SELECT
             i.key, i.kind, i.area_m2, i.max_width_m, i.thinness_ratio,
+            i.near_length_m,
             i.unit_a, i.unit_b,
             (after_a.area - before_a.area) * {m2_per_deg2} AS unit_a_area_change_m2,
             (after_b.area - before_b.area) * {m2_per_deg2} AS unit_b_area_change_m2,
@@ -49,6 +60,13 @@ def _add_outcome_columns(conn: DuckDBPyConnection, name: str) -> None:
             END AS filled_area_m2,
             CASE WHEN i.kind = 'gap'
                  THEN ST_Contains(gu.geom, ST_PointOnSurface(i.geom))
+                 WHEN i.kind = 'notch'
+                 THEN NOT EXISTS (
+                     SELECT 1 FROM "{remaining}" r
+                     WHERE least(r.unit_a, r.unit_b) = least(i.unit_a, i.unit_b)
+                       AND greatest(r.unit_a, r.unit_b) = greatest(i.unit_a, i.unit_b)
+                       AND ST_Intersects(r.geom, i.geom)
+                 )
                  ELSE TRUE
             END AS fixed,
             NULL::BIGINT AS overlay_fid, NULL::VARCHAR AS reason,
@@ -64,6 +82,7 @@ def _add_outcome_columns(conn: DuckDBPyConnection, name: str) -> None:
         UNION ALL BY NAME
         SELECT * FROM "{name}_03_micro"
     """)
+    conn.execute(f'DROP TABLE IF EXISTS "{remaining}"')
 
 
 def _warn_on_unfilled_gaps(conn: DuckDBPyConnection, name: str) -> None:

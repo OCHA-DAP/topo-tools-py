@@ -42,8 +42,8 @@ Run `topo-tools topo-detect --help` for the full, always-current option list.
    pre-check. This is deliberate: `topo-detect`'s whole purpose is to report
    defects in the *raw* input, so the detection stage needs to see them,
    not a table `ST_CoverageClean` has already silently rewritten.
-2. **`_02_issues`**: detects gap/overlap regions, writing one issues table
-   (`{name}_02`). Gap detection always runs; overlap detection is skipped
+2. **`_02_issues`**: detects gap, overlap, micro-polygon and notch regions,
+   writing one issues table (`{name}_02`). Gap detection always runs; overlap detection is skipped
    (written empty directly) whenever `has_invalid_edges()` is
    already False, see "Skipping overlap detection when the coverage is
    already valid" below.
@@ -74,24 +74,26 @@ very-high-vertex-count polygons. See
 `has_invalid_edges()` alone cannot stand in for gap detection: it
 only detects overlaps/mismatched edges, never gaps.
 
-## Sliver detection was removed
+## Near-miss boundaries and notches
 
-Earlier versions also detected (but `topo-clean` never auto-fixed) slivers,
-near-miss boundary mismatches. Dropped entirely: never fixable without
-re-noding the whole coverage (an unacceptable side effect for unattended
-batch use), and detection itself reproducibly OOM'd on real data even at
-small scale. Any near-miss boundary mismatch is now an upstream
-data-quality issue outside this tool's scope; fixing it remains a human
-decision (re-digitizing, manual QGIS/ArcGIS editing), just without an
-automated detector flagging candidates. See
-`docs/adr/0006-sliver-detection-removed.md`.
+Near-miss boundary mismatches in general are out of scope: closing one
+needs a wider `ST_CoverageClean` snapping distance, which re-nodes the
+whole coverage (see `docs/adr/0006`). The one near-miss reported is a
+notch, a pair of units whose unshared boundary segments run within
+`NOTCH_SPACING / 8` of each other along at least `NOTCH_MIN_SCORE`
+spacings, summed over both units. `detect_notches()` (`core/coverage.py`)
+finds them with a bbox range join over unshared segments only, and each
+notch row's geometry is the buffered cluster of its close-running pieces
+(see `docs/adr/0132`).
 
 ## Issues table schema
 
 `key VARCHAR, kind VARCHAR, area_m2 DOUBLE, max_width_m DOUBLE,
-thinness_ratio DOUBLE, unit_a BIGINT, unit_b BIGINT, geom GEOMETRY`. `kind`
-is `'gap'` or `'overlap'`. `thinness_ratio` is populated only for gap rows;
-`unit_a`/`unit_b` (the two fids involved) only for overlap rows. Geometry
+thinness_ratio DOUBLE, near_length_m DOUBLE, unit_a BIGINT, unit_b BIGINT,
+geom GEOMETRY`. `kind` is `'gap'`, `'overlap'`, `'micro-polygon'` or
+`'notch'`. `thinness_ratio` is populated only for gap rows, `near_length_m`
+(the close-running length, in metres) only for notch rows, and
+`unit_a`/`unit_b` for overlap and notch rows. Geometry
 is always Polygon, so any of `edge-extend`'s four export formats (including
 Shapefile) can hold the issues file. `topo-clean`'s own issues output extends
 this schema further with measured fix outcomes (`fixed`,

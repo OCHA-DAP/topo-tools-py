@@ -10,6 +10,8 @@ sidebar:
 ## Inputs
 
 - `edge-extend` MUST read the input and reproject it to EPSG:4326.
+- Before checking for coverage violations, `edge-extend` MUST close every
+  notch in the input the way `topo-clean` does.
 - If the reprojected input has any coverage violation (an overlap or a
   mismatched shared edge), `edge-extend` MUST correct it before continuing;
   otherwise it MUST leave the input unmodified.

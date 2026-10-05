@@ -6,9 +6,12 @@ import pytest
 from topo_tools.core.constants import SNAP_TOLERANCE
 from topo_tools.core.coverage import (
     check_valid_topology,
+    close_notches,
     count_gaps,
     coverage_clean,
+    detect_notches,
     has_gaps,
+    has_invalid_edges,
     has_micro_polygons,
     merge_detached_parts,
     merge_micro_polygons,
@@ -465,3 +468,125 @@ def test_large_area_detached_piece_under_ratio_merges():
     assert count == 1
     assert out == {1: 1, 2: 1}
     assert issues == [(1, 2, "merged into neighbouring feature", True)]
+
+
+M = 1 / 111320  # one metre in degrees, near the equator
+
+
+def _wedge(conn, a_arm, *, b_len_m=1000, far=0.02):
+    """Write units A (fid 1) and B sharing y=0 up to x=0, then A follows `a_arm` (m)."""
+    arm = ", ".join(f"{x * M} {y * M}" for x, y in a_arm)
+    end = a_arm[-1][0] * M
+    a = f"POLYGON((-{far} 0, 0 0, {arm}, {end} {far}, -{far} {far}, -{far} 0))"
+    b_end = b_len_m * M
+    b = f"POLYGON((-{far} 0, 0 0, {b_end} 0, {b_end} -{far}, -{far} -{far}, -{far} 0))"
+    conn.execute(f"""
+        CREATE OR REPLACE TABLE units AS
+        SELECT 1 AS fid, ST_GeomFromText('{a}') AS geom
+        UNION ALL SELECT 2, ST_GeomFromText('{b}')
+    """)
+
+
+@pytest.mark.parametrize("mouth_m", [0.1, 5.0])
+def test_deep_wedge_is_detected_and_closed(mouth_m):
+    with duckdb.connect() as conn:
+        conn.execute("INSTALL spatial; LOAD spatial;")
+        _wedge(conn, [(600, mouth_m)])
+        assert detect_notches(conn, "units", "notches") == 1
+        assert conn.execute("SELECT unit_a, unit_b FROM notches").fetchall() == [(1, 2)]
+        assert close_notches(conn, "units") == 1
+        assert detect_notches(conn, "units", "after") == 0
+        assert not has_invalid_edges(conn, "units")
+
+
+def test_vertex_near_segment_midpoint_is_closed():
+    with duckdb.connect() as conn:
+        conn.execute("INSTALL spatial; LOAD spatial;")
+        _wedge(conn, [(500, 0.085), (1000, 0)], b_len_m=1000)
+        assert detect_notches(conn, "units", "notches") == 1
+        close_notches(conn, "units")
+        assert detect_notches(conn, "units", "after") == 0
+        assert not has_invalid_edges(conn, "units")
+
+
+def test_gap_enclosed_by_closing_the_tip_is_filled():
+    with duckdb.connect() as conn:
+        conn.execute("INSTALL spatial; LOAD spatial;")
+        _wedge(conn, [(300, 30), (600, 0.1)])
+        assert not has_gaps(conn, "units", gap_maximum_width=1)
+        assert close_notches(conn, "units") == 1
+        assert not has_gaps(conn, "units", gap_maximum_width=1)
+        assert not has_invalid_edges(conn, "units")
+
+
+def test_close_notches_leaves_geometry_outside_the_window_unchanged():
+    with duckdb.connect() as conn:
+        conn.execute("INSTALL spatial; LOAD spatial;")
+        _wedge(conn, [(600, 0.1)])
+        conn.execute("CREATE TABLE before AS SELECT * FROM units")
+        close_notches(conn, "units")
+        box = "ST_MakeEnvelope(-0.003, -0.003, 0.009, 0.003)"
+        same = conn.execute(f"""
+            SELECT bool_and(ST_Equals(ST_Difference(u.geom, {box}),
+                                      ST_Difference(b.geom, {box})))
+            FROM units u JOIN before b USING (fid)
+        """).fetchone()[0]
+        assert same
+
+
+# A clipped Myanmar admin4 pair whose closed union leaves a line spur on unit 2.
+_SPUR_A = [
+    (98.0083609620001, 23.47019279700004),
+    (98.00708554200008, 23.47631481100018),
+    (98.00494909200751, 23.47960850512211),
+    (98.01165975643754, 23.47960850512211),
+    (98.01165975643754, 23.466874621385763),
+    (98.009052248369, 23.466874621385763),
+    (98.0083609620001, 23.47019279700004),
+]
+_SPUR_B = [
+    (98.00708554200008, 23.47631481100018),
+    (98.00836099500003, 23.47019278400012),
+    (98.0083609620001, 23.47019279700004),
+    (98.00617347200011, 23.47104705700002),
+    (98.00424826600016, 23.472747559000027),
+    (98.00379184787815, 23.47302665583293),
+    (98.00379184787815, 23.47960850512211),
+    (98.00494909200751, 23.47960850512211),
+    (98.00708554200008, 23.47631481100018),
+]
+
+
+def test_close_notches_keeps_only_polygons():
+    with duckdb.connect() as conn:
+        conn.execute("INSTALL spatial; LOAD spatial;")
+        wkt = [
+            "POLYGON((" + ", ".join(f"{x} {y}" for x, y in r) + "))"
+            for r in (_SPUR_A, _SPUR_B)
+        ]
+        conn.execute(
+            "CREATE TABLE units AS SELECT * FROM (VALUES (1, ST_GeomFromText(?)), "
+            "(2, ST_GeomFromText(?))) t(fid, geom)",
+            wkt,
+        )
+        assert close_notches(conn, "units") == 1
+        types = conn.execute(
+            "SELECT DISTINCT ST_GeometryType(geom) FROM units"
+        ).fetchall()
+        assert {t for (t,) in types} <= {"POLYGON", "MULTIPOLYGON"}
+
+
+def test_wide_wedge_and_t_junction_are_not_notches():
+    with duckdb.connect() as conn:
+        conn.execute("INSTALL spatial; LOAD spatial;")
+        _wedge(conn, [(600, 100)])
+        assert detect_notches(conn, "units", "notches") == 0
+        conn.execute("""
+            CREATE OR REPLACE TABLE units AS
+            SELECT 1 AS fid,
+                   ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))') AS geom
+            UNION ALL SELECT 2, ST_GeomFromText('POLYGON((1 0, 2 0, 2 1, 1 1, 1 0))')
+            UNION ALL SELECT 3, ST_GeomFromText('POLYGON((0 1, 2 1, 2 2, 0 2, 0 1))')
+        """)
+        assert detect_notches(conn, "units", "notches") == 0
+        assert close_notches(conn, "units") == 0
