@@ -64,7 +64,7 @@ def synthetic_inputs(tmp_path):
 def test_cli_help():
     result = CliRunner().invoke(cli, ["edge-clip", "--help"])
     assert result.exit_code == 0
-    assert "overlay feature it overlaps most" in result.output
+    assert "overlay polygon it overlaps most" in result.output
     assert "Examples:" in result.output
 
 
@@ -147,7 +147,7 @@ def test_clip_raises_when_no_input_overlaps_any_overlay(synthetic_overlays, tmp_
     )
 
     output_path = tmp_path / "out.parquet"
-    with pytest.raises(RuntimeError, match="no input feature survived clipping"):
+    with pytest.raises(RuntimeError, match="no input polygon survived clipping"):
         clip(input_path, synthetic_overlays, output_path, overwrite=True)
 
 

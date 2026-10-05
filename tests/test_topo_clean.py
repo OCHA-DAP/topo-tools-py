@@ -156,7 +156,7 @@ def test_clean_reports_merged_micro_polygon(with_overlap, tmp_path):
             FROM '{issues_path}' WHERE kind = 'micro-polygon'
         """).fetchall()
     assert [r[0] for r in out_ids] == [r[0] for r in rows if r[0] != micro_id]
-    assert micro == [(True, "merged into neighbouring feature", True, True)]
+    assert micro == [(True, "merged into neighbouring polygon", True, True)]
 
 
 def test_clean_default_output_paths(synthetic_input):

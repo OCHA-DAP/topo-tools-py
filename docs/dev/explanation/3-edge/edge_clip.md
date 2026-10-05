@@ -8,8 +8,8 @@ sidebar:
 ---
 
 `edge-clip` is the standalone extraction of the clipping step `edge-match` and
-`edge-mosaic` each ran internally before this extraction: assign every input feature to
-its overlay feature, then intersect it against that overlay feature's geometry, dropping
+`edge-mosaic` each ran internally before this extraction: assign every input polygon to
+its overlay polygon, then intersect it against that overlay polygon's geometry, dropping
 anything that clips to empty. Unlike `edge-match`/`edge-mosaic`'s internal use of the
 same clipping mechanism, standalone `edge-clip` never expects a caller to have
 already assigned `overlay_fid` itself; it does that internally, always via
@@ -50,20 +50,20 @@ subprocess generations, see
 
 `_engine.main()` requires the input table to already carry `overlay_fid`
 (assign's own output contract) rather than taking a separate assign table
-and joining internally, since a caller assembling input features from multiple
+and joining internally, since a caller assembling input polygons from multiple
 sources (e.g. match's reassembled per-group output) may not have one
 single assign table to join against. Standalone `edge-clip` always satisfies
 this itself via `_01_clip`'s join, before `_engine.main()` ever runs.
 
-For each distinct `overlay_fid`, present input features and that one overlay feature's
+For each distinct `overlay_fid`, present input polygons and that one overlay polygon's
 geometry are exported to per-fid Parquet files and handed to a freshly
 spawned OS subprocess (`multiprocessing.get_context("spawn")`), which loads
 them into its own DuckDB connection and intersects. A single query
-intersecting every assigned input feature against every overlay feature's full geometry at
-once, and later a per-overlay-feature loop within one process, both OOM'd at
+intersecting every assigned input polygon against every overlay polygon's full geometry at
+once, and later a per-overlay-polygon loop within one process, both OOM'd at
 continent scale: repeated `ST_Intersection` calls leak GEOS's native heap
 the same way `edge_extend()`'s Voronoi machinery does, and only a fresh process
-per overlay feature reliably reclaims it. See `docs/adr/0015` for the isolation
+per overlay polygon reliably reclaims it. See `docs/adr/0015` for the isolation
 decision itself.
 
 A caller driving `edge-clip`/`edge-mosaic`/`edge-match` programmatically (not via the CLI)
@@ -73,22 +73,22 @@ so a worker started from stdin fails immediately with a `FileNotFoundError`
 that surfaces as a generic "worker exited with no result" error, easy to
 mistake for OOM.
 
-Within one overlay feature's subprocess, that overlay feature's boundary is grid-tiled
+Within one overlay polygon's subprocess, that overlay polygon's boundary is grid-tiled
 before intersecting once its vertex count reaches `CLIP_TILE_MIN_VERTICES`
-(`core.edge_clip.subdivide_boundary`, `_tiling.py`), joining input features to tiles
+(`core.edge_clip.subdivide_boundary`, `_tiling.py`), joining input polygons to tiles
 via bbox comparison rather than one `ST_Intersection` against a
-possibly-million-vertex whole. Below the threshold, the overlay feature is clipped
-directly with no subdivision. Tile size is solved from that overlay feature's own
+possibly-million-vertex whole. Below the threshold, the overlay polygon is clipped
+directly with no subdivision. Tile size is solved from that overlay polygon's own
 vertex density (`_adaptive_cell_size`) rather than a fixed constant,
 calibrated so South Africa's worst real case (281k vertices) lands at
-~1 degree cells; sparser or simpler overlay features get coarser cells automatically.
-See `docs/adr/0016` (grid-tiling a large overlay feature's boundary before
+~1 degree cells; sparser or simpler overlay polygons get coarser cells automatically.
+See `docs/adr/0016` (grid-tiling a large overlay polygon's boundary before
 intersecting) and `docs/adr/0017` (the adaptive threshold/cell size) for
 the full empirical detail.
 
 ## Clip-detached pieces
 
-Clipping an extended feature to its overlay feature can cut one of its parts
+Clipping an extended polygon to its overlay polygon can cut one of its parts
 into several pieces, e.g. where the overlay edge crosses a thin tip.
 `_engine.main()` finishes with `core.coverage.merge_detached_parts`, which
 groups each piece by the pre-clip part holding its interior point and

@@ -1,4 +1,4 @@
-"""Assigns each input file to the overlay feature its features overlap most."""
+"""Assigns each input file to the overlay polygon its features overlap most."""
 
 from logging import getLogger
 
@@ -122,7 +122,7 @@ def _build_pairs(
         GROUP BY c.fid, p.fid
     """)
 
-    # Oversized overlay parts: input features joined to the precomputed tile set at
+    # Oversized overlay parts: input polygons joined to the precomputed tile set at
     # once, tiles already tagged with their own overlay_fid.
     conn.execute(f"""--sql
         INSERT INTO "{name}_02_pairs_raw"
@@ -208,7 +208,7 @@ def assign_one(  # noqa: PLR0913
     carry_columns: list[str] | None = None,
     input_columns: list[str] | None = None,
 ) -> None:
-    """Force every input feature in a source_file onto its file's majority overlay."""
+    """Force every input polygon in a source_file onto its file's majority overlay."""
     _build_pairs(conn, name, use_cached_tiles=use_cached_tiles)
 
     conn.execute(f"""--sql
@@ -274,7 +274,7 @@ def assign_one(  # noqa: PLR0913
         winner_table = f"{name}_02_file_winner"
         extra_cols = ""
 
-    # Every input feature rides its file's winner unconditionally; a truly
+    # Every input polygon rides its file's winner unconditionally; a truly
     # non-overlapping one still drops later, at clip time.
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_02_assign" AS
@@ -300,7 +300,7 @@ def assign_one(  # noqa: PLR0913
     if unassigned:
         fids = [row[0] for row in unassigned]
         logger.warning(
-            "assign-one: dropping %d input fid(s) whose file had no overlay feature "
+            "assign-one: dropping %d input fid(s) whose file had no overlay polygon "
             "overlap at all: %s",
             len(fids),
             fids,

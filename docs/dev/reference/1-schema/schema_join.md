@@ -29,10 +29,10 @@ sidebar:
 
 ## Assignment
 
-- `schema-join` MUST assign each input feature to the single join feature it shares the
-  most area with (`core.assign.assign_many()`, per-feature plurality, ties
+- `schema-join` MUST assign each input polygon to the single join polygon it shares the
+  most area with (`core.assign.assign_many()`, per-polygon plurality, ties
   broken by lowest join fid), measured in `EQUAL_AREA_CRS`.
-- An input feature overlapping no join feature MUST stay in the output, with every copied
+- An input polygon overlapping no join polygon MUST stay in the output, with every copied
   join column NULL.
 
 ## Joining
@@ -40,13 +40,13 @@ sidebar:
 For each join layer hierarchy column:
 
 - absent from the input layer: `schema-join` MUST add it, filled from the
-  input feature's assigned join feature;
+  input polygon's assigned join polygon;
 - present on the input layer and equal (`IS NOT DISTINCT FROM`) on every
-  assigned input feature: `schema-join` MUST skip it, leaving the input layer's column
+  assigned input polygon: `schema-join` MUST skip it, leaving the input layer's column
   as-is;
-- present on the input layer and different on any assigned input feature:
+- present on the input layer and different on any assigned input polygon:
   `schema-join` MUST leave the input layer's column untouched and add the
-  join feature's values under the next free numbered sibling name (`adm2_name1`,
+  join polygon's values under the next free numbered sibling name (`adm2_name1`,
   then `adm2_name2` if `adm2_name1` is taken on either layer), logging a
   warning with the differing row count.
 
@@ -65,14 +65,14 @@ overwrite any input value (see `docs/adr/0109`).
   the deepest level's own code column, as in `schema-map`.
 - `schema-join` MUST write an issues file in the shared issues-table
   column schema, with one row per:
-  - `no-overlap`: an input feature overlapping no join feature;
-  - `low-overlap`: an input feature whose assigned join feature covers less than
-    `min_overlap` of its own area, with `area_m2` set to the input feature's area
-    outside that join feature and `reason` stating the covered share;
-  - `value-mismatch`: an input feature and column where the input feature's value and its
-    join feature's value are both non-NULL and differ, with `reason` naming the
+  - `no-overlap`: an input polygon overlapping no join polygon;
+  - `low-overlap`: an input polygon whose assigned join polygon covers less than
+    `min_overlap` of its own area, with `area_m2` set to the input polygon's area
+    outside that join polygon and `reason` stating the covered share;
+  - `value-mismatch`: an input polygon and column where the input polygon's value and its
+    join polygon's value are both non-NULL and differ, with `reason` naming the
     column and both values.
-- `unit_a` MUST hold the input feature's 1-based row number in the output file, not
+- `unit_a` MUST hold the input polygon's 1-based row number in the output file, not
   its input fid, since rows are re-sorted by code.
 - `schema-join` MUST NOT write an empty issues file, and MUST remove a
   stale one at the issues path instead.

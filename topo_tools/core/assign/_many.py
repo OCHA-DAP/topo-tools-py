@@ -1,4 +1,4 @@
-"""Assigns each input feature to the overlay feature it shares the largest area with."""
+"""Assigns each input polygon to the overlay polygon it shares the largest area with."""
 
 from logging import getLogger
 
@@ -20,7 +20,7 @@ def assign_many(  # noqa: PLR0913
     carry_columns: list[str] | None = None,
     input_columns: list[str] | None = None,
 ) -> None:
-    """Assign each input feature to its plurality-overlap overlay; log the rest."""
+    """Assign each input polygon to its plurality-overlap overlay; log the rest."""
     # Bbox columns precomputed here, not called inline in the join below:
     # DuckDB re-evaluates an inline envelope call per comparison, not once per row.
     conn.execute(f"""--sql
@@ -59,7 +59,7 @@ def assign_many(  # noqa: PLR0913
         GROUP BY c.fid, p.fid
     """)
 
-    # Plurality pick per input feature, ties broken by lowest overlay fid.
+    # Plurality pick per input polygon, ties broken by lowest overlay fid.
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_02_tmp3" AS
         SELECT input_fid, overlay_fid FROM (
@@ -73,7 +73,7 @@ def assign_many(  # noqa: PLR0913
     """)
 
     if overlay_match_column and input_match_column:
-        # Code candidate per input feature, restricted to an overlay it overlaps at all
+        # Code candidate per input polygon, restricted to an overlay it overlaps at all
         # (guards against a stale code); ties broken by lowest overlay fid.
         conn.execute(f"""--sql
             CREATE OR REPLACE TABLE "{name}_02_tmp4" AS
@@ -128,7 +128,7 @@ def assign_many(  # noqa: PLR0913
     if unassigned:
         fids = [row[0] for row in unassigned]
         logger.warning(
-            "assign-many: dropping %d unmatched input fid(s) with no overlay feature "
+            "assign-many: dropping %d unmatched input fid(s) with no overlay polygon "
             "overlap: %s",
             len(fids),
             fids,

@@ -9,7 +9,7 @@ Fit the topology-cleaned
 output of [step 2](../2-topology/how-to.md) to the previous release's country
 outline, so every release keeps the same outer edge. The outline is the
 previous release's admin1 from `source.coop/hdx/cod-ab/matched/{iso3}/{vNN}/`,
-dissolved into one admin0 feature:
+dissolved into one admin0 polygon:
 
     topo-tools edge-match admin2_topo.parquet previous_admin0.parquet \
       admin2_matched.parquet --issues-file admin2_matched_issues.parquet

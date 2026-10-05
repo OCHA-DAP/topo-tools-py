@@ -27,10 +27,10 @@ Like edge-match, but skips the extending step, for input already run through edg
 - `--debug`: Keep intermediate tables, export them to Parquet, and log the time and memory each query takes.
 - `--tmp-dir TEXT`: Folder for the working DuckDB database and intermediate files (default: a new temporary folder, deleted afterwards unless `--debug` is set).
 - `--step [inputs|assign|clip|stitch|outputs]`: Run only this step of the tool, for debugging.
-- `--match-column TEXT`: Column in both layers, such as a p-code, used to match input features to overlay features. It wins over overlap where the two disagree. Can't be combined with `--overlay-match-column` or `--input-match-column`.
+- `--match-column TEXT`: Column in both layers, such as a p-code, used to match input polygons to overlay polygons. It wins over overlap where the two disagree. Can't be combined with `--overlay-match-column` or `--input-match-column`.
 - `--overlay-match-column TEXT`: Matching column in the overlay, when its name differs from the input's. Give it with `--input-match-column`.
 - `--input-match-column TEXT`: Matching column in the input, when its name differs from the overlay's. Give it with `--overlay-match-column`.
-- `--merge`: Copy the overlay's columns onto every matched input feature, and keep unmatched overlay or input features in the output, unclipped, instead of dropping them. Choose columns with `--overlay-include`, `--overlay-exclude`, `--input-include` and `--input-exclude`. When both layers have a column with the same name, choose which one to keep with `--prefer`.
+- `--merge`: Copy the overlay's columns onto every matched input polygon, and keep unmatched overlay or input polygons in the output, unclipped, instead of dropping them. Choose columns with `--overlay-include`, `--overlay-exclude`, `--input-include` and `--input-exclude`. When both layers have a column with the same name, choose which one to keep with `--prefer`.
 - `--overlay-include TEXT`: Overlay columns to copy, comma-separated. Needs `--merge`.
 - `--overlay-exclude TEXT`: Overlay columns not to copy, comma-separated. Needs `--merge`.
 - `--input-include TEXT`: Input columns to keep, comma-separated. Needs `--merge`.
@@ -69,7 +69,7 @@ Match on a shared p-code column, overriding overlap where they disagree:
 topo-tools edge-mosaic adm3_extended.parquet adm0_new.geojson --match-column pcode
 ```
 
-Keep an overlay feature's own shape where no input file covers it:
+Keep an overlay polygon's own shape where no input file covers it:
 
 ```sh
 topo-tools edge-mosaic "*/latest/adm4/extended.parquet" world_adm0.geojson \

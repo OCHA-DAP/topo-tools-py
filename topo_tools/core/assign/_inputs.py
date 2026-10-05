@@ -10,7 +10,7 @@ from topo_tools.core.io import read_and_reproject, reproject_select_sql
 def load_input(
     conn: DuckDBPyConnection, name: str, input_paths: list[Path | str]
 ) -> None:
-    """Load/combine the (possibly multi-file) input features, uncleaned.
+    """Load/combine the (possibly multi-file) input polygons, uncleaned.
 
     Each part is tagged with its own full path as `source_file` (basename
     alone can't distinguish same-named files across directories).

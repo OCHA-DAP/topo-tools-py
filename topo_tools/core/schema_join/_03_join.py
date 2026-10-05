@@ -1,4 +1,4 @@
-"""Copies the matched join feature's hierarchy columns onto each input feature."""
+"""Copies the matched join polygon's hierarchy columns onto each input polygon."""
 
 from logging import getLogger
 

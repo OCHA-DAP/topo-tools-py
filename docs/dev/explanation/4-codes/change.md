@@ -121,7 +121,7 @@ decoupled from each other.
 
 `_03_classify.py` ports `classify.ts` line-for-line, but runs the union-find
 and cardinality classification in Python rather than SQL. This is safe under
-this repo's memory model: the algorithm scales with **feature count**, not
+this repo's memory model: the algorithm scales with **polygon count**, not
 vertex count: a 500K-polygon admin layer is trivial to hold as Python
 dicts/sets, unlike the vertex-scaled Voronoi/coverage-clean work `edge-extend`/
 `topo-clean` do. Pair rows are fetched once via `conn.execute(...).fetchall()`,

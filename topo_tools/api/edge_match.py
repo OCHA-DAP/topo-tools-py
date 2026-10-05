@@ -75,10 +75,10 @@ def match(  # noqa: C901, PLR0912, PLR0913, PLR0915
     code_field: str | None = None,
     depth_column: str = "adm_lvl",
 ) -> None:
-    """Match one or more input layers to their best-overlapping overlay feature."""
+    """Match one or more input layers to their best-overlapping overlay polygon."""
     if match_column is not None and (overlay_match_column or input_match_column):
         msg = (
-            "match_column is mutually exclusive with overlay feature/input_match_column"
+            "match_column is mutually exclusive with overlay polygon/input_match_column"
         )
         raise ValueError(msg)
     if bool(overlay_match_column) != bool(input_match_column):
@@ -346,7 +346,7 @@ def _match_multi_file(  # noqa: PLR0913, PLR0917
     """Load/assign one input file at a time, sharing one already-loaded overlay layer.
 
     Groups/clip/stitch/outputs run once over the fully accumulated result
-    afterward, so cross-file input features sharing a overlay_fid extend together.
+    afterward, so cross-file input polygons sharing a overlay_fid extend together.
     """
     load_overlay(conn, name, overlay_path)
     conn.execute(f"""--sql

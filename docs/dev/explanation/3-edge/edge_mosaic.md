@@ -10,9 +10,9 @@ sidebar:
 `edge-mosaic` fits an **input** layer that is already the finished output of a
 prior `edge_extend()` run into a new/different **overlay** layer, without
 re-running Voronoi extension. It exists because `edge-match` redundantly redoes
-extension for input features that were already extended by an earlier pipeline
+extension for input polygons that were already extended by an earlier pipeline
 run: `edge-match`'s own Colombia-scale profiling (see `docs/dev/explanation/3-edge/edge_match.md`)
-shows the `groups` stage (where per-overlay-feature extension happens) at ~85% of
+shows the `groups` stage (where per-overlay-polygon extension happens) at ~85% of
 total wall time. If the geometry is already extended, only assignment,
 clipping, and seam-closing need to happen: the same three primitives
 `assign`, `edge-clip`, and `edge-stitch` expose standalone (see their own explanation
@@ -21,13 +21,13 @@ docs); `edge-mosaic` is a thin wrapper chaining `assign-one` → `edge-clip` →
 ## Pipeline
 
 1. **`_01_inputs`**: loads both layers raw via `core.io.read_and_reproject`,
-   once per input file plus once for the overlay feature (`{name}_input_01`,
+   once per input file plus once for the overlay polygon (`{name}_input_01`,
    `{name}_overlay_01`). Neither side is coverage-checked or -cleaned; see
    "Why neither input is coverage pre-checked" below.
 2. **assign**: calls `core.assign.assign_one()` directly, the same
    per-file majority-vote pairing `assign-one` exposes standalone, see
    `docs/dev/explanation/3-edge/assign.md`. Also narrows `{name}_overlay_01` down to
-   only the overlay fids any input feature was actually assigned to, before clip
+   only the overlay fids any input polygon was actually assigned to, before clip
    runs.
 3. **`_01_clip`**: a thin wrapper joining `overlay_fid` onto
    `{name}_input_01` from `{name}_02_assign`, then calling
@@ -38,7 +38,7 @@ docs); `edge-mosaic` is a thin wrapper chaining `assign-one` → `edge-clip` →
    own already-extended geometry into `{name}_03` immediately after the
    normal clip; the api layer then calls the shared
    `core.assign.fill_unmatched_overlays()` to append every unmatched
-   overlay feature's own geometry into the same table, before stitch ever runs.
+   overlay polygon's own geometry into the same table, before stitch ever runs.
 4. **`_02_stitch`**: calls `core.edge_stitch._02_clean.main()` directly, the
    same whole-table `ST_CoverageClean` pass `edge-stitch` exposes standalone,
    see `docs/dev/explanation/3-edge/edge_stitch.md`. Passthrough/gap-fill rows (if any)
@@ -49,9 +49,10 @@ docs); `edge-mosaic` is a thin wrapper chaining `assign-one` → `edge-clip` →
    overlay-layer-hole reason (see `docs/dev/explanation/3-edge/edge_match.md`'s
    "`check_valid_topology` and overlay-layer gaps", `docs/adr/0035`,
    `docs/adr/0039`), an
-   issues report listing unassigned/passthrough input features (no dropped-group
-   kind, since there are no groups), any gap-filled overlay features, plus any
-   leftover gap wider than `SNAP_TOLERANCE`, a warning log if any such gap
+   issues report listing unassigned/passthrough input polygons (no dropped-group
+   kind, since there are no groups), any gap-filled overlay polygons, plus any
+   leftover gap wider than `SNAP_TOLERANCE` inside an overlay polygon the output
+   was clipped to, a warning log if any such gap
    remains, and export (only when the issues report has rows).
 
 ## Multi-file input
@@ -95,19 +96,19 @@ default; `--overlay-include`/`--overlay-exclude`/`--input-include`/
 `--input-exclude`/`--prefer` further narrow which columns survive (see
 `docs/dev/explanation/3-edge/assign.md`).
 
-**Input passthrough.** A whole input file with no overlap with any overlay feature
+**Input passthrough.** A whole input file with no overlap with any overlay polygon
 (a country genuinely missing from the overlay layer) is dropped by
 default; with `merge` set, that file's own already-extended geometry is
 kept in the output unclipped instead, reported as a `kind='passthrough'`
 issues row rather than `unassigned`. Scope is whole-file only: an
-individual input feature dropped from an otherwise-matched file (`core.assign`'s
+individual input polygon dropped from an otherwise-matched file (`core.assign`'s
 per-file majority vote already decided it doesn't belong there) is
 unaffected either way. `_01_clip.py`'s `main()` builds this directly as a
-`UNION ALL BY NAME` selecting every input feature row whose fid is in
+`UNION ALL BY NAME` selecting every input polygon row whose fid is in
 `{name}_02_unassigned`, immediately after the normal clip.
 
-**Overlay gap-fill.** An overlay feature matched by zero input features is dropped by
-default; with `merge` set, that overlay feature's own geometry and carried columns
+**Overlay gap-fill.** An overlay polygon matched by zero input polygons is dropped by
+default; with `merge` set, that overlay polygon's own geometry and carried columns
 are kept in the output unclipped instead, reported as a `kind='gap-fill'`
 row. This is the shared `core.assign.fill_unmatched_overlays()` helper
 (relocated from a mosaic-local `fill_gaps()` this session so `edge-match`
@@ -116,8 +117,8 @@ after `_01_clip.main()` returns, against a `{name}_overlay_full` snapshot
 taken before assign narrows `{name}_overlay_01` to only-matched fids.
 
 Both mechanisms are identical in outcome to `edge-match`'s own `merge`,
-given an equivalent already-extended/raw input feature set against the same
-overlay feature (see `docs/dev/explanation/3-edge/edge_match.md`). `edge-clip` has no
+given an equivalent already-extended/raw input polygon set against the same
+overlay polygon (see `docs/dev/explanation/3-edge/edge_match.md`). `edge-clip` has no
 equivalent option (it stays a strict 1:1 primitive with no drop/keep
 decision to make). `merge` always couples attribute carry-forward with
 both passthrough mechanisms; there is no way to get one without the
@@ -138,10 +139,10 @@ output, which `edge-mosaic` never re-verifies.
 | | `edge-match` | `edge-mosaic` |
 | --- | --- | --- |
 | Input assumption | Input layer is raw, unextended | Input layer is already a finished `edge_extend()` output |
-| Assign strategy | `assign-many` (per-feature plurality) | `assign-one` (per-file majority vote) |
+| Assign strategy | `assign-many` (per-polygon plurality) | `assign-one` (per-file majority vote) |
 | Cost driver | Per-group Voronoi extension (~85% of wall time) | Assign + clip + stitch only, no extension |
 | Isolation | Two subprocess generations: per-group `edge-extend`, then batched per-`overlay_fid` `edge-clip` (`docs/adr/0020`) | Per-`overlay_fid` subprocess only, boundary adaptively grid-tiled (`docs/adr/0015`, `docs/adr/0016`, `docs/adr/0017`) |
-| When to use | Input layer hasn't been extended yet | Reusing pre-extended layers against a new/different overlay feature |
+| When to use | Input layer hasn't been extended yet | Reusing pre-extended layers against a new/different overlay polygon |
 
 ## Caveats
 
@@ -155,7 +156,7 @@ full detail.
 
 **Cross-provenance seam risk.** `docs/dev/explanation/3-edge/edge_stitch.md` documents
 genuine (non-float-noise) seam disagreements up to ~645m between two tiles
-computed independently. `edge-mosaic`'s input features can come from wholly different
+computed independently. `edge-mosaic`'s input polygons can come from wholly different
 tool versions or vintages (the portolan catalog has per-country pipeline
 drift, e.g. `phl` has v01 through v03), with no guarantee that any two
 `extended.parquet` files being combined into one `edge_mosaic()` input were even
@@ -192,7 +193,7 @@ unchanged and still MUST NOT depend on `core.schema_fill`/
 `fill_schema` and `merge` are conceptually complementary but
 independently gated flags, not aliases: `merge`'s own
 `fill_unmatched_overlays()` (`docs/adr/0083`) fills a *geometry-coverage*
-gap, an overlay feature with zero matched input features, by keeping its own unclipped
+gap, an overlay polygon with zero matched input polygons, by keeping its own unclipped
 geometry in the output; `fill_schema` fills a *schema-depth* gap, a row
 whose admin-hierarchy columns don't reach as deep as some other row's,
 by cascading each column family down to the row's own real depth. Both

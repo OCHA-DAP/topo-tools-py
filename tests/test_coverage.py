@@ -8,6 +8,7 @@ from topo_tools.core.coverage import (
     check_valid_topology,
     count_gaps,
     coverage_clean,
+    gap_issues_sql,
     has_gaps,
     has_micro_polygons,
     merge_detached_parts,
@@ -35,6 +36,17 @@ def test_has_gaps_tolerates_wide_hole_when_scoped():
         _write_polygon_with_hole(conn, hole_width=2.0)
         assert has_gaps(conn, "synth", gap_maximum_width=0)
         assert not has_gaps(conn, "synth", gap_maximum_width=SNAP_TOLERANCE)
+
+
+@pytest.mark.parametrize(("within", "rows"), [((1, 2), 1), ((5, 6), 0)])
+def test_gap_issues_keep_only_gaps_inside_within(within, rows):
+    with duckdb.connect() as conn:
+        conn.execute("INSTALL spatial; LOAD spatial;")
+        _write_polygon_with_hole(conn, hole_width=0.5)
+        lo, hi = within
+        box = f"SELECT ST_MakeEnvelope({lo}, {lo}, {hi}, {hi}) AS geom"
+        sql = gap_issues_sql(conn, "synth", within=box)
+        assert conn.execute(f"SELECT count(*) FROM ({sql})").fetchone()[0] == rows
 
 
 def test_check_valid_topology_raises_on_micro_gap_even_when_scoped():
@@ -110,7 +122,7 @@ def test_overlap_sliver_merges_into_the_feature_it_overlaps():
     count, out, issues = _merge([(1, wkt_a), (2, SQUARE_B)])
     assert count == 1
     assert out == {1: 1, 2: 1}
-    assert issues == [(1, 2, "merged into neighbouring feature", True)]
+    assert issues == [(1, 2, "merged into neighbouring polygon", True)]
 
 
 def test_touching_fragment_merges_into_its_own_large_part():
@@ -118,7 +130,7 @@ def test_touching_fragment_merges_into_its_own_large_part():
     count, out, issues = _merge([(1, wkt_a)])
     assert count == 1
     assert out == {1: 1}
-    assert issues == [(1, 1, "merged into neighbouring feature", True)]
+    assert issues == [(1, 1, "merged into neighbouring polygon", True)]
 
 
 def test_isolated_fragment_is_dropped_and_large_part_kept():
@@ -126,7 +138,7 @@ def test_isolated_fragment_is_dropped_and_large_part_kept():
     count, out, issues = _merge([(1, wkt_a), (2, SQUARE_B)])
     assert count == 1
     assert out == {1: 1, 2: 1}
-    assert issues == [(1, None, "dropped: touches no feature", True)]
+    assert issues == [(1, None, "dropped: touches no polygon", True)]
 
 
 def test_whole_micro_feature_row_is_removed():
@@ -134,7 +146,7 @@ def test_whole_micro_feature_row_is_removed():
     count, out, issues = _merge([(1, SQUARE_A), (2, SQUARE_B), (3, wkt_c)])
     assert count == 1
     assert out == {1: 1, 2: 1}
-    assert issues == [(3, 2, "merged into neighbouring feature", True)]
+    assert issues == [(3, 2, "merged into neighbouring polygon", True)]
 
 
 def test_micro_polygon_keys_ignore_input_row_order():
@@ -262,7 +274,7 @@ def test_detached_sliver_merges_into_edge_neighbour():
     )
     assert count == 1
     assert out == {1: 1, 2: 1}
-    assert issues == [(1, 2, "merged into neighbouring feature", True)]
+    assert issues == [(1, 2, "merged into neighbouring polygon", True)]
 
 
 def test_detached_sliver_without_original_is_only_reported():
@@ -388,7 +400,7 @@ def test_piece_mostly_on_footprint_is_kept_when_its_point_hits_a_hole():
     )
     assert count == 1
     assert out == {1: 1, 2: 1}
-    assert issues == [(1, 2, "merged into neighbouring feature", True)]
+    assert issues == [(1, 2, "merged into neighbouring polygon", True)]
 
 
 def test_only_a_too_large_detached_piece_is_a_destination():
@@ -408,7 +420,7 @@ def test_only_a_too_large_detached_piece_is_a_destination():
     )
     assert count == 1
     assert out == {1: 1, 2: 2}
-    assert issues == [(1, 2, "merged into neighbouring feature", True)]
+    assert issues == [(1, 2, "merged into neighbouring polygon", True)]
 
 
 def test_unattached_merge_is_cancelled_and_reported():
@@ -451,7 +463,7 @@ def test_extension_only_sliver_merges_into_edge_neighbour():
     )
     assert count == 1
     assert out == {1: 1, 2: 1}
-    assert issues == [(1, 2, "merged into neighbouring feature", True)]
+    assert issues == [(1, 2, "merged into neighbouring polygon", True)]
 
 
 def test_large_area_detached_piece_under_ratio_merges():
@@ -464,4 +476,4 @@ def test_large_area_detached_piece_under_ratio_merges():
     )
     assert count == 1
     assert out == {1: 1, 2: 1}
-    assert issues == [(1, 2, "merged into neighbouring feature", True)]
+    assert issues == [(1, 2, "merged into neighbouring polygon", True)]

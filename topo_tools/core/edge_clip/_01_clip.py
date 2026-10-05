@@ -19,7 +19,7 @@ def main(  # noqa: PLR0913
     carry_columns: list[str] | None = None,
     original_table: str | None = None,
 ) -> None:
-    """Clip each assigned input feature to its overlay, then merge micro-polygons."""
+    """Clip each assigned input polygon to its overlay, then merge micro-polygons."""
     carry_sql = "".join(f', a."{c}" AS "{c}"' for c in (carry_columns or []))
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_02_clip_in" AS

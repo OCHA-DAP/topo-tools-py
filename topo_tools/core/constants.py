@@ -110,7 +110,7 @@ def is_noise_column(name: str) -> bool:
 # core.clip skips grid-tiling below this vertex count and clips directly.
 CLIP_TILE_MIN_VERTICES = 5000
 # Target vertices per tile once tiling triggers; cell size is solved from
-# this against each overlay feature's vertex density (see _adaptive_cell_size).
+# this against each overlay polygon's vertex density (see _adaptive_cell_size).
 CLIP_TILE_TARGET_VERTICES = 1350
 CLIP_TILE_MIN_CELL = 0.05
 CLIP_TILE_MAX_CELL = 5.0

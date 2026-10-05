@@ -1,4 +1,4 @@
-"""Unions in the own geometry of any overlay feature no input feature matched."""
+"""Unions in the own geometry of any overlay polygon no input polygon matched."""
 
 from duckdb import DuckDBPyConnection
 
@@ -11,9 +11,9 @@ def fill_unmatched_overlays(
     result_table: str,
     overlay_snapshot_table: str,
 ) -> None:
-    """Append each unmatched overlay feature's own row (unclipped) onto result_table.
+    """Append each unmatched overlay polygon's own row (unclipped) onto result_table.
 
-    One INSERT per fid, not one bulk copy: a true global overlay feature can leave
+    One INSERT per fid, not one bulk copy: a true global overlay polygon can leave
     most of its rows unmatched, so this avoids materializing them all at once.
     """
     carry_sql = "".join(f', "{c}"' for c in (carry_columns or []))

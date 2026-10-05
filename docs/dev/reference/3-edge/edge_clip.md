@@ -11,7 +11,7 @@ sidebar:
 
 - `edge-clip` MUST load the input layer and the overlay layer raw,
   neither coverage-checked nor -cleaned.
-- `edge-clip` MUST NOT require or read an `overlay_fid` column on the input features
+- `edge-clip` MUST NOT require or read an `overlay_fid` column on the input polygons
   layer.
 - `edge-clip` MUST accept exactly one input file and exactly one
   overlay file per call, a strict 1:1 primitive (see `docs/adr/0080`);
@@ -22,15 +22,15 @@ sidebar:
 
 ## Assignment
 
-- `edge-clip` MUST internally assign every input feature to exactly one overlay feature before
+- `edge-clip` MUST internally assign every input polygon to exactly one overlay polygon before
   clipping, via `assign-one`'s file-wide majority-vote strategy (see
-  `docs/dev/explanation/3-edge/assign.md`): every input feature is forced onto the one overlay feature
+  `docs/dev/explanation/3-edge/assign.md`): every input polygon is forced onto the one overlay polygon
   that wins a majority vote by count, unconditionally, not evaluated per
-  input feature. An input feature with zero individual overlap with the winner is not
+  input polygon. An input polygon with zero individual overlap with the winner is not
   dropped at this stage; it still gets clipped against the winner and MAY
   drop later if that clip result is empty (see Clipping).
-- A whole input file with no overlap against any overlay feature at all MUST be
-  dropped, not clipped against the wrong overlay feature.
+- A whole input file with no overlap against any overlay polygon at all MUST be
+  dropped, not clipped against the wrong overlay polygon.
 
 ## Clipping
 
@@ -38,11 +38,11 @@ sidebar:
   `ST_Intersection`, one distinct `overlay_fid` at a time, each in its own
   spawned OS subprocess.
 - Within one `overlay_fid`'s subprocess, `edge-clip` MUST grid-subdivide that
-  overlay feature's boundary into small tiles before intersecting once its vertex
+  overlay polygon's boundary into small tiles before intersecting once its vertex
   count exceeds an adaptive threshold, sizing the tile grid from that
-  overlay feature's own vertex density, and MUST join input features to tiles via bbox
+  overlay polygon's own vertex density, and MUST join input polygons to tiles via bbox
   comparison, never `ST_Intersects`.
-- An input feature whose clipped result is empty MUST be dropped from the output,
+- An input polygon whose clipped result is empty MUST be dropped from the output,
   not treated as fatal, and MUST be recorded in the issues report as a
   `kind='clip-empty'` row (see Outputs).
 - `edge-clip` MUST merge or keep every clip-detached piece in the clipped result, recording each one with an edge
@@ -79,7 +79,7 @@ sidebar:
   `code-mismatch`/`code-fallback` rows to the issues report alongside any
   `clip-empty` rows.
 - `edge-clip` MAY accept `carry_columns` (CLI: `--carry-column`) to copy
-  named overlay columns onto every matched input feature (see `docs/adr/0077`).
+  named overlay columns onto every matched input polygon (see `docs/adr/0077`).
 - `edge-clip` MAY accept `original_path` (CLI: `--original`, env
   `ORIGINAL_FILE`), the input layer's pre-extension original, in any
   supported format or as a URL. Without it, no clip-detached piece merges.

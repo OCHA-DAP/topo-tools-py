@@ -22,7 +22,7 @@ def _build_issues(conn: DuckDBPyConnection, name: str, min_overlap: float) -> No
         CREATE OR REPLACE TABLE "{name}_04" AS
         SELECT 'no-overlap-' || o.out_fid AS key, 'no-overlap' AS kind,
                o.out_fid AS unit_a, NULL::BIGINT AS join_fid,
-               'input feature overlaps no join feature; join columns left NULL'
+               'input polygon overlaps no join polygon; join columns left NULL'
                AS reason,
                NULL::DOUBLE AS area_m2, {_ISSUE_COLUMNS},
                {source_file} AS source_file, c.geom
@@ -32,7 +32,7 @@ def _build_issues(conn: DuckDBPyConnection, name: str, min_overlap: float) -> No
         UNION ALL BY NAME
         SELECT 'low-overlap-' || o.out_fid AS key, 'low-overlap' AS kind,
                o.out_fid AS unit_a, s.overlay_fid AS join_fid,
-               printf('best join feature covers %.2f of input feature', s.overlap_share)
+               printf('best join polygon covers %.2f of input polygon', s.overlap_share)
                AS reason,
                s.input_area - s.shared_area AS area_m2, {_ISSUE_COLUMNS},
                {source_file} AS source_file, c.geom

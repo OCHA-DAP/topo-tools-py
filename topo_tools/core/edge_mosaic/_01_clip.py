@@ -1,4 +1,4 @@
-"""Clips each assigned input feature to its overlay feature, one subprocess per fid."""
+"""Clips each assigned input polygon to its overlay polygon, one subprocess per fid."""
 
 from pathlib import Path
 
@@ -21,7 +21,7 @@ def main(  # noqa: PLR0913
     raise_if_empty: bool = True,
     original_table: str | None = None,
 ) -> None:
-    """Clip each assigned input feature to its overlay, isolated per overlay fid."""
+    """Clip each assigned input polygon to its overlay, isolated per overlay fid."""
     result_table = result_table or f"{name}_03"
     carry_sql = "".join(f', a."{c}" AS "{c}"' for c in (carry_columns or []))
     input_select_sql = (
@@ -60,5 +60,5 @@ def main(  # noqa: PLR0913
     if raise_if_empty:
         count = conn.execute(f'SELECT COUNT(*) FROM "{result_table}"').fetchone()[0]
         if count == 0:
-            msg = f"mosaic: no input feature got an overlay for {name}"
+            msg = f"mosaic: no input polygon got an overlay for {name}"
             raise RuntimeError(msg)

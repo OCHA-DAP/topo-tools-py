@@ -26,51 +26,51 @@ See [edge-match](edge_match.md) for the rules `edge-mosaic` shares with it.
   (e.g. `sen/adm2.parquet`), never the full input path (see
   `docs/adr/0087`).
 
-## Assigning input features to overlay features
+## Assigning input polygons to overlay polygons
 
-- `edge-mosaic` MUST assign every input feature from one input file to a single overlay feature
-  polygon, shared by the whole file: a file's input features are one group
+- `edge-mosaic` MUST assign every input polygon from one input file to a single overlay polygon
+  polygon, shared by the whole file: a file's input polygons are one group
   (e.g. one country's admin2 units), not independently routed to whichever
-  overlay feature each one individually overlaps most.
-- The file's overlay feature MUST be whichever overlay feature the largest number of that
-  file's input features intersect (a majority vote by count of intersecting
-  input features, not summed overlap area), so a handful of border-overshooting
-  input features cannot misassign a file whose other input features overwhelmingly
-  point to their true overlay feature.
-- A tie between two candidate overlay features MUST be broken by the lower overlay feature id.
-- Once a file has a winning overlay feature, every input feature in that file MUST be
-  assigned to it unconditionally, including an input feature with zero individual
-  overlap with the winner; such an input feature is not dropped at assign time (see
-  `docs/dev/explanation/3-edge/assign.md`). A whole file with no input feature overlapping
-  any overlay feature at all MUST be dropped, not treated as fatal, and
-  `edge-mosaic` MUST log a warning naming its input features, unless `merge`
+  overlay polygon each one individually overlaps most.
+- The file's overlay polygon MUST be whichever overlay polygon the largest number of that
+  file's input polygons intersect (a majority vote by count of intersecting
+  input polygons, not summed overlap area), so a handful of border-overshooting
+  input polygons cannot misassign a file whose other input polygons overwhelmingly
+  point to their true overlay polygon.
+- A tie between two candidate overlay polygons MUST be broken by the lower overlay polygon id.
+- Once a file has a winning overlay polygon, every input polygon in that file MUST be
+  assigned to it unconditionally, including an input polygon with zero individual
+  overlap with the winner; such an input polygon is not dropped at assign time (see
+  `docs/dev/explanation/3-edge/assign.md`). A whole file with no input polygon overlapping
+  any overlay polygon at all MUST be dropped, not treated as fatal, and
+  `edge-mosaic` MUST log a warning naming its input polygons, unless `merge`
   is set (see Configuration), in which case that file's own
   already-extended geometry is instead kept unclipped in the output.
-- An overlay feature matched by zero input features MUST be dropped, unless `merge`
-  is set (see Configuration), in which case that overlay feature's own geometry
+- An overlay polygon matched by zero input polygons MUST be dropped, unless `merge`
+  is set (see Configuration), in which case that overlay polygon's own geometry
   and attributes are kept unclipped in the output instead. Either case
   MUST also be recorded in the issues report described under Outputs.
 
 ## Clipping
 
-- `edge-mosaic` MUST NOT re-run Voronoi extension on any input feature; the input feature
+- `edge-mosaic` MUST NOT re-run Voronoi extension on any input polygon; the input polygon
   layer is assumed already extended.
-- `edge-mosaic` MUST clip each assigned input feature to its own assigned overlay feature's
+- `edge-mosaic` MUST clip each assigned input polygon to its own assigned overlay polygon's
   geometry via `ST_Intersection`, one distinct assigned overlay fid at a
   time, each in its own spawned OS subprocess (see
   `docs/dev/explanation/3-edge/edge_mosaic.md`).
 - Within one overlay fid's subprocess, `edge-mosaic` MUST grid-subdivide that
-  overlay feature's boundary into small tiles before intersecting once its vertex
+  overlay polygon's boundary into small tiles before intersecting once its vertex
   count exceeds an adaptive threshold, sizing the tile grid from that
-  overlay feature's own vertex density, and MUST join input features to tiles via bbox
+  overlay polygon's own vertex density, and MUST join input polygons to tiles via bbox
   comparison, never `ST_Intersects`.
-- An input feature whose clipped result is empty MUST be dropped from the output,
+- An input polygon whose clipped result is empty MUST be dropped from the output,
   not treated as fatal, and MUST be recorded in the issues report as a
   `kind='clip-empty'` row (see Outputs).
 - `edge-mosaic` MUST merge or keep every clip-detached piece in the clipped result, recording each one with an edge
   neighbour as a `kind='detached-part'` row.
-- `edge-mosaic` MUST raise if zero input features were ever assigned to any overlay feature,
-  unless `merge` gap-filled at least one overlay feature or kept at least one
+- `edge-mosaic` MUST raise if zero input polygons were ever assigned to any overlay polygon,
+  unless `merge` gap-filled at least one overlay polygon or kept at least one
   unmatched input file as passthrough (see Configuration).
 
 ## Stitching
@@ -78,7 +78,7 @@ See [edge-match](edge_match.md) for the rules `edge-mosaic` shares with it.
 - `edge-mosaic` MUST run one whole-layer coverage-clean pass over the clipped
   output, per `docs/dev/reference/3-edge/edge_stitch.md`, using the same fixed gap-closing
   width as `edge-extend`'s own merge stage (see `docs/dev/reference/3-edge/edge_extend.md`), not
-  a per-feature-scoped pass.
+  a per-polygon-scoped pass.
 
 ## Outputs
 
@@ -86,27 +86,28 @@ See [edge-match](edge_match.md) for the rules `edge-mosaic` shares with it.
   `SNAP_TOLERANCE`) before export. A wider leftover gap does not block
   export (see `docs/adr/0035`).
 - `edge-mosaic` MUST export the final merged layer.
-- `edge-mosaic` MUST also export an issues report alongside it, using the same columns as every other tool's issues report, listing every input feature dropped
+- `edge-mosaic` MUST also export an issues report alongside it, using the same columns as every other tool's issues report, listing every input polygon dropped
   for an empty clip intersection, every clip-detached piece with an edge neighbour, every
   unassigned/passthrough input file,
-  every gap-filled/passthrough overlay feature (when `merge` is set), and every
-  leftover gap wider than `SNAP_TOLERANCE`, so a human can audit what
+  every gap-filled/passthrough overlay polygon (when `merge` is set), and every
+  leftover gap wider than `SNAP_TOLERANCE` whose interior point falls inside an
+  overlay polygon the output was clipped to, so a human can audit what
   didn't make it into the output or what may need review.
 - Without `merge`, a whole unmatched input file MUST appear as an
-  `unassigned` row: `unit_a` MUST hold the input feature's own fid and
+  `unassigned` row: `unit_a` MUST hold the input polygon's own fid and
   `source_file` MUST record its origin file as a parent-directory-plus-
-  filename (not the full path); overlay feature id and reason fields MUST be null.
-  With `merge` set, that file's input features MUST instead appear as
+  filename (not the full path); overlay polygon id and reason fields MUST be null.
+  With `merge` set, that file's input polygons MUST instead appear as
   `passthrough` rows (same `unit_a`/`source_file` shape, `reason` null),
   and MUST NOT also appear as `unassigned`. For a `clip-empty` row,
-  `unit_a` MUST hold the input feature's fid, `overlay_fid` MUST hold its assigned
-  overlay feature's fid, `source_file` MUST record its origin file the same
+  `unit_a` MUST hold the input polygon's fid, `overlay_fid` MUST hold its assigned
+  overlay polygon's fid, `source_file` MUST record its origin file the same
   shortened way, and `reason` MUST explain that the clip intersection
   came back empty. For a `gap-fill` row (`merge` set only), `overlay_fid`
-  MUST hold the gap-filled overlay feature's fid and `reason` MUST explain that the
-  overlay feature had no matched input features and was kept unclipped in the output;
-  `unit_a` and `source_file` MUST be null, since the row is the overlay feature
-  itself, not an input feature. For a `gap` row, `area_m2`, `max_width_m`, and
+  MUST hold the gap-filled overlay polygon's fid and `reason` MUST explain that the
+  overlay polygon had no matched input polygons and was kept unclipped in the output;
+  `unit_a` and `source_file` MUST be null, since the row is the overlay polygon
+  itself, not an input polygon. For a `gap` row, `area_m2`, `max_width_m`, and
   `thinness_ratio` MUST be populated instead. A field that doesn't apply
   to a row's kind MUST be null.
 - `edge-mosaic` MUST produce the issues report only when it has at least one
@@ -133,16 +134,16 @@ See [edge-match](edge_match.md) for the rules `edge-mosaic` shares with it.
   to override spatial assignment with an exact code join (see `docs/dev/explanation/3-edge/assign.md`).
 - `edge-mosaic` MAY accept `merge: bool = False` (CLI: `--merge`, a plain
   boolean flag): `False` (default) copies no overlay columns and drops
-  both an unmatched overlay feature and a whole unmatched input file; `True`
+  both an unmatched overlay polygon and a whole unmatched input file; `True`
   copies every overlay column (excluding `fid`/`geom`) onto every matched
-  input feature, keeps an unmatched overlay feature's own geometry unclipped in the
+  input polygon, keeps an unmatched overlay polygon's own geometry unclipped in the
   output (`kind='gap-fill'`), and keeps a whole unmatched input file's own
   geometry unclipped in the output (`kind='passthrough'`). There is no
   way to enable one behavior without the other.
 - With `merge` set, `edge-mosaic` MAY additionally accept
   `overlay_include`/`overlay_exclude` (CLI: `--overlay-include`/
   `--overlay-exclude`, each a comma-separated column list) to narrow which
-  overlay columns get copied onto matched input features (default: every overlay
+  overlay columns get copied onto matched input polygons (default: every overlay
   column except `fid`/`geom`), and `input_include`/`input_exclude` (CLI:
   `--input-include`/`--input-exclude`) to narrow which of the input layer's own
   columns survive in the output (default: every input column;

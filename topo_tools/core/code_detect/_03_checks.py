@@ -74,7 +74,7 @@ def _leaf_repeats(source: str) -> str:
 def _duplicate(source: str) -> str:
     return f"""--sql
         SELECT 'duplicate-code', level, code_column, code, NULL, NULL, NULL,
-               printf('code %s is on %d features with different names or parents',
+               printf('code %s is on %d polygons with different names or parents',
                       code, features)
         FROM {_leaf_repeats(source)} WHERE variants > 1
     """
@@ -83,8 +83,8 @@ def _duplicate(source: str) -> str:
 def _split(source: str) -> str:
     return f"""--sql
         SELECT 'split-unit', level, code_column, code, NULL, NULL, NULL,
-               printf('code %s is on %d features with the same name and parent: '
-                      'one unit split across features', code, features)
+               printf('code %s is on %d polygons with the same name and parent: '
+                      'one unit split across polygons', code, features)
         FROM {_leaf_repeats(source)} WHERE variants = 1
     """
 

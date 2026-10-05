@@ -228,7 +228,7 @@ min_area = input_area * (1 - AREA_NOISE_FACTOR) - overlap_area * OVERLAP_LOSS_HE
 ### The total-area floor alone misses a small, localized collapse
 
 The total-area floor only bounds the *summed* output area, so a single
-small feature collapsing entirely can hide inside it if the rest of the
+small polygon collapsing entirely can hide inside it if the rest of the
 dataset is much larger. The result is also checked per fid:
 
 - **Defect-adjacent exemption.** A fid touching a gap that gets filled, or

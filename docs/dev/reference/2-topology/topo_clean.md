@@ -50,13 +50,13 @@ detection stage directly rather than owning separate logic (see
   value.
 - `topo-clean` MUST reject the fix, raising `RuntimeError` immediately, if any
   of the following hold: the output still contains an overlap; any
-  feature's fixed shape is not a valid polygon; the output's total area
+  polygon's fixed shape is not a valid polygon; the output's total area
   falls below a floor set by a small baseline tolerance plus headroom
-  sized to the total area of the overlaps actually detected; or a feature
+  sized to the total area of the overlaps actually detected; or a polygon
   with no connection to any detected gap or overlap collapses to nothing.
-- A feature that was itself party to a gap or overlap being resolved MAY
+- A polygon that was itself party to a gap or overlap being resolved MAY
   change area substantially, including losing all of it, without
-  triggering rejection. A feature untouched by any detected defect MAY
+  triggering rejection. A polygon untouched by any detected defect MAY
   still drift in area (logged as a warning) without triggering rejection,
   but MUST NOT collapse to nothing.
 

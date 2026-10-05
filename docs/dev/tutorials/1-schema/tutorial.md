@@ -28,7 +28,7 @@ is renamed.
 ## Copy ancestor columns from a join layer
 
 A layer missing an ancestor level's columns entirely gets them from the
-join feature it overlaps most. Chain levels coarsest-first:
+join polygon it overlaps most. Chain levels coarsest-first:
 
     topo-tools schema-join admin2.parquet admin1.parquet admin2_join.parquet
     topo-tools schema-join admin3.parquet admin2_join.parquet admin3_join.parquet
