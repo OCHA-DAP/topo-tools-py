@@ -244,7 +244,8 @@ def to_gdb(out: Path, layers: list[str]) -> None:
         )
         geom_sql = ", ST_AsWKB(geometry) AS _geom_wkb" if geometry_type else ""
         (total,) = con.execute(f"SELECT count(*) FROM {_sql_str(path)}").fetchone()
-        for offset in range(0, total, _CHUNK_SIZE):
+        # An empty report still becomes a layer, so one write runs with no rows.
+        for offset in range(0, max(total, 1), _CHUNK_SIZE):
             chunk = con.execute(
                 f"SELECT * EXCLUDE ({exclude}){geom_sql} "
                 f"FROM read_parquet({_sql_str(path)}, file_row_number = true) "
