@@ -130,7 +130,7 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
    | `03_edge_matching/` | the edge-matched file |
    | `04_codes/` | the coded file |
    | `05_names/` | the name-cleaned file plus `{iso3}_admin{n}_name_issues.parquet` from the final `name-detect` check (any row count, even zero) |
-   | `06_packaging/` | one parquet per output layer, plus `{iso3}_metadata.csv` |
+   | `06_packaging/` | one parquet per output layer, plus `{iso3}_metadata.csv` and `.parquet` |
 
    The highest-numbered stage with its defining output present marks the
    last completed stage; resume at the next one. No stage folders yet
@@ -268,7 +268,7 @@ without asking. Stage 4's answer sets `methodology_pcodes` (e.g.
 
    After packaging, run `uv run <skill-dir>/scripts/metadata.py {iso3} {version}`
    from the workspace root. It writes `06_packaging/{iso3}_metadata.csv`
-   with the
+   and `{iso3}_metadata.parquet` with the
    [COD-AB metadata](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/6-packaging/metadata.md)
    columns, from `metadata.json`, the
    `[tool.topo-tools-cod-ab]` table and the packaged layers, and exits
@@ -285,7 +285,8 @@ After stage 6, export each release candidate (`rc`) sent for review:
    existing candidate.
 2. Write every parquet directly in `06_packaging/` (not `validate/`) as one layer of
    `03_outputs/{iso3}/{version}/{iso3}_{version}_rc{NN}.gdb` with
-   `uv run <skill-dir>/scripts/convert.py to-gdb {gdb} {parquet}...`,
+   `uv run <skill-dir>/scripts/convert.py to-gdb {gdb} {parquet}...`, the
+   metadata as a `metadata` table (`metadata={iso3}_metadata.parquet`),
    and copy `06_packaging/{iso3}_metadata.csv` beside it as
    `{iso3}_{version}_rc{NN}_metadata.csv`.
 3. Write `{iso3}_{version}_rc{NN}_review.gdb` alongside it with
