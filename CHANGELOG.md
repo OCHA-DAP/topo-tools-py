@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-05
+
+### Added
+
+- `schema-detect`: checks one layer's level columns and hierarchy nesting
+  and writes a report. Errors: `levels-undetected`, `level-skipped`,
+  `multiple-parents`, `orphan-child`. Warnings: `supplemental-column`,
+  `column-naming`, `column-set-mismatch`.
+- `code-detect`: checks unit codes and writes a report. Errors:
+  `blank-code`, `name-conflict` (both moved from `name-detect`),
+  `duplicate-code`, `prefix-mismatch`. Warnings: `split-unit`,
+  `format-outlier`, `format-undetected`.
+- `validate`: runs `schema-detect`, `topo-detect`, `code-detect` and
+  `name-detect` on one layer, writes each report plus
+  `_validate_summary.csv`, and exits 1 on any error.
+- Notches, where two neighbouring units' unshared edges run close together,
+  are reported by `topo-detect` as `notch` rows and closed by `topo-clean`,
+  `edge-extend` and `edge-match` by moving the flagged endpoints onto the
+  other unit.
+- `edge-match --assign auto|one|many`, defaulting to `auto`: assign-one,
+  switching to assign-many when fewer than half the input polygons overlap
+  the winner. Every run logs the mode used.
+- A check that raises inside `schema-detect`, `code-detect` or
+  `name-detect` writes a `check-failed` error row.
+- cod-ab skill: runs without the plugin installed, from the skill's raw
+  GitHub URL.
+
+### Changed
+
+- `--assign` replaces `edge-match --per-feature`; use `--assign many`
+  (`assign="many"` in the API).
+- `edge-match` and `edge-mosaic` report a leftover gap only when it lies
+  inside an overlay polygon the output was clipped to, so a hole in the
+  overlay layer itself isn't reported.
+- Issue reasons, error messages, help text and docs say "polygon" instead of
+  "feature" wherever the layer is always polygons, e.g. `merged into
+  neighbouring polygon`.
+- `code-detect` and `name-detect` run on layers with a supplemental grouping
+  column, and `code-create`/`code-update` refuse only a grouping whose units
+  cluster on the map.
+
+### Fixed
+
+- `coverage_clean()`, and every tool using it, gives the same output with
+  any thread count; issue keys and row order are stable across runs.
+- Names containing digits or a short root constant stay names in level
+  detection, and a middle level is kept when constant columns join the root
+  group.
+- The Homebrew tap workflow bumps only to a newer release.
+
 ## [0.13.0] - 2026-10-02
 
 ### Added
@@ -759,7 +809,8 @@ Initial release: four tools, CLI + Python API for each.
   unit as unchanged/renamed/modified/relocated/split/merge/complex/created/
   removed, via spatial overlap and optional code/name identity linking.
 
-[Unreleased]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/OCHA-DAP/topo-tools-py/compare/v0.10.2...v0.11.0
