@@ -85,11 +85,15 @@ def gap_geometries_sql(table: str) -> str:
 
 
 def gap_issues_sql(
-    conn: DuckDBPyConnection, table: str, *, min_width: float = SNAP_TOLERANCE
+    conn: DuckDBPyConnection,
+    table: str,
+    *,
+    min_width: float = SNAP_TOLERANCE,
+    within: str | None = None,
 ) -> str:
     """Build SQL for `table.geom`'s gap-kind issue rows, in the shared issues schema.
 
-    Standalone or as one arm of a `UNION ALL BY NAME` with other issue kinds.
+    `within` (a query yielding `geom`) keeps only gaps whose interior point it covers.
     """
     m2_per_deg2 = m2_per_deg2_factor(conn, table)
     width_m = f"(ST_MaximumInscribedCircle(geom)).radius * 2 * {METERS_PER_DEGREE}"
@@ -105,9 +109,24 @@ def gap_issues_sql(
                NULL::DOUBLE AS unit_b_area_change_m2,
                NULL::DOUBLE AS filled_area_m2, FALSE AS fixed,
                NULL::VARCHAR AS source_file, geom
-        FROM {gap_geometries_sql(table)}
+        FROM {gap_geometries_sql(table)} g
         WHERE (ST_MaximumInscribedCircle(geom)).radius * 2 > {min_width}
+        {"" if within is None else _point_within_sql("g.geom", within)}
     """
+
+
+def _point_within_sql(geom: str, within: str) -> str:
+    """Build an AND clause: `geom`'s interior point lies in a `within` geometry."""
+    return f"""AND EXISTS (
+            SELECT 1 FROM (
+                SELECT geom, ST_XMin(geom) AS xmin, ST_XMax(geom) AS xmax,
+                       ST_YMin(geom) AS ymin, ST_YMax(geom) AS ymax
+                FROM ({within})
+            ) w, (SELECT ST_PointOnSurface({geom}) AS pt) q
+            WHERE ST_X(q.pt) BETWEEN w.xmin AND w.xmax
+              AND ST_Y(q.pt) BETWEEN w.ymin AND w.ymax
+              AND ST_Intersects(w.geom, q.pt)
+        )"""
 
 
 def short_source_file_sql(column: str) -> str:
@@ -126,7 +145,7 @@ def assign_issue_rows_sql(name: str, *, source_file_expr: str = "NULL::VARCHAR")
     return f"""
         SELECT 'code-mismatch-' || a.input_fid AS key, 'code-mismatch' AS kind,
                a.input_fid AS unit_a, NULL::BIGINT AS unit_b, a.overlay_fid,
-               'code join picked a different overlay feature than spatial majority'
+               'code join picked a different overlay polygon than spatial majority'
                AS reason,
                NULL::DOUBLE AS area_m2, NULL::DOUBLE AS max_width_m,
                NULL::DOUBLE AS thinness_ratio,
@@ -307,8 +326,8 @@ def merge_micro_polygons(
         SELECT 'micro-polygon-' || row_number() OVER (ORDER BY fid, hash(geom)) AS key,
                'micro-polygon' AS kind,
                fid AS unit_a, dest_fid AS unit_b, NULL::BIGINT AS overlay_fid,
-               CASE WHEN dest_rnid IS NULL THEN 'dropped: touches no feature'
-                    ELSE 'merged into neighbouring feature' END AS reason,
+               CASE WHEN dest_rnid IS NULL THEN 'dropped: touches no polygon'
+                    ELSE 'merged into neighbouring polygon' END AS reason,
                ST_Area(geom) * {m2_per_deg2} AS area_m2,
                (ST_MaximumInscribedCircle(geom)).radius * 2 * {METERS_PER_DEGREE}
                    AS max_width_m,
@@ -524,7 +543,7 @@ def merge_detached_parts(  # noqa: PLR0913 (each param is a distinct required in
                    || row_number() OVER (PARTITION BY fid ORDER BY pid) AS key,
                'detached-part' AS kind,
                fid AS unit_a, dest_fid AS unit_b, overlay_fid::BIGINT AS overlay_fid,
-               CASE outcome WHEN 'merged' THEN 'merged into neighbouring feature'
+               CASE outcome WHEN 'merged' THEN 'merged into neighbouring polygon'
                             WHEN 'too-large' THEN 'kept: too large to merge'
                             WHEN 'no-original' THEN 'kept: no original layer'
                             WHEN 'lobe' THEN 'kept: matches original shape'

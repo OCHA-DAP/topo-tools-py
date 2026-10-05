@@ -21,7 +21,7 @@ from topo_tools.core.edge_match._02_groups import _record_dropped_group
 _LEVEL_1, _LEVEL_2 = 1, 2
 
 # Overlay A contains inputs 1 & 2, Overlay B contains only input 3, input 4
-# is far from both; --per-feature restores this per input feature grouping.
+# is far from both; --assign many gives this per input polygon grouping.
 _INPUT_WKT = [
     (1, "POLYGON((0.5 0.5, 1 0.5, 1 1, 0.5 1, 0.5 0.5))"),
     (2, "POLYGON((1.5 0.5, 2 0.5, 2 1, 1.5 1, 1.5 0.5))"),
@@ -177,10 +177,12 @@ def test_match_agrees_with_spatial_is_a_noop(
     assert "code-mismatch" not in kinds
 
 
-def test_match_full_run(synthetic_inputs, synthetic_overlays, tmp_path):
-    """Default assign-one forces the whole file onto Overlay A; input 3 clip-empties."""
+def test_match_full_run(synthetic_inputs, synthetic_overlays, tmp_path, caplog):
+    """Auto keeps assign-one (2 of 4 overlap Overlay A); input 3 clip-empties."""
     output_path = tmp_path / "out.parquet"
-    match(synthetic_inputs, synthetic_overlays, output_path, overwrite=True)
+    with caplog.at_level(logging.INFO):
+        match(synthetic_inputs, synthetic_overlays, output_path, overwrite=True)
+    assert "assign one (auto): 2 of 4 input polygons" in caplog.text
 
     assert output_path.exists()
     with duckdb.connect() as conn:
@@ -194,16 +196,36 @@ def test_match_full_run(synthetic_inputs, synthetic_overlays, tmp_path):
     assert ids == [1, 2, 4]
 
 
+def test_match_auto_switches_to_many_under_half(synthetic_overlays, tmp_path, caplog):
+    """Only 1 of 3 inputs overlaps the winner, so auto assigns each on its own."""
+    input_path = tmp_path / "children.parquet"
+    _write_synthetic(input_path, [_INPUT_WKT[0], _INPUT_WKT[2], _INPUT_WKT[3]])
+    output_path = tmp_path / "out.parquet"
+    with caplog.at_level(logging.INFO):
+        match(input_path, synthetic_overlays, output_path, overwrite=True)
+    assert "assign many (auto): only 1 of 3 input polygons" in caplog.text
+
+    with duckdb.connect() as conn:
+        conn.execute("LOAD spatial")
+        ids = [
+            row[0]
+            for row in conn.execute(
+                f"SELECT id FROM '{output_path}' ORDER BY id"
+            ).fetchall()
+        ]
+    assert ids == [1, 3]
+
+
 def test_match_multi_overlay_preserves_per_input_grouping(
     synthetic_inputs, synthetic_overlays, tmp_path
 ):
-    """--per-feature restores the old per-feature groups: 1&2, 3, and 4 dropped."""
+    """--assign many gives per-polygon groups: 1&2, 3, and 4 dropped."""
     output_path = tmp_path / "out.parquet"
     match(
         synthetic_inputs,
         synthetic_overlays,
         output_path,
-        per_feature=True,
+        assign="many",
         overwrite=True,
     )
 
@@ -221,14 +243,14 @@ def test_match_multi_overlay_preserves_per_input_grouping(
 def test_match_drops_unassigned_and_warns(
     synthetic_inputs, synthetic_overlays, tmp_path, caplog
 ):
-    """Only --per-feature's per-feature assign can leave an input with no winner."""
+    """Only --assign many can leave an input with no winner."""
     output_path = tmp_path / "out.parquet"
     with caplog.at_level(logging.WARNING):
         match(
             synthetic_inputs,
             synthetic_overlays,
             output_path,
-            per_feature=True,
+            assign="many",
             overwrite=True,
         )
 
@@ -246,7 +268,7 @@ def test_match_issues_file_default_path(synthetic_inputs, synthetic_overlays, tm
 def test_match_issues_file_records_unassigned_input(
     synthetic_inputs, synthetic_overlays, tmp_path
 ):
-    """--per-feature's per-feature assign leaves input 4 with no winner at all."""
+    """--assign many leaves input 4 with no winner at all."""
     output_path = tmp_path / "out.parquet"
     issues_path = tmp_path / "issues.parquet"
     match(
@@ -254,7 +276,7 @@ def test_match_issues_file_records_unassigned_input(
         synthetic_overlays,
         output_path,
         issues_path,
-        per_feature=True,
+        assign="many",
         overwrite=True,
     )
 
@@ -332,7 +354,7 @@ _ENCLAVE_INPUT_WKT = [
 
 
 def test_match_tolerates_overlay_layer_enclave(tmp_path):
-    """A real hole in the overlay's own shape must not raise, only be reported."""
+    """A real hole in the overlay's own shape must not raise or be reported."""
     input_path = tmp_path / "children_enclave.parquet"
     overlays_path = tmp_path / "parents_enclave.parquet"
     _write_synthetic(input_path, _ENCLAVE_INPUT_WKT)
@@ -343,13 +365,13 @@ def test_match_tolerates_overlay_layer_enclave(tmp_path):
     match(input_path, overlays_path, output_path, issues_path, overwrite=True)
 
     assert output_path.exists()
-    with duckdb.connect() as conn:
-        conn.execute("LOAD spatial")
-        gap_rows = conn.execute(
-            f"SELECT max_width_m FROM '{issues_path}' WHERE kind = 'gap'"
-        ).fetchall()
-    assert len(gap_rows) == 1
-    assert gap_rows[0][0] > 0
+    if issues_path.exists():
+        with duckdb.connect() as conn:
+            conn.execute("LOAD spatial")
+            gap_rows = conn.execute(
+                f"SELECT count(*) FROM '{issues_path}' WHERE kind = 'gap'"
+            ).fetchone()[0]
+        assert gap_rows == 0
 
 
 def test_record_dropped_group():
@@ -586,7 +608,7 @@ def test_match_carry_columns_survives_group_subprocess(tmp_path):
         output_path,
         merge=True,
         overlay_include=["pcode"],
-        per_feature=True,
+        assign="many",
         overwrite=True,
     )
 
@@ -626,7 +648,7 @@ def test_match_merge_bare_passthrough_keeps_orphan_and_carries_columns(tmp_path)
         output_path,
         issues_path,
         merge=True,
-        per_feature=True,
+        assign="many",
         overwrite=True,
     )
 
@@ -665,7 +687,7 @@ def test_match_no_merge_still_drops_orphan(tmp_path):
         overlays_path,
         output_path,
         issues_path,
-        per_feature=True,
+        assign="many",
         overwrite=True,
     )
 
@@ -953,12 +975,12 @@ def test_match_multi_file_column_order_is_deterministic(synthetic_overlays, tmp_
 def test_match_multi_file_rejects_multi_overlay(
     synthetic_inputs_split, synthetic_overlays, tmp_path
 ):
-    with pytest.raises(ValueError, match="per_feature is not supported"):
+    with pytest.raises(ValueError, match="not supported when multiple"):
         match(
             synthetic_inputs_split,
             synthetic_overlays,
             tmp_path / "out.parquet",
-            per_feature=True,
+            assign="many",
             overwrite=True,
         )
 

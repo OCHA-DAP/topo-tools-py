@@ -1,4 +1,4 @@
-"""Public API: fit already-extended input features into a new overlay layer."""
+"""Public API: fit already-extended input polygons into a new overlay layer."""
 
 from logging import getLogger
 from pathlib import Path
@@ -75,7 +75,7 @@ def mosaic(  # noqa: C901, PLR0912, PLR0913, PLR0915
     """Fit one or more already-extended input layers into a new overlay layer."""
     if match_column is not None and (overlay_match_column or input_match_column):
         msg = (
-            "match_column is mutually exclusive with overlay feature/input_match_column"
+            "match_column is mutually exclusive with overlay polygon/input_match_column"
         )
         raise ValueError(msg)
     if bool(overlay_match_column) != bool(input_match_column):
@@ -254,7 +254,7 @@ def mosaic(  # noqa: C901, PLR0912, PLR0913, PLR0915
                         f'SELECT COUNT(*) FROM "{name}_03"'
                     ).fetchone()[0]
                     if count == 0:
-                        msg = f"mosaic: no input feature got an overlay for {name}"
+                        msg = f"mosaic: no input polygon got an overlay for {name}"
                         raise RuntimeError(msg)
                 elif s == "stitch":
                     stitch.main(conn, name, debug=debug)
@@ -459,7 +459,7 @@ def _mosaic_multi_file(  # noqa: C901, PLR0913, PLR0915, PLR0917
 
     count = conn.execute(f'SELECT COUNT(*) FROM "{name}_03"').fetchone()[0]
     if count == 0:
-        msg = f"mosaic: no input feature got an overlay for {name}"
+        msg = f"mosaic: no input polygon got an overlay for {name}"
         raise RuntimeError(msg)
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{name}_03" AS

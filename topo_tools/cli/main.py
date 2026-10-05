@@ -65,8 +65,8 @@ _MERGE_OPTIONS = (
         envvar="MERGE",
         is_flag=True,
         help=(
-            "Copy the overlay's columns onto every matched input feature, and "
-            "keep unmatched overlay or input features in the output, unclipped, "
+            "Copy the overlay's columns onto every matched input polygon, and "
+            "keep unmatched overlay or input polygons in the output, unclipped, "
             "instead of dropping them. Choose columns with --overlay-include, "
             "--overlay-exclude, --input-include and --input-exclude. When both "
             "layers have a column with the same name, choose which one to keep "
@@ -1499,7 +1499,7 @@ def code_detect(  # noqa: PLR0913, PLR0917
     """Find problems in the unit codes of one coded layer.
 
     Checks every level's codes: blank codes, a code with more than one
-    name, a finest-level code on more than one feature, a code that does
+    name, a finest-level code on more than one polygon, a code that does
     not start with its parent's code, and a code shaped unlike the rest of
     its level. Writes the problems found without changing the layer, even
     when there are none. ISSUES_FILE defaults to INPUT_FILE with a
@@ -1990,7 +1990,7 @@ def code_update(  # noqa: PLR0913, PLR0917
     default=None,
     help=(
         "Column in both layers, such as a p-code, used to match input "
-        "features to overlay features. It wins over overlap where the two "
+        "polygons to overlay polygons. It wins over overlap where the two "
         "disagree. Can't be combined with --overlay-match-column or "
         "--input-match-column."
     ),
@@ -2011,15 +2011,19 @@ def code_update(  # noqa: PLR0913, PLR0917
 )
 @_add_merge_options
 @click.option(
-    "--per-feature",
-    envvar="PER_FEATURE",
-    is_flag=True,
+    "--assign",
+    envvar="ASSIGN",
+    type=click.Choice(["auto", "one", "many"]),
+    default="auto",
+    show_default=True,
     help=(
-        "Match each input feature on its own to the overlay feature it "
-        "overlaps most. By default the whole input file goes to the one "
-        "overlay feature most of it falls in. Use this when an input file "
-        "spans several overlay features, e.g. an admin4 layer fitted into many "
-        "admin3 units. Only works with a single input file."
+        "How input polygons are assigned to overlay polygons. one: the whole "
+        "input file goes to the overlay polygon most of its polygons overlap. "
+        "many: each input polygon goes to the overlay polygon it overlaps "
+        "most, for an input file spanning many overlay polygons, e.g. an admin4 "
+        "layer fitted into many admin3 units. auto: one, switching to many "
+        "when fewer than half the input polygons overlap the winner. The mode "
+        "used is always logged. many only works with a single input file."
     ),
 )
 @_add_fill_options
@@ -2043,7 +2047,7 @@ def edge_match(  # noqa: PLR0913, PLR0917
     input_include: str | None,
     input_exclude: str | None,
     prefer: str | None,
-    per_feature: bool,  # noqa: FBT001
+    assign: str,
     fill_schema: bool,  # noqa: FBT001
     name_field: str | None,
     code_field: str | None,
@@ -2051,11 +2055,12 @@ def edge_match(  # noqa: PLR0913, PLR0917
 ) -> None:
     """Fit an input layer into the polygons of a coarser overlay layer.
 
-    Each input file is matched to the overlay feature it overlaps most,
-    extended to fill gaps, clipped to that feature, then stitched so the
-    edges line up. OUTPUT_FILE defaults to INPUT_FILE with a "_matched"
-    suffix. It's required when INPUT_FILE is a pattern matching more than
-    one file, or when --input is given.
+    Each input file (or, with --assign many, each input polygon) is
+    matched to the overlay polygon it overlaps most, extended to fill gaps,
+    clipped to that polygon, then stitched so the edges line up.
+    OUTPUT_FILE defaults to INPUT_FILE with a "_matched" suffix. It's
+    required when INPUT_FILE is a pattern matching more than one file, or
+    when --input is given.
 
     \b
     Examples:
@@ -2076,7 +2081,7 @@ def edge_match(  # noqa: PLR0913, PLR0917
       topo-tools edge-match adm3.gpkg adm2.gpkg --match-column pcode
 
     \b
-      # Copy only iso_3 and adm0_name onto every matched input feature
+      # Copy only iso_3 and adm0_name onto every matched input polygon
       topo-tools edge-match adm3.gpkg adm2.gpkg \\
         --merge --overlay-include iso_3,adm0_name
 
@@ -2086,7 +2091,7 @@ def edge_match(  # noqa: PLR0913, PLR0917
 
     \b
       # An admin4 layer whose units fall in many different admin3 units
-      topo-tools edge-match adm4.gpkg adm3.gpkg --per-feature
+      topo-tools edge-match adm4.gpkg adm3.gpkg --assign many
 
     \b
       # Choose the output and the issues report
@@ -2130,7 +2135,7 @@ def edge_match(  # noqa: PLR0913, PLR0917
             input_include=_split_columns(input_include),
             input_exclude=_split_columns(input_exclude),
             prefer=prefer,
-            per_feature=per_feature,
+            assign=assign,
             fill_schema=fill_schema,
             name_field=name_field,
             code_field=code_field,
@@ -2215,7 +2220,7 @@ def edge_match(  # noqa: PLR0913, PLR0917
     default=None,
     help=(
         "Column in both layers, such as a p-code, used to match input "
-        "features to overlay features. It wins over overlap where the two "
+        "polygons to overlay polygons. It wins over overlap where the two "
         "disagree. Can't be combined with --overlay-match-column or "
         "--input-match-column."
     ),
@@ -2289,7 +2294,7 @@ def edge_mosaic(  # noqa: PLR0913, PLR0917
       topo-tools edge-mosaic adm3_extended.parquet adm0_new.geojson --match-column pcode
 
     \b
-      # Keep an overlay feature's own shape where no input file covers it
+      # Keep an overlay polygon's own shape where no input file covers it
       topo-tools edge-mosaic "*/latest/adm4/extended.parquet" world_adm0.geojson \\
         out.parquet --merge
 
@@ -2723,7 +2728,7 @@ def schema_fill(  # noqa: PLR0913, PLR0917
     default=MIN_OVERLAP_DEFAULT,
     show_default=True,
     help=(
-        "Report an input feature when its best-matching join feature covers "
+        "Report an input polygon when its best-matching join polygon covers "
         "less than this share of its area."
     ),
 )
@@ -2778,9 +2783,9 @@ def schema_join(  # noqa: PLR0913, PLR0917
     tmp_dir: str | None,
     step: str | None,
 ) -> None:
-    """Copy admin columns from a join layer onto the input features they overlap.
+    """Copy admin columns from a join layer onto the input polygons they overlap.
 
-    Each input feature takes the columns of the join feature it overlaps
+    Each input polygon takes the columns of the join polygon it overlaps
     most. Geometry is not changed. When a column already has a different
     value, both are kept: the join layer's value goes in a new numbered
     column (adm2_name1).
@@ -3033,7 +3038,7 @@ def schema_map(  # noqa: PLR0913, PLR0917
     default=None,
     help=(
         "Column in both layers, such as a p-code, used to match input "
-        "features to overlay features. It wins over overlap where the two "
+        "polygons to overlay polygons. It wins over overlap where the two "
         "disagree. Can't be combined with --overlay-match-column or "
         "--input-match-column."
     ),
@@ -3058,7 +3063,7 @@ def schema_map(  # noqa: PLR0913, PLR0917
     envvar="CARRY_COLUMNS",
     multiple=True,
     help=(
-        "Overlay column to copy onto each matched input feature. Repeat it or "
+        "Overlay column to copy onto each matched input polygon. Repeat it or "
         "separate columns with commas."
     ),
 )
@@ -3090,10 +3095,10 @@ def edge_clip(  # noqa: PLR0913, PLR0917
     carry_columns: tuple[str, ...],
     original_file: str | None,
 ) -> None:
-    """Clip an input layer to the overlay feature it overlaps most.
+    """Clip an input layer to the overlay polygon it overlaps most.
 
-    The whole input file is matched to the one overlay feature most of it
-    falls in, then clipped to that feature's shape. OUTPUT_FILE defaults to
+    The whole input file is matched to the one overlay polygon most of it
+    falls in, then clipped to that polygon's shape. OUTPUT_FILE defaults to
     INPUT_FILE with a "_clipped" suffix.
 
     \b
@@ -3110,7 +3115,7 @@ def edge_clip(  # noqa: PLR0913, PLR0917
       topo-tools edge-clip input.parquet adm1.geojson --match-column pcode
 
     \b
-      # Copy overlay columns onto every matched input feature
+      # Copy overlay columns onto every matched input polygon
       topo-tools edge-clip input.parquet adm1.geojson --carry-column iso_3,adm0_name
     """
     logger.info("--debug=%s", debug)

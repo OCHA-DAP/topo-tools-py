@@ -16,7 +16,7 @@ run in DuckDB-WASM.
 | Stage | Table | What it does |
 | --- | --- | --- |
 | `_01_inputs` | `{name}_01` | reads and reprojects the input |
-| `_02_levels` | `{name}_02` | one row per distinct code, parent code and name per level, with its feature count |
+| `_02_levels` | `{name}_02` | one row per distinct code, parent code and name per level, with its polygon count |
 | `_03_checks` | `{name}_03` | one SQL query per kind (`{name}_03_tmp{n}`), unioned |
 | `_04_outputs` | `{name}_04` | keys and severity; writes CSV or Parquet |
 
@@ -34,9 +34,9 @@ follow the rule, so a level coded in two schemes reads as
 
 ## Duplicates
 
-A finest-level code on several features is a `split-unit` warning when
-every feature carries the same name and parent: one unit stored as
-separate features instead of one MultiPolygon, which dissolving repairs.
+A finest-level code on several polygons is a `split-unit` warning when
+every polygon carries the same name and parent: one unit stored as
+separate polygons instead of one MultiPolygon, which dissolving repairs.
 With a differing name or parent it is a `duplicate-code` error, two
 units sharing one code. Codes repeated across parents at a coarser level
 are `schema-detect`'s `multiple-parents`.
@@ -46,19 +46,19 @@ are `schema-detect`'s `multiple-parents`.
 Run structurally on every latest original admin1 to admin5 layer in the
 portolan catalog (281 layers): 166 rows in 8 layers, all real:
 
-- COL admin3: 36 units split across features, 44 codes one digit short,
+- COL admin3: 36 units split across polygons, 44 codes one digit short,
   `COPUERTO LOPEZ` as a code, and 3 codes not starting with their
   parent's code.
-- UGA admin3: 4 units split across features.
+- UGA admin3: 4 units split across polygons.
 - LBN admin3: the `Conflict` area, coded `0` and split across 17
-  features.
+  polygons.
 - MMR admin2 to admin4: 5 self-administered zone codes (`MMR005S001`)
   shaped unlike the level, as warnings; in admin4 also 22 codes not
   starting with their parent's code (7 of them the codes `schema-detect`
-  reports under two parents), 7 duplicated, 1 unit split across features,
+  reports under two parents), 7 duplicated, 1 unit split across polygons,
   6 units with no code.
 - MMR admin5: 7 units with no code, `MMR013023701504` on 17 wards with 17
   names, 5 ward codes under `MMR017006703` built from `MMR017006701`, 2
-  units split across features, and district `MMR004002` with two Burmese
+  units split across polygons, and district `MMR004002` with two Burmese
   names in `adm2_name1`.
 - SOM admin2: one `Unspecified` code.

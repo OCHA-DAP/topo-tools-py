@@ -36,6 +36,8 @@ from topo_tools.core.io import (
 
 logger = getLogger(__name__)
 
+_ASSIGN_MODES = ("auto", "one", "many")
+
 _STEP_ORDER = ["inputs", "assign", "groups", "clip", "stitch", "outputs"]
 
 _STEP_TABLES = {
@@ -69,16 +71,16 @@ def match(  # noqa: C901, PLR0912, PLR0913, PLR0915
     input_include: list[str] | None = None,
     input_exclude: list[str] | None = None,
     prefer: str | None = None,
-    per_feature: bool = False,
+    assign: str = "auto",
     fill_schema: bool = False,
     name_field: str | None = None,
     code_field: str | None = None,
     depth_column: str = "adm_lvl",
 ) -> None:
-    """Match one or more input layers to their best-overlapping overlay feature."""
+    """Match one or more input layers to their best-overlapping overlay polygon."""
     if match_column is not None and (overlay_match_column or input_match_column):
         msg = (
-            "match_column is mutually exclusive with overlay feature/input_match_column"
+            "match_column is mutually exclusive with overlay polygon/input_match_column"
         )
         raise ValueError(msg)
     if bool(overlay_match_column) != bool(input_match_column):
@@ -113,8 +115,11 @@ def match(  # noqa: C901, PLR0912, PLR0913, PLR0915
     if single_path is None and step is not None:
         msg = "step is not supported when multiple input_paths are given"
         raise ValueError(msg)
-    if single_path is None and per_feature:
-        msg = "per_feature is not supported when multiple input_paths are given"
+    if assign not in _ASSIGN_MODES:
+        msg = f"assign must be one of {_ASSIGN_MODES}, got {assign!r}"
+        raise ValueError(msg)
+    if single_path is None and assign == "many":
+        msg = "assign='many' is not supported when multiple input_paths are given"
         raise ValueError(msg)
 
     overlay_path = resolve_input_path(overlay_path)
@@ -149,6 +154,13 @@ def match(  # noqa: C901, PLR0912, PLR0913, PLR0915
     ):
         logger.info("starting: %s", name)
         if single_path is None:
+            if assign == "auto":
+                logger.info(
+                    "match: assign one (auto): many isn't available with more "
+                    "than one input file"
+                )
+            else:
+                logger.info("match: assign one")
             _match_multi_file(
                 conn,
                 name,
@@ -203,10 +215,10 @@ def match(  # noqa: C901, PLR0912, PLR0913, PLR0915
                             )
                         )
                         merge_resolved = True
-                    assign_fn = assign_many if per_feature else assign_one
-                    assign_fn(
+                    _assign(
                         conn,
                         name,
+                        assign,
                         overlay_match_column=overlay_match_column,
                         input_match_column=input_match_column,
                         carry_columns=resolved_overlay_columns,
@@ -319,6 +331,56 @@ def _fold(
         """)
 
 
+def _assign(conn: DuckDBPyConnection, name: str, assign: str, **kwargs: object) -> None:
+    """Run assign-one or assign-many, auto picking many when under half overlap."""
+    if assign == "many":
+        assign_many(conn, name, **kwargs)
+        logger.info("match: assign many")
+        return
+    if assign == "auto":
+        conn.execute(f"""--sql
+            CREATE OR REPLACE TABLE "{name}_02_overlay_auto" AS
+            SELECT * FROM "{name}_overlay_01"
+        """)
+    assign_one(conn, name, **kwargs)
+    overlapping, assigned = conn.execute(f"""--sql
+        SELECT COUNT(pr.input_fid), COUNT(*)
+        FROM "{name}_02_assign" a
+        LEFT JOIN "{name}_02_pairs" pr
+          ON pr.input_fid = a.input_fid AND pr.overlay_fid = a.overlay_fid
+         AND pr.shared_area > 0
+    """).fetchone()
+    if assign == "one":
+        logger.info(
+            "match: assign one: %d of %d input polygons overlap the winning "
+            "overlay polygon",
+            overlapping,
+            assigned,
+        )
+        return
+    if overlapping * 2 < assigned:
+        conn.execute(f"""--sql
+            CREATE OR REPLACE TABLE "{name}_overlay_01" AS
+            SELECT * FROM "{name}_02_overlay_auto"
+        """)
+        assign_many(conn, name, **kwargs)
+        logger.warning(
+            "match: assign many (auto): only %d of %d input polygons overlap "
+            "the winning overlay polygon, so each is assigned on its own; "
+            "pass --assign one to force a single overlay polygon",
+            overlapping,
+            assigned,
+        )
+    else:
+        logger.info(
+            "match: assign one (auto): %d of %d input polygons overlap the winning "
+            "overlay polygon; pass --assign many to assign each on its own",
+            overlapping,
+            assigned,
+        )
+    conn.execute(f'DROP TABLE IF EXISTS "{name}_02_overlay_auto"')
+
+
 def _match_multi_file(  # noqa: PLR0913, PLR0917
     conn: DuckDBPyConnection,
     name: str,
@@ -346,7 +408,7 @@ def _match_multi_file(  # noqa: PLR0913, PLR0917
     """Load/assign one input file at a time, sharing one already-loaded overlay layer.
 
     Groups/clip/stitch/outputs run once over the fully accumulated result
-    afterward, so cross-file input features sharing a overlay_fid extend together.
+    afterward, so cross-file input polygons sharing a overlay_fid extend together.
     """
     load_overlay(conn, name, overlay_path)
     conn.execute(f"""--sql

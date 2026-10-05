@@ -1,4 +1,4 @@
-"""Pairs each input feature with its plurality-overlap join feature and area share."""
+"""Pairs each input polygon with its plurality-overlap join polygon and area share."""
 
 from duckdb import DuckDBPyConnection
 

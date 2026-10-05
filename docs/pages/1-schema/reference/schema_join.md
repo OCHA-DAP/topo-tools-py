@@ -1,11 +1,11 @@
 ---
 title: "schema-join"
-description: "Copy admin columns from a join layer onto the input features they overlap."
+description: "Copy admin columns from a join layer onto the input polygons they overlap."
 sidebar:
   order: 5
 ---
 
-Copy admin columns from a join layer onto the input features they overlap.
+Copy admin columns from a join layer onto the input polygons they overlap.
 
 ## Synopsis
 
@@ -15,14 +15,14 @@ topo-tools schema-join [OPTIONS] INPUT_FILE JOIN_FILE [OUTPUT_FILE]
 
 ## Description
 
-Each input feature takes the columns of the join feature it overlaps most. Geometry is not changed. When a column already has a different value, both are kept: the join layer's value goes in a new numbered column (adm2_name1).
+Each input polygon takes the columns of the join polygon it overlaps most. Geometry is not changed. When a column already has a different value, both are kept: the join layer's value goes in a new numbered column (adm2_name1).
 
 ## Options
 
 - `--issues-output TEXT`: Path for the issues report. Defaults to OUTPUT_FILE with an "_issues" suffix.
 - `--name-field TEXT`: Name column of each level, with {n} for the level number, e.g. 'adm{n}_name'. Give it with `--code-field`. Without both, levels are detected from the data.
 - `--code-field TEXT`: Code column of each level, with {n} for the level number, e.g. 'adm{n}_code'. Give it with `--name-field`. Without both, levels are detected from the data.
-- `--min-overlap FLOAT`: Report an input feature when its best-matching join feature covers less than this share of its area. [default: 0.5]
+- `--min-overlap FLOAT`: Report an input polygon when its best-matching join polygon covers less than this share of its area. [default: 0.5]
 - `--overwrite BOOLEAN`: Replace output files that already exist. Pass `--overwrite=false` to stop with an error instead. [default: True]
 - `--threads INTEGER`: Number of threads DuckDB uses (default: all CPU cores).
 - `--debug`: Keep intermediate tables, export them to Parquet, and log the time and memory each query takes.

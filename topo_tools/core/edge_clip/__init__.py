@@ -1,4 +1,4 @@
-"""Clip tool: clips each input feature to its assigned overlay feature's geometry."""
+"""Clip tool: clips each input polygon to its assigned overlay polygon's geometry."""
 
 from ._engine import main
 from ._tiling import subdivide_boundary

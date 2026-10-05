@@ -1,4 +1,4 @@
-"""Public API: assign each input feature to an overlay feature, then clip it to it."""
+"""Public API: assign each input polygon to an overlay polygon, then clip it to it."""
 
 from logging import getLogger
 from pathlib import Path
@@ -48,10 +48,10 @@ def clip(  # noqa: C901, PLR0912, PLR0913
     carry_columns: list[str] | None = None,
     original_path: str | Path | None = None,
 ) -> None:
-    """Assign one input file to its overlay feature via assign-one, then clip it."""
+    """Assign one input file to its overlay polygon via assign-one, then clip it."""
     if match_column is not None and (overlay_match_column or input_match_column):
         msg = (
-            "match_column is mutually exclusive with overlay feature/input_match_column"
+            "match_column is mutually exclusive with overlay polygon/input_match_column"
         )
         raise ValueError(msg)
     if bool(overlay_match_column) != bool(input_match_column):

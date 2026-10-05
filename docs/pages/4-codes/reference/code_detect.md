@@ -15,7 +15,7 @@ topo-tools code-detect [OPTIONS] INPUT_FILE [ISSUES_FILE]
 
 ## Description
 
-Checks every level's codes: blank codes, a code with more than one name, a finest-level code on more than one feature, a code that does not start with its parent's code, and a code shaped unlike the rest of its level. Writes the problems found without changing the layer, even when there are none. ISSUES_FILE defaults to INPUT_FILE with a "_code_issues" suffix, as CSV, or Parquet for a .parquet name.
+Checks every level's codes: blank codes, a code with more than one name, a finest-level code on more than one polygon, a code that does not start with its parent's code, and a code shaped unlike the rest of its level. Writes the problems found without changing the layer, even when there are none. ISSUES_FILE defaults to INPUT_FILE with a "_code_issues" suffix, as CSV, or Parquet for a .parquet name.
 
 ## Options
 

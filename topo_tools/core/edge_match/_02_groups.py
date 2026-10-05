@@ -1,4 +1,4 @@
-"""Runs extend's pipeline once per overlay feature group, in an isolated subprocess.
+"""Runs extend's pipeline once per overlay polygon group, in an isolated subprocess.
 
 Data crosses the process boundary as small Parquet files, never a shared
 connection (DuckDB files are single-writer).
@@ -48,7 +48,7 @@ def main(  # noqa: PLR0913
 ) -> None:
     """Loop over all groups sequentially, each isolated in its own subprocess.
 
-    With passthrough=True and any zero-overlap input features present, one extra
+    With passthrough=True and any zero-overlap input polygons present, one extra
     orphan group is run afterward, tagged with PASSTHROUGH_OVERLAY_FID.
     """
     conn.execute(f"""--sql
@@ -127,7 +127,7 @@ def _run_group(  # noqa: PLR0913, PLR0917
     threads: int | None,
     debug: bool,
 ) -> None:
-    """Export one group's input features, extend them in an isolated subprocess."""
+    """Export one group's input polygons, extend them in an isolated subprocess."""
     gname = f"{name}_g{overlay_fid}"
     group_dir = tmp_dir / gname
     group_dir.mkdir(parents=True, exist_ok=True)
@@ -142,7 +142,7 @@ def _run_group(  # noqa: PLR0913, PLR0917
     output_path = group_dir / "output.parquet"
     if exitcode != 0 or err or not output_path.exists():
         logger.error(
-            "match: group overlay_fid=%s failed, dropping its input features from "
+            "match: group overlay_fid=%s failed, dropping its input polygons from "
             "the output. exitcode=%s error=%s (see %s for exported inputs)",
             overlay_fid,
             exitcode,
@@ -186,7 +186,7 @@ def _append_to_reassembly(
 def _record_dropped_group(
     conn: DuckDBPyConnection, name: str, overlay_fid: int, reason: str, fids_sql: str
 ) -> None:
-    """Record every input feature of a failed group into `{name}_03b` for the issues."""
+    """Record every input polygon of a failed group into `{name}_03b` for the issues."""
     conn.execute(
         f"""--sql
             INSERT INTO "{name}_03b"

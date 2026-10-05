@@ -33,18 +33,23 @@ def _build_issues(
     passthrough: bool = False,
     fill_gaps: bool = False,
 ) -> None:
-    """Build `{name}_05`: every unassigned input feature, gap-fill rows, and gaps."""
+    """Build `{name}_05`: every unassigned input polygon, gap-fill rows, and gaps."""
     table = f"{name}_04"
     short_source_file = short_source_file_sql("source_file")
     parts = [
         f"""
         SELECT 'clip-empty-' || fid AS key, 'clip-empty' AS kind,
                fid AS unit_a, overlay_fid,
-               'clip intersection with its overlay feature was empty' AS reason,
+               'clip intersection with its overlay polygon was empty' AS reason,
                {_ISSUE_COLUMNS}, {short_source_file} AS source_file, geom
         FROM "{name}_03_dropped"
         """,
-        gap_issues_sql(conn, table),
+        gap_issues_sql(
+            conn,
+            table,
+            within=f"""SELECT geom FROM "{name}_overlay_01" WHERE fid IN (
+                SELECT overlay_fid FROM "{name}_02_assign")""",
+        ),
         f"""SELECT * REPLACE ({short_source_file} AS source_file)
         FROM "{name}_03_detached"
         """,
@@ -70,7 +75,7 @@ def _build_issues(
         parts.append(f"""
         SELECT 'gap-fill-' || overlay_fid AS key, 'gap-fill' AS kind,
                NULL::BIGINT AS unit_a, overlay_fid,
-               'overlay feature had no matched input features; '
+               'overlay polygon had no matched input polygons; '
                || 'kept unclipped in the output' AS reason,
                {_ISSUE_COLUMNS}, NULL::VARCHAR AS source_file, geom
         FROM "{table}"
@@ -113,9 +118,8 @@ def main(  # noqa: PLR0913
     """).fetchall()[0][0]
     if remaining:
         logger.warning(
-            "mosaic: %d gap(s) wider than the noise floor remain in the output "
-            "(may be a legitimate hole in the overlay layer, not a defect), "
-            "see the issues file",
+            "mosaic: %d gap(s) wider than the noise floor remain inside the overlay "
+            "polygons the output was clipped to, see the issues file",
             remaining,
         )
 

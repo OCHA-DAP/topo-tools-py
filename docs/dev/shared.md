@@ -160,10 +160,10 @@ CLI maps flags/env vars onto those same kwargs 1:1.
   uses. A wider part MUST be kept, however small its area (e.g. a real
   islet).
 - A tool that modifies geometry MUST NOT output a micro-polygon. Where it
-  finds one, it MUST merge the part into the feature whose non-micro part
+  finds one, it MUST merge the part into the polygon whose non-micro part
   it overlaps most once buffered by `SNAP_TOLERANCE` (ties to the lowest
-  fid, including the part's own feature), or drop it when it touches no
-  feature. A feature left with no parts MUST be removed.
+  fid, including the part's own polygon), or drop it when it touches no
+  polygon. A polygon left with no parts MUST be removed.
 - Every `coverage_clean` call merges micro-polygons before
   `ST_CoverageClean` runs, so `edge-extend`, `edge-stitch`, `edge-match`,
   `edge-mosaic`, `topo-clean` and every auto-cleaned input apply this
@@ -179,17 +179,17 @@ CLI maps flags/env vars onto those same kwargs 1:1.
 
 ## Clip-detached pieces
 
-- A clip-detached piece is any polygon part of a clipped feature other than
+- A clip-detached piece is any polygon part of a clipped polygon other than
   the kept piece of its own pre-clip part (the extended part holding the
   piece's interior point). The kept piece is the largest piece on the
   unit's original footprint, or the largest piece when none is.
 - A piece is on the original footprint when its interior point falls on an
-  original part of the same feature, or when at least
+  original part of the same polygon, or when at least
   `DETACHED_MAX_ORIGINAL_SHARE` (50%) of its area is original land. An
-  original feature belongs to the pre-clip part holding its interior point.
+  original polygon belongs to the pre-clip part holding its interior point.
 - `edge-clip`, `edge-match` and `edge-mosaic` MUST merge a piece under
-  `DETACHED_MERGE_MAX_RATIO` (1%) of its kept piece's area into the feature,
-  assigned to the same overlay feature, it shares the longest edge with
+  `DETACHED_MERGE_MAX_RATIO` (1%) of its kept piece's area into the polygon,
+  assigned to the same overlay polygon, it shares the longest edge with
   (ties to the lowest fid), when under 50% of the piece is original land or
   when the original land clipped away beside it is at least
   `DETACHED_MIN_NECK_RATIO` (0.1) of its area. Otherwise the piece MUST
@@ -198,16 +198,16 @@ CLI maps flags/env vars onto those same kwargs 1:1.
   `kept: no original layer`. `edge-match` always uses its own
   pre-extension input; `edge-clip` and `edge-mosaic` take one via
   `original_path`/`original_paths` (CLI: `--original`).
-- A destination MUST be a kept piece, a single-part feature, or a piece
+- A destination MUST be a kept piece, a single-part polygon, or a piece
   kept as too large. A point contact, or a neighbour that is any other
   clip-detached piece, MUST NOT count as sharing an edge.
-- A piece MUST stay on its own feature when it is 1% or larger, when it
+- A piece MUST stay on its own polygon when it is 1% or larger, when it
   shares no edge with any destination, or when merging would leave the
-  receiving feature with an extra part.
-- A piece that shares an edge with a same-overlay feature MUST be reported
+  receiving polygon with an extra part.
+- A piece that shares an edge with a same-overlay polygon MUST be reported
   as a `detached-part` row, merged or kept. A piece sharing no edge with any
-  feature MUST NOT be reported.
-- In `edge-mosaic`'s per-file loop, only features from the same input file
+  polygon MUST NOT be reported.
+- In `edge-mosaic`'s per-file loop, only polygons from the same input file
   are candidate neighbours.
 
 ## Hard gates at each tool's output stage
@@ -219,11 +219,11 @@ CLI maps flags/env vars onto those same kwargs 1:1.
   size: it has no overlay layer, so any gap is unambiguously a defect
   in its own coverage (see `docs/adr/0035`).
 - `edge-match` and `edge-mosaic` MUST raise if their final output has any overlap, or
-  any gap at or below `SNAP_TOLERANCE`. A wider gap MUST NOT raise: it may
-  be a legitimate hole in the overlay layer's own shape (e.g. one
-  country fully enclosing another), not a coverage defect (see
-  `docs/adr/0035`). Any such gap MUST still be logged as a warning and
-  recorded in the issues report described in each tool's own file.
+  any gap at or below `SNAP_TOLERANCE`. A wider gap MUST NOT raise (see `docs/adr/0035`). One whose interior
+  point falls inside an overlay polygon the output was clipped to MUST be
+  logged as a warning and recorded in the issues report described in each
+  tool's own file. Any other wider gap (a hole in the overlay layer itself,
+  or an area no input was clipped into) MUST NOT be reported.
 - `topo-clean` MUST raise if its final output has any overlap, or any unfilled
   gap at or below the `gap_maximum_width` actually used for that run (see
   `docs/adr/0037`). It MUST NOT raise over a gap wider than that: gaps
@@ -233,10 +233,10 @@ CLI maps flags/env vars onto those same kwargs 1:1.
   or below `SNAP_TOLERANCE` (see `docs/adr/0038`). It MUST NOT raise over
   a wider gap, but MUST log a warning and record it in the issues report
   described in `docs/dev/reference/3-edge/edge_stitch.md`.
-- `edge-clip` performs no topology hard gate at all: it clips an input feature to its
-  assigned overlay feature's geometry one `overlay_fid` at a time and does not
+- `edge-clip` performs no topology hard gate at all: it clips an input polygon to its
+  assigned overlay polygon's geometry one `overlay_fid` at a time and does not
   itself validate whole-layer coverage. It MAY still produce an issues
-  report (a `clip-empty` row for any input feature whose clip result was empty,
+  report (a `clip-empty` row for any input polygon whose clip result was empty,
   a `detached-part` row for each clip-detached piece with an edge neighbour, plus `code-mismatch`/`code-fallback` rows when a match column is
   supplied, see below).
 - `change` performs no topology hard gate at all; it is a read-only
@@ -253,7 +253,7 @@ schema: `key`, `kind`, `area_m2`, `max_width_m`, `thinness_ratio`,
 `unit_b_area_change_m2`, `filled_area_m2`, `fixed`, `source_file`, `geom`.
 A tool MUST leave any column inapplicable to a given row's `kind` as null.
 `unit_a` MUST record whichever single fid is primarily associated with the
-row, for any kind that has one (a dropped input feature, one side of an overlap,
+row, for any kind that has one (a dropped input polygon, one side of an overlap,
 etc.); `unit_b` MUST be used only where a second fid is meaningfully
 involved (e.g. the other side of an overlap). `edge-match` MUST populate
 `source_file` with the row's originating input file, shortened to its
@@ -268,37 +268,37 @@ schema (see its reference).
 None of `edge-match`/`edge-mosaic`/`edge-clip`/`edge-stitch`'s *main*
 output carries a `source_file` column at all, even though every one of
 them tags it internally on the input table: it exists only to let
-`assign-one` group a file's input features for its per-file majority vote (see
+`assign-one` group a file's input polygons for its per-file majority vote (see
 `docs/dev/explanation/3-edge/assign.md`), not as a user-facing column, and each
 tool's outputs stage strips it before export (see `docs/adr/0087`).
 `topo-clean`'s issues report keeps a `source_file` column for schema
-compatibility, always null (it's a single-layer tool with no per-feature
+compatibility, always null (it's a single-layer tool with no per-polygon
 origin file).
 
 `edge-match`, `edge-mosaic`, and `edge-clip` all share a `kind='clip-empty'`
-row for any input feature whose clip intersection with its assigned overlay feature came
-back empty (see `docs/adr/0082`): `unit_a` MUST hold the input feature's fid,
-`overlay_fid` its assigned overlay feature's fid, `reason` MUST explain the
+row for any input polygon whose clip intersection with its assigned overlay polygon came
+back empty (see `docs/adr/0082`): `unit_a` MUST hold the input polygon's fid,
+`overlay_fid` its assigned overlay polygon's fid, `reason` MUST explain the
 intersection was empty. `edge-mosaic` and `edge-match` both additionally
 have a `kind='gap-fill'` row (see `docs/dev/reference/3-edge/edge_mosaic.md`,
-`docs/dev/reference/3-edge/edge_match.md`) for an overlay feature matched by zero input features,
+`docs/dev/reference/3-edge/edge_match.md`) for an overlay polygon matched by zero input polygons,
 kept unclipped in the output when `merge` is set: `overlay_fid` MUST hold
-the gap-filled overlay feature's fid, `unit_a` and `source_file` MUST be null (see
+the gap-filled overlay polygon's fid, `unit_a` and `source_file` MUST be null (see
 `docs/adr/0083`, `docs/adr/0088`).
 
 A `kind='micro-polygon'` row (see Micro-polygons) MUST hold the part's
-own feature fid in `unit_a`, the receiving feature's fid in `unit_b` (null
+own polygon fid in `unit_a`, the receiving polygon's fid in `unit_b` (null
 when dropped), `reason` MUST say whether it was merged or dropped,
 `fixed` MUST be true, and `geom` MUST be the part itself. `topo-detect`
 reports the same kind unfixed: `fixed` false, `unit_b` and `reason` null.
 
 A `kind='detached-part'` row (see Clip-detached pieces) MUST hold the
-piece's own feature fid in `unit_a`, the fid of the feature it shares the
-longest edge with in `unit_b` (the receiving feature when merged), the
-piece's assigned overlay feature in
+piece's own polygon fid in `unit_a`, the fid of the polygon it shares the
+longest edge with in `unit_b` (the receiving polygon when merged), the
+piece's assigned overlay polygon in
 `overlay_fid`, and the piece itself as `geom`, with `area_m2`,
 `max_width_m` and `thinness_ratio` measured on the piece. `reason` MUST be
-one of `merged into neighbouring feature`, `kept: too large to merge`,
+one of `merged into neighbouring polygon`, `kept: too large to merge`,
 `kept: matches original shape`, `kept: no original layer` or
 `kept: merge did not attach`, and `fixed` MUST be
 true only for a merged piece.
@@ -316,14 +316,14 @@ other; supplying only one of the pair MUST raise `ValueError`. When given,
 `core/assign`'s exact code join wins over the
 default spatial-overlap assignment wherever a code match exists, even when
 it disagrees with the spatial result, and falls back to the spatial result
-when an input feature's (or, for `assign-one`, a file's) code has no
+when an input polygon's (or, for `assign-one`, a file's) code has no
 overlapping-overlay match at all (see `docs/adr/0045`,
 `docs/dev/explanation/3-edge/assign.md`). Both outcomes MUST be recorded as issues
 rows, reusing the schema above:
 
 - `kind='code-mismatch'`: the code match won but disagreed with the spatial
-  result. `unit_a` MUST hold the input feature's own fid, `overlay_fid` the code
-  match's overlay feature.
+  result. `unit_a` MUST hold the input polygon's own fid, `overlay_fid` the code
+  match's overlay polygon.
 - `kind='code-fallback'`: no code match existed; the spatial result was
   used instead. `unit_a` and `overlay_fid` MUST be populated the same way.
 
@@ -378,7 +378,7 @@ its supporting functions:
 ## Overlay-column carry-forward
 
 `edge-match`, `edge-mosaic`, and standalone `edge-clip` all MAY copy named
-overlay-layer columns onto every matched input feature. Names are always
+overlay-layer columns onto every matched input polygon. Names are always
 caller-specified, never inferred from either layer's schema (see
 `docs/adr/0077`). A name colliding with `core.assign`'s own reserved
 columns (`input_fid`, `overlay_fid`, `assignment_method`, `spatial_agrees`)
@@ -395,7 +395,7 @@ primitive, see `docs/dev/reference/3-edge/edge_clip.md`).
 `merge: bool = False` (CLI: `--merge`), coupled with two passthrough
 mechanisms rather than independent of them: `False` (omitted) turns both
 off; `True` carries every overlay column (excluding `fid`/`geom`) onto
-every matched input feature, keeps an overlay feature matched by zero input features unclipped in
+every matched input polygon, keeps an overlay polygon matched by zero input polygons unclipped in
 the output using its own geometry (`kind='gap-fill'`), and keeps a whole
 unmatched input file unclipped in the output using its own geometry
 (`kind='passthrough'`). `overlay_include`/`overlay_exclude`/
@@ -405,17 +405,17 @@ overlay/input columns survive; `prefer` (CLI: `--prefer [overlay|input]`)
 auto-resolves a real overlay/input column-name collision instead of
 raising. All five require `merge`; the four narrowing flags are each
 mutually exclusive with their own pair, and mutually exclusive with
-`prefer` (see `docs/adr/0079`, `docs/adr/0083`, `docs/adr/0088`). An input feature
-that never matched any overlay feature (dropped as `unassigned`) never gains
-carried columns through a join; a gap-filled overlay feature's own row carries
-them directly, since the row is the overlay feature itself, not a joined input feature
+`prefer` (see `docs/adr/0079`, `docs/adr/0083`, `docs/adr/0088`). An input polygon
+that never matched any overlay polygon (dropped as `unassigned`) never gains
+carried columns through a join; a gap-filled overlay polygon's own row carries
+them directly, since the row is the overlay polygon itself, not a joined input polygon
 (see `docs/dev/reference/3-edge/edge_mosaic.md`).
 
 The two tools' input passthrough implementations differ, since their
 pipelines do: `edge-mosaic`'s passthrough geometry is already a finished,
 validated `edge_extend()` output, unioned in directly. `edge-match`'s
-passthrough groups every zero-overlap input feature (whole file under
-`assign-one`, individual input feature under `--per-feature`'s `assign-many`,
+passthrough groups every zero-overlap input polygon (whole file under
+`assign-one`, individual input polygon under `assign-many`,
 see `docs/dev/explanation/3-edge/assign.md`) into one orphan group of its own and
 extends it fresh, alone, with zero neighboring-overlay context and no
 majority/plurality vote to catch a bad extension, a materially weaker

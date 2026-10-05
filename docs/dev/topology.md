@@ -84,7 +84,7 @@ This produces **0 gaps, 0 overlaps, 0 `ST_CoverageInvalidEdges`** on all tested 
 
 A polygon part at most `SNAP_TOLERANCE` wide is treated like a micro gap:
 a defect, never real geography. At that scale it's a digitization or
-processing artifact, typically a sliver fragment beside a feature's large
+processing artifact, typically a sliver fragment beside a polygon's large
 part, or reprojection noise that turns a shared border into a sliver
 overlap. A small but wider part, such as a real islet, is kept. Width
 uses the maximum inscribed circle, the same measure as the micro-gap
@@ -92,15 +92,15 @@ check; `2 * area / perimeter` is a lower bound on that diameter, so it
 cheaply skips every clearly wide part before the costly call.
 
 Merging into the neighbour the buffered part overlaps most handles both
-shapes of the defect: an overlap sliver goes to the feature it overlaps
-(no change in area), and a touching fragment goes to the feature it
+shapes of the defect: an overlap sliver goes to the polygon it overlaps
+(no change in area), and a touching fragment goes to the polygon it
 borders, which is usually its own large part. Dropping a touching
 fragment instead would open a micro gap. Only an isolated fragment,
 touching nothing, is dropped.
 
 `ST_CoverageClean` absorbs micro parts at the default snapping distance,
-but returns a feature that is entirely micro as an EMPTY geometry, and
-`ST_CoverageInvalidEdges_Agg` doesn't flag a micro feature that only
+but returns a polygon that is entirely micro as an EMPTY geometry, and
+`ST_CoverageInvalidEdges_Agg` doesn't flag a micro polygon that only
 touches its neighbours. `coverage_clean` therefore merges micro-polygons
 first, and `has_valid_topology` checks for them directly, so an
 auto-cleaned input is cleaned whenever it has one.

@@ -18,6 +18,6 @@ primitive directly instead.
 - [edge-stitch](edge_stitch.md): whole-table coverage-clean, the
   standalone primitive.
 - [edge-match](edge_match.md): extend and clip a raw finer layer into a
-  coarser overlay feature.
+  coarser overlay polygon.
 - [edge-mosaic](edge_mosaic.md): re-clip an already-extended layer into a
-  new overlay feature, skipping extension.
+  new overlay polygon, skipping extension.

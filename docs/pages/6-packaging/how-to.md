@@ -31,4 +31,4 @@ Writes one `release/admin{n}.parquet` per detected level,
 
 `topo-clean`, `edge-match`, and `code-create` each write an issues file
 only when they find something to report; load one as a map layer, not
-just a table, to see exactly which features it touched.
+just a table, to see exactly which polygons it touched.

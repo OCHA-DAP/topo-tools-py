@@ -1,4 +1,4 @@
-"""Clips every row to its own overlay_fid's geometry, isolated per overlay feature."""
+"""Clips every row to its own overlay_fid's geometry, isolated per overlay polygon."""
 
 import contextlib
 import shutil
@@ -36,7 +36,7 @@ def main(  # noqa: PLR0913 (each param is a distinct required input)
     """Clip every row of table_in to its own overlay_fid's geometry.
 
     table_in MUST already carry a overlay_fid column; an empty-intersection
-    input feature is dropped from table_out but kept in "{table_out}_dropped".
+    input polygon is dropped from table_out but kept in "{table_out}_dropped".
     A clip-detached piece is merged or reported in "{table_out}_detached".
     """
     conn.execute(f"""--sql
@@ -138,7 +138,7 @@ def _clip_one_worker(
                 CREATE TABLE clip_btile AS
                 SELECT geom, {bbox_columns_sql("geom")} FROM clip_btile_raw
             """)
-        # LEFT JOIN: an input feature whose bbox misses every tile still emits a row.
+        # LEFT JOIN: an input polygon whose bbox misses every tile still emits a row.
         worker_conn.execute("""--sql
                 CREATE TABLE clip_result AS
                 SELECT c.* EXCLUDE (geom, xmin, xmax, ymin, ymax),

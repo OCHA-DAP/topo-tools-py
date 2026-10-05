@@ -197,7 +197,7 @@ _ENCLAVE_INPUT_WKT = [
 
 
 def test_mosaic_tolerates_overlay_layer_enclave(tmp_path):
-    """A real hole in the overlay's own shape must not raise, only be reported."""
+    """A real hole in the overlay's own shape must not raise or be reported."""
     input_path = tmp_path / "children_enclave.parquet"
     overlays_path = tmp_path / "parents_enclave.parquet"
     _write_synthetic(input_path, _ENCLAVE_INPUT_WKT)
@@ -208,13 +208,13 @@ def test_mosaic_tolerates_overlay_layer_enclave(tmp_path):
     mosaic(input_path, overlays_path, output_path, issues_path, overwrite=True)
 
     assert output_path.exists()
-    with duckdb.connect() as conn:
-        conn.execute("LOAD spatial")
-        gap_rows = conn.execute(
-            f"SELECT max_width_m FROM '{issues_path}' WHERE kind = 'gap'"
-        ).fetchall()
-    assert len(gap_rows) == 1
-    assert gap_rows[0][0] > 0
+    if issues_path.exists():
+        with duckdb.connect() as conn:
+            conn.execute("LOAD spatial")
+            gap_rows = conn.execute(
+                f"SELECT count(*) FROM '{issues_path}' WHERE kind = 'gap'"
+            ).fetchone()[0]
+        assert gap_rows == 0
 
 
 def test_mosaic_clip_bounds_output_to_overlay(
@@ -241,7 +241,7 @@ def test_mosaic_all_unassigned(tmp_path):
     _write_synthetic(overlays_path, _OVERLAY_WKT)
 
     output_path = tmp_path / "out.parquet"
-    with pytest.raises(RuntimeError, match="no input feature got an overlay"):
+    with pytest.raises(RuntimeError, match="no input polygon got an overlay"):
         mosaic(input_path, overlays_path, output_path, overwrite=True)
 
 

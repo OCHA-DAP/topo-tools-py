@@ -11,8 +11,8 @@ the overlay layer changes.
 
 ## Fit a raw layer to an overlay layer
 
-`edge-match` extends each input feature outward with Voronoi diagrams, then clips
-it to its overlay feature, in one call:
+`edge-match` extends each input polygon outward with Voronoi diagrams, then clips
+it to its overlay polygon, in one call:
 
     topo-tools edge-match adm3.gpkg adm0.gpkg adm3_matched.gpkg \
       --issues-file match_report.gpkg
@@ -32,8 +32,8 @@ already-fitted layer against it, skipping Voronoi extension entirely:
 
 `edge-match` and `edge-mosaic` chain three primitives, each also
 runnable on its own for a narrower job: `edge-extend` (extend a layer
-outward with no overlay to fit), `edge-clip` (assign each input feature to an
-overlay feature and clip it), and `edge-stitch` (close seams in an already-tiled
+outward with no overlay to fit), `edge-clip` (assign each input polygon to an
+overlay polygon and clip it), and `edge-stitch` (close seams in an already-tiled
 layer).
 
 See the [`edge-match`](../../reference/3-edge/edge_match.md),

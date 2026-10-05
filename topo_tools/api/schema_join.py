@@ -1,4 +1,4 @@
-"""Public API: copy a join layer's hierarchy columns onto each input feature."""
+"""Public API: copy a join layer's hierarchy columns onto each input polygon."""
 
 from logging import getLogger
 from pathlib import Path
@@ -48,7 +48,7 @@ def join(  # noqa: PLR0913
     debug: bool = False,
     step: str | None = None,
 ) -> None:
-    """Copy each input feature's best-overlap join feature's hierarchy columns onto it.
+    """Copy each input polygon's best-overlap join polygon's hierarchy columns onto it.
 
     Omitting name_field/code_field triggers structural auto-detection.
     """

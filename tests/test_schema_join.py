@@ -225,7 +225,7 @@ def test_low_overlap_threshold(join_path, tmp_path):
     join(src, join_path, out)
     issues = _issues(tmp_path / "out_issues.parquet")
     assert [(k, u) for k, u, _ in issues] == [("low-overlap", 1)]
-    assert issues[0][2] == "best join feature covers 0.25 of input feature"
+    assert issues[0][2] == "best join polygon covers 0.25 of input polygon"
 
     join(src, join_path, out, min_overlap=0.2)
     assert not (tmp_path / "out_issues.parquet").exists()

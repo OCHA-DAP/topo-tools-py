@@ -12,6 +12,7 @@ from topo_tools.core.coverage import (
     micro_issues_sql,
     short_source_file_sql,
 )
+from topo_tools.core.edge_match._constants import PASSTHROUGH_OVERLAY_FID
 from topo_tools.core.io import export_geometry_table, export_issues_table
 
 logger = getLogger(__name__)
@@ -25,6 +26,16 @@ _ISSUE_COLUMNS = """
 """
 
 
+def _clip_targets_sql(name: str) -> str:
+    """Build SQL for the overlay polygons the output was clipped to."""
+    return f"""
+        SELECT geom FROM "{name}_overlay_01" WHERE fid IN (
+            SELECT overlay_fid FROM "{name}_02_assign"
+            WHERE overlay_fid != {PASSTHROUGH_OVERLAY_FID}
+        )
+    """
+
+
 def _build_issues(
     conn: DuckDBPyConnection,
     name: str,
@@ -33,7 +44,7 @@ def _build_issues(
     passthrough: bool = False,
     fill_gaps: bool = False,
 ) -> None:
-    """Build `{name}_06`: unassigned/dropped-group input features, plus non-noise gaps.
+    """Build `{name}_06`: unassigned/dropped-group input polygons, plus non-noise gaps.
 
     passthrough=True omits 'unassigned' (superseded by 'passthrough'/'dropped_group').
     """
@@ -58,11 +69,11 @@ def _build_issues(
         f"""
         SELECT 'clip-empty-' || fid AS key, 'clip-empty' AS kind,
                fid AS unit_a, overlay_fid,
-               'clip intersection with its overlay feature was empty' AS reason,
+               'clip intersection with its overlay polygon was empty' AS reason,
                {_ISSUE_COLUMNS}, {short_source_file} AS source_file, geom
         FROM "{name}_04_dropped"
         """,
-        gap_issues_sql(conn, table),
+        gap_issues_sql(conn, table, within=_clip_targets_sql(name)),
         f"""SELECT * REPLACE ({short_source_file} AS source_file)
         FROM "{name}_04_detached"
         """,
@@ -71,7 +82,7 @@ def _build_issues(
         parts.append(f"""
         SELECT 'passthrough-' || input_fid AS key, 'passthrough' AS kind,
                input_fid AS unit_a, NULL::BIGINT AS overlay_fid,
-               'no overlapping overlay feature; extended alone and kept unclipped in '
+               'no overlapping overlay polygon; extended alone and kept unclipped in '
                'the output' AS reason, {_ISSUE_COLUMNS},
                {short_source_file} AS source_file, geom
         FROM "{name}_02_unassigned"
@@ -81,7 +92,7 @@ def _build_issues(
         parts.append(f"""
         SELECT 'gap-fill-' || overlay_fid AS key, 'gap-fill' AS kind,
                NULL::BIGINT AS unit_a, overlay_fid,
-               'overlay feature had no matched input features; '
+               'overlay polygon had no matched input polygons; '
                || 'kept unclipped in the output' AS reason,
                {_ISSUE_COLUMNS}, NULL::VARCHAR AS source_file, geom
         FROM "{table}"
@@ -124,9 +135,8 @@ def main(  # noqa: PLR0913
     """).fetchall()[0][0]
     if remaining:
         logger.warning(
-            "match: %d gap(s) wider than the noise floor remain in the output "
-            "(may be a legitimate hole in the overlay layer, not a defect), "
-            "see the issues file",
+            "match: %d gap(s) wider than the noise floor remain inside the overlay "
+            "polygons the output was clipped to, see the issues file",
             remaining,
         )
 

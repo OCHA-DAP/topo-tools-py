@@ -11,7 +11,7 @@ sidebar:
 whole-table `ST_CoverageClean` pass: the operation `edge-match` and `edge-mosaic`
 each ran internally as their own final merge stage before this extraction.
 It is the fixed point both tools converge on regardless of how their tiles
-were produced (per-group Voronoi extension for `edge-match`, per-overlay-feature clip for
+were produced (per-group Voronoi extension for `edge-match`, per-overlay-polygon clip for
 `edge-mosaic`): once a layer's independently-computed tiles sit next to each
 other, whatever seam disagreements remain between them get closed here.
 
@@ -69,7 +69,7 @@ boundaries, not a real feature to protect.
 ## Seam gaps are real geometry disagreements, not float noise
 
 Seam gaps between two independently-computed tiles (two Voronoi
-extensions, or two clipped overlay feature regions) can run from slivers up to
+extensions, or two clipped overlay polygon regions) can run from slivers up to
 hundreds of meters, confirmed on Burundi's admin2-into-admin1 case,
 where 171 invalid cross-group edges ranged up to 0.0058 degrees (~645 m),
 averaging ~12 m, against a `SNAP_TOLERANCE` of `1e-8` degrees (~1.1 mm). No
@@ -92,7 +92,7 @@ beforehand: each `ST_Intersection(input, overlay)` call re-nodes the
 *entire* input polygon in one pass, and GEOS's internal floating-point
 processing of the rest of each polygon's distinct geometry can perturb
 how it resolves that shared, degenerate stretch differently per call.
-Neither pre-snapping an input feature onto the overlay boundary nor an explicit
+Neither pre-snapping an input polygon onto the overlay boundary nor an explicit
 shared vertex at the crossing point prevents this: the divergence is
 introduced by the independent overlay computation itself, not by
 underdetermined input. `coverage_clean_escalating()` (`core/coverage.py`)
