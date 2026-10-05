@@ -295,7 +295,9 @@ After stage 6, export each release candidate (`rc`) sent for review:
    number prefix (`schema`, `topology`, ...), with `names` taking
    `{iso3}_admin{n}_name_fixes.parquet`, plus `change` output
    comparing this candidate against the previous one (`rc01`: against
-   `00a_old/`, skipped when absent).
+   `00a_old/`, skipped when absent), and each report in
+   `06_packaging/validate/` as `validate_schema`, `validate_topo`,
+   `validate_code` and `validate_name`.
 
 For a file returned by the reviewer (step 3 of Setup), ask which stage it
 re-enters at, place it there as GeoParquet or CSV, and rerun from that
