@@ -44,6 +44,7 @@ def main(  # noqa: PLR0913
                'clip intersection with its overlay feature was empty' AS reason,
                NULL::DOUBLE AS area_m2, NULL::DOUBLE AS max_width_m,
                NULL::DOUBLE AS thinness_ratio,
+               NULL::DOUBLE AS near_length_m,
                NULL::DOUBLE AS unit_a_area_change_m2,
                NULL::DOUBLE AS unit_b_area_change_m2,
                NULL::DOUBLE AS filled_area_m2, FALSE AS fixed, source_file, geom

@@ -9,7 +9,7 @@ import duckdb
 from duckdb import DuckDBPyConnection
 
 from .constants import COPY_OPTS, RESERVED_COLUMN_NAMES
-from .coverage import coverage_clean, has_valid_topology
+from .coverage import close_notches, coverage_clean, has_valid_topology
 from .duckdb_utils import quote_identifier
 
 logger = getLogger(__name__)
@@ -221,12 +221,19 @@ def read_and_reproject(
 
 
 def read_reproject_and_clean(
-    conn: DuckDBPyConnection, name: str, path: Path | str, layer: str | None = None
+    conn: DuckDBPyConnection,
+    name: str,
+    path: Path | str,
+    layer: str | None = None,
+    *,
+    fix_notches: bool = False,
 ) -> None:
     """Read, reproject, and coverage-clean geodata into table `{name}_01`."""
     read_and_reproject(conn, name, path, layer)
 
     table = f"{name}_01"
+    if fix_notches:
+        close_notches(conn, table)
     if not has_valid_topology(conn, table, gap_maximum_width=0):
         logger.info("cleaning coverage: invalid edges or gaps detected")
         coverage_clean(conn, table, table, fids=None)

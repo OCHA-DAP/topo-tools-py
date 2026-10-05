@@ -26,10 +26,14 @@ sidebar:
   boundary edge MUST NOT be reported as an overlap.
 - `topo-detect` MUST report every micro-polygon part as a `micro-polygon`, identifying the unit
   it belongs to.
+- `topo-detect` MUST report every pair of units whose unshared boundaries
+  run within `NOTCH_SPACING / 8` of each other along at least
+  `NOTCH_MIN_SCORE` spacings as a `notch`, identifying both units and the
+  close-running length.
 - If detecting one kind of defect fails, `topo-detect` MUST still report the
   other kinds rather than failing entirely.
 - The issues report MUST list, for every defect: a unique key, its kind
-  (gap, overlap or micro-polygon), its area, its width, and its geometry.
+  (gap, overlap, micro-polygon or notch), its area, its width, and its geometry.
   A gap entry MUST also carry a compactness score (how thin and elongated
   its shape is, as opposed to round and plausible); an overlap entry MUST
   also identify the two units involved. Neither MUST appear on the other

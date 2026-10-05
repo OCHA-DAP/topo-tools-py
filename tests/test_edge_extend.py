@@ -13,7 +13,7 @@ from click.testing import CliRunner
 from topo_tools.api.edge_extend import extend
 from topo_tools.cli.main import cli
 from topo_tools.core.constants import SNAP_TOLERANCE
-from topo_tools.core.coverage import has_gaps
+from topo_tools.core.coverage import detect_notches, has_gaps
 from topo_tools.core.edge_extend import _01_inputs as inputs
 from topo_tools.core.edge_extend import _02_lines as lines
 from topo_tools.core.edge_extend import _03_points as points
@@ -172,6 +172,26 @@ def test_inputs_closes_noise_scale_gap(tmp_path):
         conn.execute("INSTALL spatial; LOAD spatial;")
         inputs.main(conn, "synth", path)
         assert not has_gaps(conn, "synth_01", gap_maximum_width=0)
+
+
+def test_inputs_closes_deep_notch(tmp_path):
+    """A 600 m wedge with a 5 m mouth between two units is closed on input."""
+    path = tmp_path / "notch.parquet"
+    m = 1 / 111320
+    ax, bx = 600 * m, 1000 * m
+    a = f"POLYGON((-0.02 0, 0 0, {ax} {5 * m}, {ax} 0.02, -0.02 0.02, -0.02 0))"
+    b = f"POLYGON((-0.02 0, 0 0, {bx} 0, {bx} -0.02, -0.02 -0.02, -0.02 0))"
+    with duckdb.connect() as conn:
+        conn.execute("INSTALL spatial; LOAD spatial;")
+        conn.execute(f"""
+            COPY (SELECT 1 AS id, ST_GeomFromText('{a}') AS geom
+                  UNION ALL SELECT 2, ST_GeomFromText('{b}')) TO '{path}'
+        """)
+
+    with duckdb.connect() as conn:
+        conn.execute("INSTALL spatial; LOAD spatial;")
+        inputs.main(conn, "synth", path)
+        assert detect_notches(conn, "synth_01", "notches") == 0
 
 
 def test_voronoi_raises_on_incomplete_assignment():

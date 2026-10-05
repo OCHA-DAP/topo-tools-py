@@ -18,7 +18,8 @@ logger = getLogger(__name__)
 
 _ISSUE_COLUMNS = """
     NULL::DOUBLE AS area_m2, NULL::DOUBLE AS max_width_m,
-    NULL::DOUBLE AS thinness_ratio, NULL::BIGINT AS unit_b,
+    NULL::DOUBLE AS thinness_ratio, NULL::DOUBLE AS near_length_m,
+    NULL::BIGINT AS unit_b,
     NULL::DOUBLE AS unit_a_area_change_m2, NULL::DOUBLE AS unit_b_area_change_m2,
     NULL::DOUBLE AS filled_area_m2, FALSE AS fixed
 """

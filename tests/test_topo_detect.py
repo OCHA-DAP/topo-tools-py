@@ -25,6 +25,13 @@ _SYNTHETIC_WKT = [
     (8, "POLYGON((30.5 0.5, 31.5 0.5, 31.5 1.5, 30.5 1.5, 30.5 0.5))"),
 ]
 
+# Units sharing y=0 up to x=0, then A's edge leaves B's at a 5 m mouth over 600 m.
+_A, _B, _MOUTH = 600 / 111320, 1000 / 111320, 5 / 111320
+_WEDGE_WKT = [
+    (1, f"POLYGON((-.02 0, 0 0, {_A} {_MOUTH}, {_A} .02, -.02 .02, -.02 0))"),
+    (2, f"POLYGON((-.02 0, 0 0, {_B} 0, {_B} -.02, -.02 -.02, -.02 0))"),
+]
+
 _STEPS = ["inputs", "issues", "outputs"]
 
 
@@ -57,6 +64,24 @@ def no_defects_input(tmp_path):
         ],
     )
     return path
+
+
+@pytest.fixture
+def notch_input(tmp_path):
+    path = tmp_path / "notch.parquet"
+    _write_wkt(path, _WEDGE_WKT)
+    return path
+
+
+def test_detect_reports_notch(notch_input, tmp_path):
+    issues_path = tmp_path / "issues.parquet"
+    detect(notch_input, issues_path, overwrite=True)
+    with duckdb.connect() as conn:
+        rows = conn.execute(
+            f"SELECT kind, near_length_m FROM '{issues_path}'"
+        ).fetchall()
+    assert [kind for kind, _ in rows] == ["notch"]
+    assert rows[0][1] > 0
 
 
 def test_cli_help():

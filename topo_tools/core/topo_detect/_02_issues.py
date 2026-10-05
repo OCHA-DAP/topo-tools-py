@@ -1,11 +1,17 @@
-"""Detects gap, overlap and micro-polygon defects in one layer. Detection only."""
+"""Detects gap, overlap, micro-polygon and notch defects in one layer, no fixing."""
 
 from collections.abc import Callable
 from logging import getLogger
 
 from duckdb import DuckDBPyConnection
 
-from topo_tools.core.coverage import gap_geometries_sql, has_invalid_edges, is_micro_sql
+from topo_tools.core.constants import NOTCH_SPACING
+from topo_tools.core.coverage import (
+    detect_notches,
+    gap_geometries_sql,
+    has_invalid_edges,
+    is_micro_sql,
+)
 from topo_tools.core.duckdb_utils import bbox_columns_sql
 from topo_tools.core.units import METERS_PER_DEGREE, m2_per_deg2_factor
 
@@ -87,12 +93,13 @@ def main(
     *,
     debug: bool = False,
 ) -> None:
-    """Detect gap/overlap/micro-polygon issues in `{name}_01`, writing `{name}_02`."""
+    """Detect gap/overlap/micro-polygon/notch issues in `{name}_01` into `{name}_02`."""
     table = f"{name}_01"
 
     gaps_tmp = f"{name}_02_tmp1"
     overlaps_tmp = f"{name}_02_tmp2"
     micro_tmp = f"{name}_02_tmp3"
+    notches_tmp = f"{name}_02_tmp4"
 
     _detect_or_empty(
         conn,
@@ -126,6 +133,15 @@ def main(
         "NULL::GEOMETRY AS geom WHERE FALSE",
         lambda c, t: _build_micro(c, micro_tmp, t),
     )
+    _detect_or_empty(
+        conn,
+        "notch",
+        table,
+        f'CREATE OR REPLACE TABLE "{notches_tmp}" AS '
+        "SELECT NULL::BIGINT AS n, NULL::BIGINT AS unit_a, NULL::BIGINT AS unit_b, "
+        "NULL::DOUBLE AS score, NULL::GEOMETRY AS geom WHERE FALSE",
+        lambda c, t: detect_notches(c, t, notches_tmp),
+    )
     # max_width_m skips the cos(lat) factor, exact N-S, approximate E-W.
     m2_per_deg2 = m2_per_deg2_factor(conn, table)
     width_m = f"(ST_MaximumInscribedCircle(geom)).radius * 2 * {METERS_PER_DEGREE}"
@@ -137,6 +153,7 @@ def main(
                ST_Area(geom) * {m2_per_deg2} AS area_m2,
                {width_m} AS max_width_m,
                {thinness_ratio} AS thinness_ratio,
+               NULL::DOUBLE AS near_length_m,
                NULL::BIGINT AS unit_a, NULL::BIGINT AS unit_b, geom
         FROM "{gaps_tmp}"
         UNION ALL
@@ -144,6 +161,7 @@ def main(
                ST_Area(geom) * {m2_per_deg2} AS area_m2,
                {width_m} AS max_width_m,
                NULL::DOUBLE AS thinness_ratio,
+               NULL::DOUBLE AS near_length_m,
                unit_a, unit_b, geom
         FROM "{overlaps_tmp}"
         UNION ALL
@@ -151,10 +169,18 @@ def main(
                ST_Area(geom) * {m2_per_deg2} AS area_m2,
                {width_m} AS max_width_m,
                NULL::DOUBLE AS thinness_ratio,
+               NULL::DOUBLE AS near_length_m,
                unit_a, NULL::BIGINT AS unit_b, geom
         FROM "{micro_tmp}"
+        UNION ALL
+        SELECT 'notch-' || n AS key, 'notch' AS kind,
+               NULL::DOUBLE AS area_m2, NULL::DOUBLE AS max_width_m,
+               NULL::DOUBLE AS thinness_ratio,
+               score * {NOTCH_SPACING * METERS_PER_DEGREE} AS near_length_m,
+               unit_a, unit_b, geom
+        FROM "{notches_tmp}"
     """)
 
     if not debug:
-        for tmp in (gaps_tmp, overlaps_tmp, micro_tmp):
+        for tmp in (gaps_tmp, overlaps_tmp, micro_tmp, notches_tmp):
             conn.execute(f'DROP TABLE IF EXISTS "{tmp}"')

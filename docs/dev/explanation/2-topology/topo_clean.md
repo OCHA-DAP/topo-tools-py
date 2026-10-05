@@ -82,7 +82,9 @@ Run `topo-tools topo-clean --help` for the full, always-current option list.
    immediately if any fails (see "Validating a coverage-clean result"
    below). `coverage_clean` merges micro-polygons before cleaning, and a
    second `merge_micro_polygons` pass runs on the fixed output; both
-   passes' merge rows land in `{name}_03_micro`.
+   passes' merge rows land in `{name}_03_micro`. When `{name}_02` has a
+   notch row, `close_notches()` first moves each flagged endpoint onto the
+   other unit, on a copy of `{name}_01`, and the clean runs on that copy.
 4. **`_04_outputs`**: validates overlaps are gone (hard gate), logs
    (never raises on) any gaps still unfilled by design, and exports the
    cleaned dataset plus the issues report (only when it has rows).
@@ -239,7 +241,8 @@ dataset is much larger. The result is also checked per fid:
   collapsing to empty fails this rung outright. A defect-unrelated fid that
   merely shifts area (nonzero, nonempty) only logs a warning:
   `ST_CoverageClean`'s whole-table renoding measurably shifts even fully
-  unrelated boundaries on defect-dense real data.
+  unrelated boundaries on defect-dense real data. Both units of a detected
+  notch count as defect-adjacent.
 - **Geometry type.** `ST_Area()` sums only the polygonal members of a mixed
   `GEOMETRYCOLLECTION`, so a fid partly reduced to a stray line or point
   during the fix could otherwise still measure as area-preserving. Any fid
@@ -272,7 +275,7 @@ columns, all *measured outcomes* of the fix, not the defect as originally
 detected: `fixed BOOLEAN`, `unit_a_area_change_m2 DOUBLE`,
 `unit_b_area_change_m2 DOUBLE`, `filled_area_m2 DOUBLE`. `filled_area_m2`
 is populated only for gap rows; `unit_a`/`unit_b_area_change_m2` only for
-overlap rows. `overlay_fid` and `source_file` are always null for
+overlap and notch rows. `overlay_fid` and `source_file` are always null for
 `topo-clean`, and `reason` is set only on `micro-polygon` rows: they exist
 so the schema matches `edge-match`/`edge-mosaic`/`edge-stitch`'s own issues
 tables column-for-column. Each `micro-polygon` row comes from `{name}_03_micro`, the merge
@@ -291,6 +294,9 @@ of the gap's own area ended up covered by the cleaned output (`0` if left
 unfilled by design), and `fixed` is the same point-in-union containment
 test `_warn_on_unfilled_gaps` reports a count of
 (`ST_Contains(ST_Union_Agg({name}_03.geom), ST_PointOnSurface(gap.geom))`).
+For a notch row, `fixed` is FALSE if `detect_notches()` on `{name}_03`
+still finds a notch between the same two units that overlaps the row's
+geometry.
 `_03_clean.py`'s own success log line reports the same idea at the
 whole-dataset level (total area gained/lost, as a percentage) regardless
 of which individual defects caused it.
