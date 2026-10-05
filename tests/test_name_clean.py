@@ -87,7 +87,7 @@ def test_report_marks_fixed_rows(names_input, tmp_path):
 def test_default_paths(names_input):
     clean(names_input, **_FIELDS)
     assert (names_input.parent / "names_cleaned.parquet").exists()
-    assert (names_input.parent / "names_name_issues.csv").exists()
+    assert (names_input.parent / "names_name_issues.parquet").exists()
 
 
 def test_steps(names_input, tmp_path):

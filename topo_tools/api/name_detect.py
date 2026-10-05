@@ -46,7 +46,7 @@ def detect(  # noqa: PLR0913
     """Scan one coded admin layer's names for defects, writing an issues report.
 
     Processes exactly one file per call. The report is always written, even
-    with no rows; it defaults to input_path with a "_name_issues" suffix, CSV.
+    with no rows; it defaults to input_path with a "_name_issues" suffix, Parquet.
     """
     if step is not None and step not in _STEP_ORDER:
         msg = f"step must be one of {_STEP_ORDER}, got {step!r}"
@@ -56,7 +56,7 @@ def detect(  # noqa: PLR0913
     issues_path = (
         Path(issues_path)
         if issues_path is not None
-        else default_output_path(input_path, "_name_issues").with_suffix(".csv")
+        else default_output_path(input_path, "_name_issues").with_suffix(".parquet")
     )
     if issues_path.suffix not in outputs.REPORT_SUFFIXES:
         msg = f"issues_path must end in one of {outputs.REPORT_SUFFIXES}: {issues_path}"

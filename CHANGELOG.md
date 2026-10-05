@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Issues reports from `schema-detect`, `code-detect`, `name-detect`,
+  `name-clean` and `code-create`, and every `validate` report, default to
+  Parquet; pass a `.csv` name for a spreadsheet. `_validate_summary.csv`
+  stays CSV.
+- `code-detect`'s Parquet report carries each flagged unit's geometry.
+
 ## [0.14.0] - 2026-10-05
 
 ### Added
