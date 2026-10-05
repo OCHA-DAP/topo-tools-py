@@ -50,7 +50,10 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
    without that table), help set up a dedicated working directory:
    `uv init --bare --vcs none` there, `uv add topo-tools`, add a
    `[tool.topo-tools-cod-ab]` table to the new `pyproject.toml`, then the
-   same refresh. Run every command below via `uv run topo-tools ...`.
+   same refresh. When the table has no `contributor` or
+   `update_frequency`, ask for the OCHA office or team processing the data
+   and how often the source updates (every 1 or 2 years, default 1), and
+   store both in it. Run every command below via `uv run topo-tools ...`.
 3. Create `00_shared/`, `01_inputs/`, `02_working/`, and `03_outputs/`
    at the workspace root if missing, then check `01_inputs/` and `02_working/`.
    - Files exist in `01_inputs/`: for each, ask the user its country and
@@ -64,8 +67,22 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
      `02_working/{iso3}/{version}/00a_old/` (one `{iso3}_admin{n}.parquet`
      per level, plus `{iso3}_admin0.parquet` dissolved from its admin1) and
      prints `ref_version`/`version` (`ref_version=none version=v01` when
-     there's none). If the user also dropped an old version, ask which one to
-     compare against. For a user-supplied old version, ask its version;
+     there's none). Then write `02_working/{iso3}/{version}/metadata.json`
+     with `country_name`, `country_iso2`, `source` (the organisation) and
+     `source_layers`, one entry per layer used: `level`, `url` (the layer's
+     own endpoint or file link, never a query URL or viewer page), `request`
+     (the exact download request), `date_fetched`, and `date_updated` from
+     the layer's own metadata (an ArcGIS layer's
+     `editingInfo.lastEditDate`), null when it publishes none. Take these
+     from what the user already said about where the data came from, and ask
+     only when they haven't. Check the source's licence (an ArcGIS
+     service's `copyrightText`, its portal item's `licenseInfo`, the
+     publisher's terms page) without asking, and record it as
+     `source_licence` (`name`, `url`). Data is published under CC BY-IGO:
+     write any attribution or change-notice condition into
+     `methodology_dataset`, and an unresolved one (no licence published,
+     third-party data excluded) into `caveats`. If the user also dropped an
+     old version, ask which one to compare against. For a user-supplied old version, ask its version;
      `{version}` is the next one after it. Propose `{version}` and have the
      user confirm it, renaming the folder if they change it. Extract a
      `.zip` into `01_inputs/` first with
@@ -113,7 +130,7 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
    | `03_edge_matching/` | the edge-matched file |
    | `04_codes/` | the coded file |
    | `05_names/` | the name-cleaned file plus `{iso3}_admin{n}_name_issues.parquet` from the final `name-detect` check (any row count, even zero) |
-   | `06_packaging/` | one parquet per output layer |
+   | `06_packaging/` | one parquet per output layer, plus `{iso3}_metadata.csv` |
 
    The highest-numbered stage with its defining output present marks the
    last completed stage; resume at the next one. No stage folders yet
@@ -125,7 +142,10 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
    p-code/name values via DuckDB. Use the deepest file/layer as the base,
    the only one carried past stage 1 (every ancestor level is derived from it by
    dissolve in stage 6), and the country's ISO2 code as stage 4's
-   `--root-code`. State both before continuing, with the base's name, feature count, and why it qualifies.
+   `--root-code`. State both before continuing, with the base's name, feature count, and why it qualifies,
+   plus each level's concept name (Province, District, ...) suggested
+   from the source's layer or column names, recorded as `admin_names`
+   (`{"1": "Province", ...}`) in `metadata.json`.
    Ask the user to pick a shallower base only if the deepest one looks
    partial or low quality (doesn't cover the whole country, has missing
    codes/names, or far fewer units than its parent level implies; judge
@@ -150,6 +170,15 @@ using the first name column. For any other render, run
 `preview.py basemap {xmin} {ymin} {xmax} {ymax} {stem}` and draw over its
 PNGs using the JSON sidecar's pixel mapping and font, never by importing
 `preview.py`.
+
+Whenever the user decides how to handle the data (a gap left open, units
+dropped, codes kept as given, a column dropped), append one sentence
+stating the result to `metadata.json`'s `caveats` list (limits a data
+user should know) or `admin_notes` list (levels, codes and names),
+without asking. Stage 4's answer sets `methodology_pcodes` (e.g.
+"Government codes, prefixed with the ISO2 code"). Set `update_type` to
+`minor` only when `change` against `00a_old/` reports no boundary change
+(it defaults to `major`).
 
 1. [Schema](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/1-schema/how-to.md)
 2. [Topology](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/2-topology/how-to.md)
@@ -237,6 +266,16 @@ PNGs using the JSON sidecar's pixel mapping and font, never by importing
    as is, or rerun `edge-match` on it with the same admin0, overwriting
    the stage 3 output, and package that.
 
+   After packaging, run `uv run <skill-dir>/scripts/metadata.py {iso3} {version}`
+   from the workspace root. It writes `06_packaging/{iso3}_metadata.csv`
+   with the
+   [COD-AB metadata](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/6-packaging/metadata.md)
+   columns, from `metadata.json`, the
+   `[tool.topo-tools-cod-ab]` table and the packaged layers, and exits
+   non-zero when `source`, `source_url`, `contributor` or
+   `methodology_dataset` is empty: ask for each, then rerun. Show the user
+   the printed record and any open licence condition.
+
 ## Candidates
 
 After stage 6, export each release candidate (`rc`) sent for review:
@@ -246,11 +285,14 @@ After stage 6, export each release candidate (`rc`) sent for review:
    existing candidate.
 2. Write every parquet directly in `06_packaging/` (not `validate/`) as one layer of
    `03_outputs/{iso3}/{version}/{iso3}_{version}_rc{NN}.gdb` with
-   `uv run <skill-dir>/scripts/convert.py to-gdb {gdb} {parquet}...`.
+   `uv run <skill-dir>/scripts/convert.py to-gdb {gdb} {parquet}...`,
+   and copy `06_packaging/{iso3}_metadata.csv` beside it as
+   `{iso3}_{version}_rc{NN}_metadata.csv`.
 3. Write `{iso3}_{version}_rc{NN}_review.gdb` alongside it with
    `convert.py to-gdb {gdb} {stage}={issues.parquet}... change={change.parquet}`:
    each stage's issues file as a layer named after its stage without the
-   number prefix (`schema`, `topology`, ...), plus `change` output
+   number prefix (`schema`, `topology`, ...), with `names` taking
+   `{iso3}_admin{n}_name_fixes.parquet`, plus `change` output
    comparing this candidate against the previous one (`rc01`: against
    `00a_old/`, skipped when absent).
 
