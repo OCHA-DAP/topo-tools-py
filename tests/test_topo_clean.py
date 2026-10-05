@@ -9,6 +9,7 @@ import pytest
 from click.testing import CliRunner
 
 import topo_tools.core.topo_clean._03_clean as clean_stage
+import topo_tools.core.topo_clean._04_outputs as outputs_stage
 from topo_tools.api.topo_clean import clean
 from topo_tools.cli.main import cli
 from topo_tools.core.constants import SNAP_TOLERANCE
@@ -33,6 +34,13 @@ _SYNTHETIC_WKT = [
     (10, "POLYGON((50 1.1, 62 1.1, 62 2.1, 50 2.1, 50 1.1))"),
     (11, "POLYGON((50 1, 51 1, 51 1.1, 50 1.1, 50 1))"),
     (12, "POLYGON((61 1, 62 1, 62 1.1, 61 1.1, 61 1))"),
+]
+
+# Units sharing y=0 up to x=0, then A's edge leaves B's at a 5 m mouth over 600 m.
+_A, _B, _MOUTH = 600 / 111320, 1000 / 111320, 5 / 111320
+_WEDGE_WKT = [
+    (1, f"POLYGON((-.02 0, 0 0, {_A} {_MOUTH}, {_A} .02, -.02 .02, -.02 0))"),
+    (2, f"POLYGON((-.02 0, 0 0, {_B} 0, {_B} -.02, -.02 -.02, -.02 0))"),
 ]
 
 _STEPS = ["inputs", "issues", "clean", "outputs"]
@@ -96,6 +104,22 @@ def test_clean_full_run(synthetic_input, tmp_path):
         }
     assert row_count == len(_SYNTHETIC_WKT)
     assert kinds == {"gap", "overlap"}
+
+
+def test_clean_closes_notch(tmp_path):
+    input_path = tmp_path / "notch.parquet"
+    values = ", ".join(f"({fid}, ST_GeomFromText('{wkt}'))" for fid, wkt in _WEDGE_WKT)
+    with duckdb.connect() as conn:
+        conn.execute("INSTALL spatial; LOAD spatial;")
+        conn.execute(
+            f"CREATE TABLE synth AS SELECT * FROM (VALUES {values}) AS t(id, geom)"
+        )
+        conn.execute(f"COPY synth TO '{input_path}'")
+    issues_path = tmp_path / "issues.parquet"
+    clean(input_path, tmp_path / "out.parquet", issues_path, overwrite=True)
+    with duckdb.connect() as conn:
+        rows = conn.execute(f"SELECT kind, fixed FROM '{issues_path}'").fetchall()
+    assert rows == [("notch", True)]
 
 
 def test_clean_issues_report_overlap_outcome(synthetic_input, tmp_path):
@@ -413,10 +437,33 @@ def _empty_issues_table_sql(name: str) -> str:
         SELECT NULL::VARCHAR AS key, NULL::VARCHAR AS kind,
                NULL::DOUBLE AS area_m2, NULL::DOUBLE AS max_width_m,
                NULL::DOUBLE AS thinness_ratio,
+               NULL::DOUBLE AS near_length_m,
                NULL::BIGINT AS unit_a, NULL::BIGINT AS unit_b,
                NULL::GEOMETRY AS geom
         WHERE FALSE
     """
+
+
+def test_notch_fixed_matches_location_not_just_unit_pair(tmp_path):
+    """Two notches on one unit pair: only the one still detected stays unfixed."""
+    values = ", ".join(f"({fid}, ST_GeomFromText('{wkt}'))" for fid, wkt in _WEDGE_WKT)
+    with duckdb.connect() as conn:
+        conn.execute("INSTALL spatial; LOAD spatial;")
+        conn.execute(f"CREATE TABLE stage_01 AS FROM (VALUES {values}) AS t(fid, geom)")
+        conn.execute("CREATE TABLE stage_03 AS FROM stage_01")
+        conn.execute(_empty_issues_table_sql("stage_02"))
+        conn.execute(f"""
+            INSERT INTO stage_02 (key, kind, unit_a, unit_b, geom) VALUES
+            ('notch-1', 'notch', 1, 2, ST_MakeEnvelope(0, 0, {_A}, {_MOUTH})),
+            ('notch-2', 'notch', 1, 2, ST_MakeEnvelope(0.01, -0.01, 0.011, -0.009))
+        """)
+        conn.execute("CREATE TABLE stage_03_micro AS FROM stage_02 WHERE FALSE")
+        issues_path = tmp_path / "issues.parquet"
+        outputs_stage.main(conn, "stage", tmp_path / "out.parquet", issues_path)
+        rows = conn.execute(
+            f"SELECT key, fixed FROM '{issues_path}' ORDER BY key"
+        ).fetchall()
+    assert rows == [("notch-1", False), ("notch-2", True)]
 
 
 def _overlapping_pair_conn():
@@ -437,6 +484,7 @@ def _overlapping_pair_conn():
         SELECT 'overlap-1' AS key, 'overlap' AS kind,
                NULL::DOUBLE AS area_m2, NULL::DOUBLE AS max_width_m,
                NULL::DOUBLE AS thinness_ratio,
+               NULL::DOUBLE AS near_length_m,
                1 AS unit_a, 2 AS unit_b,
                ST_Intersection(a.geom, b.geom) AS geom
         FROM stage_01 a, stage_01 b WHERE a.fid = 1 AND b.fid = 2

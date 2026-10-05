@@ -6,6 +6,7 @@ from duckdb import DuckDBPyConnection
 
 from topo_tools.core.constants import SNAP_TOLERANCE
 from topo_tools.core.coverage import (
+    close_notches,
     coverage_clean,
     has_gaps,
     has_invalid_edges,
@@ -76,9 +77,9 @@ def _defect_unrelated_fid_outcomes(
     """
     return conn.execute(f"""--sql
         WITH defect_adjacent AS (
-            SELECT unit_a AS fid FROM "{name}_02" WHERE kind = 'overlap'
+            SELECT unit_a AS fid FROM "{name}_02" WHERE kind IN ('overlap', 'notch')
             UNION
-            SELECT unit_b AS fid FROM "{name}_02" WHERE kind = 'overlap'
+            SELECT unit_b AS fid FROM "{name}_02" WHERE kind IN ('overlap', 'notch')
             UNION
             SELECT DISTINCT i.fid
             FROM "{table_in}" i, "{name}_02" g
@@ -108,9 +109,16 @@ def _fix(
     gap_maximum_width: tuple[str, float | None],
     snapping_distance: tuple[str, float | None],
 ) -> None:
-    """Fix gap/overlap defects in `{name}_01`, writing `{name}_03`."""
-    table = f"{name}_01"
+    """Fix gap/overlap/notch defects in `{name}_01`, writing `{name}_03`."""
+    source = f"{name}_01"
+    table = source
     out_table = f"{name}_03"
+    if conn.execute(
+        f"""SELECT count(*) FROM "{name}_02" WHERE kind = 'notch'"""
+    ).fetchone()[0]:
+        table = f"{name}_03_tmp0"
+        conn.execute(f'CREATE OR REPLACE TABLE "{table}" AS SELECT * FROM "{source}"')
+        close_notches(conn, table)
 
     gap_maximum_width_deg = _resolve_gap_maximum_width_deg(
         conn, name, gap_maximum_width
@@ -120,11 +128,12 @@ def _fix(
         conn.execute(
             f'CREATE OR REPLACE TABLE "{out_table}" AS SELECT * FROM "{table}"'
         )
+        conn.execute(f'DROP TABLE IF EXISTS "{name}_03_tmp0"')
         return
 
     snap_mode, snap_value = snapping_distance
     snapping_distance_deg = SNAP_TOLERANCE if snap_mode == "default" else snap_value
-    input_area = _total_area(conn, table)
+    input_area = _total_area(conn, source)
     overlap_area = _overlap_area(conn, name)
     min_area = (
         input_area * (1 - AREA_NOISE_FACTOR) - overlap_area * OVERLAP_LOSS_HEADROOM
@@ -141,7 +150,8 @@ def _fix(
     )
 
     output_area = _total_area(conn, out_table)
-    collapsed, drifted = _defect_unrelated_fid_outcomes(conn, name, table, out_table)
+    collapsed, drifted = _defect_unrelated_fid_outcomes(conn, name, source, out_table)
+    conn.execute(f'DROP TABLE IF EXISTS "{name}_03_tmp0"')
     bad_types = _bad_geometry_type_count(conn, out_table)
     narrow_gap_remains = gap_maximum_width_deg is not None and has_gaps(
         conn, out_table, gap_maximum_width=gap_maximum_width_deg
@@ -159,7 +169,7 @@ def _fix(
             f"detected defect collapsed to empty, {bad_types} fid(s) with a "
             f"non-polygon geometry type, narrow gap remaining: "
             f"{narrow_gap_remains}) at gap_maximum_width={gap_maximum_width_deg} "
-            f"on {table}"
+            f"on {source}"
         )
         raise RuntimeError(msg)
 
@@ -168,7 +178,7 @@ def _fix(
             "clean: %d fid(s) with no connection to any detected gap/overlap "
             "shifted area anyway (ST_CoverageClean's global renoding) on %s",
             drifted,
-            table,
+            source,
         )
     pct_change = (output_area - input_area) / input_area * 100 if input_area else 0.0
     logger.info(
@@ -177,7 +187,7 @@ def _fix(
         abs(pct_change),
         input_area,
         output_area,
-        table,
+        source,
     )
 
 

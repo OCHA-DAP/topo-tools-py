@@ -61,7 +61,8 @@ Run `topo-tools edge-match --help` for the full, always-current option list.
 
 ## Pipeline
 
-1. **`_01_inputs`**: coverage-cleans the input layer via the shared
+1. **`_01_inputs`**: closes notches in the input layer, then coverage-cleans
+   it, via the shared
    `core.io.read_reproject_and_clean()` helper (`{name}_input_01`), and
    loads the overlay layer raw via `core.assign.load_overlay()`
    (`{name}_overlay_01`), the same loader `edge-mosaic` uses (see

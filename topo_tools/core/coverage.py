@@ -8,6 +8,10 @@ from topo_tools.core.constants import (
     DETACHED_MAX_ORIGINAL_SHARE,
     DETACHED_MERGE_MAX_RATIO,
     DETACHED_MIN_NECK_RATIO,
+    NOTCH_MAX_GAP_RATIO,
+    NOTCH_MIN_SCORE,
+    NOTCH_SPACING,
+    NOTCH_WINDOW_MARGIN,
     SNAP_ESCALATION_MAX_STEPS,
     SNAP_ESCALATION_STEP,
     SNAP_TOLERANCE,
@@ -100,6 +104,7 @@ def gap_issues_sql(
                NULL::BIGINT AS overlay_fid, NULL::VARCHAR AS reason,
                ST_Area(geom) * {m2_per_deg2} AS area_m2, {width_m} AS max_width_m,
                {thinness_ratio} AS thinness_ratio,
+               NULL::DOUBLE AS near_length_m,
                NULL::DOUBLE AS unit_a_area_change_m2,
                NULL::DOUBLE AS unit_b_area_change_m2,
                NULL::DOUBLE AS filled_area_m2, FALSE AS fixed,
@@ -144,6 +149,7 @@ def assign_issue_rows_sql(name: str, *, source_file_expr: str = "NULL::VARCHAR")
                AS reason,
                NULL::DOUBLE AS area_m2, NULL::DOUBLE AS max_width_m,
                NULL::DOUBLE AS thinness_ratio,
+               NULL::DOUBLE AS near_length_m,
                NULL::DOUBLE AS unit_a_area_change_m2,
                NULL::DOUBLE AS unit_b_area_change_m2,
                NULL::DOUBLE AS filled_area_m2, FALSE AS fixed,
@@ -157,6 +163,7 @@ def assign_issue_rows_sql(name: str, *, source_file_expr: str = "NULL::VARCHAR")
                'no matching code; fell back to spatial majority' AS reason,
                NULL::DOUBLE AS area_m2, NULL::DOUBLE AS max_width_m,
                NULL::DOUBLE AS thinness_ratio,
+               NULL::DOUBLE AS near_length_m,
                NULL::DOUBLE AS unit_a_area_change_m2,
                NULL::DOUBLE AS unit_b_area_change_m2,
                NULL::DOUBLE AS filled_area_m2, FALSE AS fixed,
@@ -249,7 +256,8 @@ _EMPTY_ISSUES_SQL = (
     "SELECT NULL::VARCHAR AS key, NULL::VARCHAR AS kind, NULL::BIGINT AS unit_a, "
     "NULL::BIGINT AS unit_b, NULL::BIGINT AS overlay_fid, NULL::VARCHAR AS reason, "
     "NULL::DOUBLE AS area_m2, NULL::DOUBLE AS max_width_m, "
-    "NULL::DOUBLE AS thinness_ratio, NULL::DOUBLE AS unit_a_area_change_m2, "
+    "NULL::DOUBLE AS thinness_ratio, NULL::DOUBLE AS near_length_m, "
+    "NULL::DOUBLE AS unit_a_area_change_m2, "
     "NULL::DOUBLE AS unit_b_area_change_m2, NULL::DOUBLE AS filled_area_m2, "
     "NULL::BOOLEAN AS fixed, NULL::VARCHAR AS source_file, NULL::GEOMETRY AS geom "
     "WHERE FALSE"
@@ -324,6 +332,7 @@ def merge_micro_polygons(
                (ST_MaximumInscribedCircle(geom)).radius * 2 * {METERS_PER_DEGREE}
                    AS max_width_m,
                NULL::DOUBLE AS thinness_ratio,
+               NULL::DOUBLE AS near_length_m,
                NULL::DOUBLE AS unit_a_area_change_m2,
                NULL::DOUBLE AS unit_b_area_change_m2,
                NULL::DOUBLE AS filled_area_m2, TRUE AS fixed, source_file, geom
@@ -544,6 +553,7 @@ def merge_detached_parts(  # noqa: PLR0913 (each param is a distinct required in
                    AS max_width_m,
                4 * pi() * ST_Area(geom) / POWER(ST_Perimeter(geom), 2)
                    AS thinness_ratio,
+               NULL::DOUBLE AS near_length_m,
                NULL::DOUBLE AS unit_a_area_change_m2,
                NULL::DOUBLE AS unit_b_area_change_m2,
                NULL::DOUBLE AS filled_area_m2, outcome = 'merged' AS fixed,
@@ -847,3 +857,331 @@ def coverage_clean_escalating(  # noqa: PLR0913 (mirrors coverage_clean's own in
                 )
             return
         snap += SNAP_ESCALATION_STEP
+
+
+# Two edges this close count as touching, not as a notch.
+_NOTCH_TOUCH = 1e-9
+_NOTCH_TMP = ("_notch_all", "_notch_ext", "_notch_near", "_notch_runs", "_notch_fseg")
+_NOTCH_FIX_TMP = (
+    "_notch_flags",
+    "_notch_pairs",
+    "_notch_w",
+    "_notch_one",
+    "_notch_holes",
+    *(
+        f"_notch_{s}_{t}"
+        for s in ("a", "b")
+        for t in ("parts", "rings", "v", "seg", "near", "moved", "out")
+    ),
+)
+
+
+def _build_notch_runs(conn: DuckDBPyConnection, table: str) -> None:
+    """Build `_notch_runs(ua, ub, blob, score)` over `table`'s rowids."""
+    s = NOTCH_SPACING
+    r = s / 8
+    conn.execute(f"""--sql
+        CREATE OR REPLACE TABLE _notch_all AS
+        SELECT rowid AS rnid, fid, geom FROM "{table}"
+    """)
+    # Unshared segments only: a segment whose endpoints another unit also has is shared.
+    conn.execute(f"""--sql
+        CREATE OR REPLACE TABLE _notch_ext AS
+        WITH rings AS (
+            SELECT rnid, UNNEST(ST_Dump(ST_Boundary(geom))).geom AS g FROM _notch_all
+        ),
+        pts AS (
+            SELECT rnid,
+                   list_transform(
+                       ST_Dump(ST_Points(g)), x -> [ST_X(x.geom), ST_Y(x.geom)]
+                   ) AS xy
+            FROM rings
+        ),
+        segs AS (
+            SELECT rnid, e, least(e[1], e[2]) AS k1, greatest(e[1], e[2]) AS k2
+            FROM (
+                SELECT rnid,
+                       UNNEST(list_transform(
+                           range(1, len(xy)), i -> [xy[i], xy[i + 1]]
+                       )) AS e
+                FROM pts
+            )
+        ),
+        shared AS (
+            SELECT k1, k2 FROM segs GROUP BY k1, k2 HAVING count(DISTINCT rnid) > 1
+        ),
+        ext AS (
+            SELECT row_number() OVER () AS sid, rnid,
+                   ST_MakeLine(ST_Point(e[1][1], e[1][2]), ST_Point(e[2][1], e[2][2]))
+                       AS geom
+            FROM segs ANTI JOIN shared USING (k1, k2)
+        )
+        SELECT *, {bbox_columns_sql("geom")} FROM ext
+    """)
+    # Per segment, its length within r of the other unit minus the length touching it.
+    conn.execute(f"""--sql
+        CREATE OR REPLACE TABLE _notch_near AS
+        WITH pairs AS (
+            SELECT a.sid, a.rnid AS own, b.rnid AS other,
+                   any_value(a.geom) AS ag, ST_Union_Agg(b.geom) AS og
+            FROM _notch_ext a JOIN _notch_ext b
+              ON a.rnid <> b.rnid
+             AND b.xmin <= a.xmax + {r} AND b.xmax >= a.xmin - {r}
+             AND b.ymin <= a.ymax + {r} AND b.ymax >= a.ymin - {r}
+             AND ST_DWithin(a.geom, b.geom, {r})
+            GROUP BY a.sid, a.rnid, b.rnid
+        ),
+        pieces AS (
+            SELECT *, ST_Intersection(ag, ST_Buffer(og, {r}, 2)) AS piece FROM pairs
+        )
+        SELECT sid, own, least(own, other) AS ua, greatest(own, other) AS ub, piece,
+               ST_Length(piece)
+                 - ST_Length(ST_Intersection(ag, ST_Buffer(og, {_NOTCH_TOUCH}, 2)))
+                   AS len
+        FROM pieces
+    """)
+    conn.execute(f"""--sql
+        CREATE OR REPLACE TABLE _notch_runs AS
+        WITH h AS (SELECT * FROM _notch_near WHERE len > 1e-12),
+        b AS (
+            SELECT row_number() OVER () AS bid, ua, ub, blob FROM (
+                SELECT ua, ub,
+                       UNNEST(ST_Dump(
+                           ST_Union_Agg(ST_Buffer(piece, {s * 1.5}, 2))
+                       )).geom AS blob
+                FROM h GROUP BY ua, ub
+            )
+        )
+        SELECT b.ua, b.ub, any_value(b.blob) AS blob, sum(h.len) / {s} AS score
+        FROM h JOIN b ON h.ua = b.ua AND h.ub = b.ub AND ST_Intersects(h.piece, b.blob)
+        GROUP BY b.bid, b.ua, b.ub
+        HAVING sum(h.len) / {s} >= {NOTCH_MIN_SCORE}
+    """)
+
+
+def detect_notches(conn: DuckDBPyConnection, table: str, out_table: str) -> int:
+    """Write `out_table(n, unit_a, unit_b, score, geom)` per notch; return the count."""
+    _build_notch_runs(conn, table)
+    conn.execute(f"""--sql
+        CREATE OR REPLACE TABLE "{out_table}" AS
+        SELECT row_number() OVER (ORDER BY a.fid, b.fid, hash(r.blob)) AS n,
+               a.fid AS unit_a, b.fid AS unit_b, r.score, r.blob AS geom
+        FROM _notch_runs r
+        JOIN _notch_all a ON a.rnid = r.ua JOIN _notch_all b ON b.rnid = r.ub
+    """)
+    for tmp in _NOTCH_TMP:
+        conn.execute(f"DROP TABLE IF EXISTS {tmp}")
+    return conn.execute(f'SELECT count(*) FROM "{out_table}"').fetchone()[0]
+
+
+def _project_notch_side_sql(  # noqa: PLR0913 (each param is a distinct required input)
+    side: str, src: str, line: str, *, lim: float, pair: tuple[int, int], own: int
+) -> list[str]:
+    """Rebuild window part `src`, moving its flagged endpoints exactly onto `line`."""
+    p = f"_notch_{side}"
+    ua, ub = pair
+    return [
+        f"""CREATE OR REPLACE TABLE {p}_parts AS SELECT row_number() OVER () AS pid, g
+            FROM (SELECT UNNEST(ST_Dump({src})).geom AS g FROM _notch_w)""",
+        f"""CREATE OR REPLACE TABLE {p}_rings AS
+            SELECT pid, 0 AS rn, ST_ExteriorRing(g) AS r FROM {p}_parts
+            UNION ALL
+            SELECT pid, i, ST_InteriorRingN(g, i::INTEGER) FROM {p}_parts,
+                   generate_series(1, ST_NumInteriorRings(g)) t(i)""",
+        # Closing vertex dropped; each ring is re-closed from its moved first vertex.
+        f"""CREATE OR REPLACE TABLE {p}_v AS
+            SELECT row_number() OVER () AS vid, pid, rn, d.path[1] AS k, d.geom AS g
+            FROM (SELECT pid, rn, ST_NPoints(r) AS np,
+                         UNNEST(ST_Dump(ST_Points(r))) AS d
+                  FROM {p}_rings)
+            WHERE d.path[1] < np""",
+        f"""CREATE OR REPLACE TABLE {p}_seg AS
+            SELECT ST_MakeLine(xs[i], xs[i + 1]) AS s
+            FROM (SELECT list_transform(ST_Dump(ST_Points(l)), x -> x.geom) AS xs
+                  FROM (SELECT UNNEST(ST_Dump({line})).geom AS l FROM _notch_w)),
+                 generate_series(1, len(xs) - 1) t(i)""",
+        f"""CREATE OR REPLACE TABLE {p}_near AS
+            SELECT v.vid, ST_ClosestPoint(s.s, v.g) AS cp, ST_Distance(v.g, s.s) AS dd
+            FROM {p}_v v JOIN {p}_seg s ON ST_DWithin(v.g, s.s, {lim})
+            QUALIFY row_number() OVER (
+                PARTITION BY v.vid ORDER BY ST_Distance(v.g, s.s)
+            ) = 1""",
+        f"""CREATE OR REPLACE TABLE {p}_moved AS
+            SELECT v.pid, v.rn, v.k,
+                   CASE WHEN ST_Distance(v.g, ST_Boundary(w.win)) <= {_NOTCH_TOUCH}
+                        THEN v.g
+                        WHEN n.dd > {_NOTCH_TOUCH}
+                         AND n.dd <= f.seglen * {NOTCH_MAX_GAP_RATIO}
+                        THEN n.cp ELSE v.g END AS g
+            FROM {p}_v v
+            LEFT JOIN {p}_near n USING (vid)
+            LEFT JOIN _notch_flags f
+              ON f.ua = {ua} AND f.ub = {ub} AND f.own = {own}
+             AND f.x = ST_X(v.g) AND f.y = ST_Y(v.g),
+            _notch_w w""",
+        f"""CREATE OR REPLACE TABLE {p}_out AS
+            SELECT ST_MakeValid(ST_Union_Agg(ST_MakePolygon(shell, holes))) AS g FROM (
+                SELECT pid, any_value(line) FILTER (WHERE rn = 0) AS shell,
+                       COALESCE(list(line ORDER BY rn) FILTER (WHERE rn > 0), [])
+                           AS holes
+                FROM (
+                    SELECT pid, rn, ST_MakeLine(list_append(l, l[1])) AS line
+                    FROM (SELECT pid, rn, list(g ORDER BY k) AS l
+                          FROM {p}_moved GROUP BY pid, rn)
+                )
+                GROUP BY pid
+            )""",
+    ]
+
+
+def _fill_enclosed_notch_gaps(conn: DuckDBPyConnection, ua: int, ub: int) -> None:
+    """Merge holes the fix enclosed between ua and ub into the unit with more border."""
+    conn.execute(f"""--sql
+        CREATE OR REPLACE TABLE _notch_holes AS
+        WITH u AS (
+            SELECT FALSE AS before, ST_Union(na, nb) AS g FROM _notch_one
+            UNION ALL
+            SELECT TRUE, ST_Union(a.geom, b.geom)
+            FROM _notch_all a, _notch_all b WHERE a.rnid = {ua} AND b.rnid = {ub}
+        ),
+        parts AS (SELECT before, UNNEST(ST_Dump(g)).geom AS p FROM u),
+        holes AS (
+            SELECT before, UNNEST(ST_Dump(
+                ST_Difference(ST_MakePolygon(ST_ExteriorRing(p)), p)
+            )).geom AS h
+            FROM parts
+        )
+        SELECT h FROM holes n
+        WHERE NOT n.before AND NOT ST_IsEmpty(n.h)
+          AND NOT EXISTS (
+              SELECT 1 FROM holes o
+              WHERE o.before AND ST_Intersects(o.h, ST_PointOnSurface(n.h))
+          )
+    """)
+    conn.execute(f"""--sql
+        DELETE FROM _notch_holes n WHERE EXISTS (
+            SELECT 1 FROM _notch_all x
+            WHERE x.rnid NOT IN ({ua}, {ub}) AND ST_Intersects(x.geom, n.h)
+              AND ST_Area(ST_Intersection(x.geom, n.h)) > 0
+        )
+    """)
+    conn.execute("""--sql
+        UPDATE _notch_one o SET
+            na = ST_CollectionExtract(ST_MakeValid(ST_Union(o.na, f.ga)), 3),
+            nb = ST_CollectionExtract(ST_MakeValid(ST_Union(o.nb, f.gb)), 3)
+        FROM (
+            SELECT
+                coalesce(ST_Union_Agg(h) FILTER (WHERE to_a), 'POLYGON EMPTY') AS ga,
+                coalesce(ST_Union_Agg(h) FILTER (WHERE NOT to_a), 'POLYGON EMPTY') AS gb
+            FROM (
+                SELECT h,
+                       ST_Length(ST_Intersection(ST_Boundary(h), ST_Boundary(na)))
+                       >= ST_Length(ST_Intersection(ST_Boundary(h), ST_Boundary(nb)))
+                       AS to_a
+                FROM _notch_holes, _notch_one
+            )
+        ) f
+    """)
+
+
+def close_notches(conn: DuckDBPyConnection, table: str) -> int:
+    """Close `table`'s notches in place; return the number of unit pairs touched.
+
+    Endpoints of flagged segments move exactly onto the other unit, inside a
+    window per pair; callers run coverage_clean() after for any leftover mismatch.
+    """
+    _build_notch_runs(conn, table)
+    pairs = conn.execute("SELECT DISTINCT ua, ub FROM _notch_runs").fetchall()
+    if not pairs:
+        for tmp in _NOTCH_TMP:
+            conn.execute(f"DROP TABLE IF EXISTS {tmp}")
+        return 0
+    conn.execute("""--sql
+        CREATE OR REPLACE TABLE _notch_fseg AS
+        SELECT DISTINCT n.ua, n.ub, n.own, e.sid, e.geom, ST_Length(e.geom) AS seglen
+        FROM _notch_near n
+        JOIN _notch_ext e USING (sid)
+        JOIN _notch_runs r
+          ON r.ua = n.ua AND r.ub = n.ub AND ST_Intersects(n.piece, r.blob)
+        WHERE n.len > 1e-12
+    """)
+    conn.execute("""--sql
+        CREATE OR REPLACE TABLE _notch_flags AS
+        SELECT ua, ub, own, ST_X(p) AS x, ST_Y(p) AS y, max(seglen) AS seglen
+        FROM (
+            SELECT ua, ub, own, seglen, ST_StartPoint(geom) AS p FROM _notch_fseg
+            UNION ALL
+            SELECT ua, ub, own, seglen, ST_EndPoint(geom) FROM _notch_fseg
+        )
+        GROUP BY ALL
+    """)
+    conn.execute(f"""--sql
+        CREATE OR REPLACE TABLE _notch_pairs AS
+        SELECT ua, ub,
+               ST_Expand(
+                   ST_Extent(ST_Collect(list(g))), {NOTCH_WINDOW_MARGIN}
+               )::GEOMETRY AS win,
+               max(seglen) * {NOTCH_MAX_GAP_RATIO} AS lim
+        FROM (
+            SELECT ua, ub, blob AS g, 0 AS seglen FROM _notch_runs
+            UNION ALL
+            SELECT ua, ub, geom, seglen FROM _notch_fseg
+        )
+        GROUP BY ua, ub
+    """)
+    for ua, ub in pairs:
+        lim = conn.execute(
+            "SELECT lim FROM _notch_pairs WHERE ua = ? AND ub = ?", [ua, ub]
+        ).fetchone()[0]
+        conn.execute(f"""--sql
+            CREATE OR REPLACE TABLE _notch_w AS
+            SELECT p.win, ST_Intersection(ST_Boundary(b.geom), p.win) AS tb,
+                   NULL::GEOMETRY AS ta,
+                   ST_Intersection(a.geom, p.win) AS ai,
+                   ST_Difference(a.geom, p.win) AS ao,
+                   ST_Intersection(b.geom, p.win) AS bi,
+                   ST_Difference(b.geom, p.win) AS bo
+            FROM _notch_pairs p
+            JOIN _notch_all a ON a.rnid = p.ua JOIN _notch_all b ON b.rnid = p.ub
+            WHERE p.ua = {ua} AND p.ub = {ub}
+        """)
+        for q in _project_notch_side_sql(
+            "a", "ai", "tb", lim=lim, pair=(ua, ub), own=ua
+        ):
+            conn.execute(q)
+        conn.execute("""--sql
+            UPDATE _notch_w
+            SET ta = ST_Intersection(ST_Boundary((SELECT g FROM _notch_a_out)), win)
+        """)
+        for q in _project_notch_side_sql(
+            "b", "bi", "ta", lim=lim, pair=(ua, ub), own=ub
+        ):
+            conn.execute(q)
+        # Each side's vertices go into the other's segments, so closed edges are shared.
+        conn.execute(f"""--sql
+            CREATE OR REPLACE TABLE _notch_one AS
+            WITH n AS (
+                SELECT ST_MakeValid(ST_Snap(b.g, a.g, {_NOTCH_TOUCH})) AS nb, a.g AS fa
+                FROM _notch_a_out a, _notch_b_out b
+            )
+            SELECT ST_CollectionExtract(ST_MakeValid(ST_Union(
+                       w.ao, ST_MakeValid(ST_Snap(n.fa, n.nb, {_NOTCH_TOUCH}))
+                   )), 3) AS na,
+                   ST_CollectionExtract(ST_MakeValid(ST_Union(w.bo, n.nb)), 3) AS nb
+            FROM _notch_w w, n
+        """)
+        _fill_enclosed_notch_gaps(conn, ua, ub)
+        for rnid, col in ((ua, "na"), (ub, "nb")):
+            conn.execute(f"""--sql
+                UPDATE _notch_all SET geom = (SELECT {col} FROM _notch_one)
+                WHERE rnid = {rnid}
+            """)
+    conn.execute(f"""--sql
+        UPDATE "{table}" t SET geom = a.geom FROM _notch_all a
+        WHERE t.rowid = a.rnid
+          AND a.rnid IN (SELECT ua FROM _notch_pairs UNION SELECT ub FROM _notch_pairs)
+    """)
+    for tmp in _NOTCH_TMP + _NOTCH_FIX_TMP:
+        conn.execute(f"DROP TABLE IF EXISTS {tmp}")
+    logger.info("closed notches between %d unit pair(s) in %s", len(pairs), table)
+    return len(pairs)

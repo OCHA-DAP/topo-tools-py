@@ -249,7 +249,7 @@ CLI maps flags/env vars onto those same kwargs 1:1.
 `topo-clean`, `edge-match`, `edge-mosaic`, `edge-clip`, and `edge-stitch` each MAY
 produce an issues report alongside their main output, sharing one column
 schema: `key`, `kind`, `area_m2`, `max_width_m`, `thinness_ratio`,
-`unit_a`, `unit_b`, `overlay_fid`, `reason`, `unit_a_area_change_m2`,
+`near_length_m`, `unit_a`, `unit_b`, `overlay_fid`, `reason`, `unit_a_area_change_m2`,
 `unit_b_area_change_m2`, `filled_area_m2`, `fixed`, `source_file`, `geom`.
 A tool MUST leave any column inapplicable to a given row's `kind` as null.
 `unit_a` MUST record whichever single fid is primarily associated with the
