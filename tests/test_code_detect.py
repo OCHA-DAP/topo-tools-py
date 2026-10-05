@@ -161,9 +161,26 @@ def test_parquet_report(tmp_path):
     assert duckdb.sql(f"SELECT count(*) FROM '{out}'").fetchone() == (0,)
 
 
+def test_parquet_report_has_unit_geometry(tmp_path):
+    select = """--sql
+        SELECT * REPLACE (CASE WHEN adm3_pcode = 'XY112' THEN 'XY111'
+                               ELSE adm3_pcode END AS adm3_pcode)
+        FROM base
+    """
+    out = tmp_path / "issues.parquet"
+    detect(_write(tmp_path / "in.parquet", select), out, **_FIELDS)
+    with duckdb.connect() as conn:
+        conn.execute("LOAD spatial")
+        rows = conn.execute(f"""
+            SELECT code_a, ST_NumGeometries(geometry) FROM '{out}'
+            WHERE kind = 'duplicate-code'
+        """).fetchall()
+    assert rows == [("XY111", 2)]
+
+
 def test_default_issues_path(tmp_path):
     detect(_write(tmp_path / "layer.parquet"), **_FIELDS)
-    assert (tmp_path / "layer_code_issues.csv").exists()
+    assert (tmp_path / "layer_code_issues.parquet").exists()
 
 
 def test_bad_issues_suffix_raises(tmp_path):

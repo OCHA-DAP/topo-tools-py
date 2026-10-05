@@ -143,7 +143,7 @@ def test_parquet_report(tmp_path):
 def test_default_issues_path(tmp_path):
     path = _write(tmp_path / "layer.parquet")
     detect(path, **_FIELDS)
-    assert (tmp_path / "layer_schema_issues.csv").exists()
+    assert (tmp_path / "layer_schema_issues.parquet").exists()
 
 
 def test_bad_issues_suffix_raises(tmp_path):

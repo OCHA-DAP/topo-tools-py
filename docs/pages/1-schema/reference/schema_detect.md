@@ -15,7 +15,7 @@ topo-tools schema-detect [OPTIONS] INPUT_FILE [ISSUES_FILE]
 
 ## Description
 
-Checks that admin levels can be detected with none skipped, that every level has the same set of columns named the same way, that each code sits under exactly one parent code, and that no code has a blank parent. Writes the problems found without changing the layer, even when there are none. ISSUES_FILE defaults to INPUT_FILE with a "_schema_issues" suffix, as CSV, or Parquet for a .parquet name.
+Checks that admin levels can be detected with none skipped, that every level has the same set of columns named the same way, that each code sits under exactly one parent code, and that no code has a blank parent. Writes the problems found without changing the layer, even when there are none. ISSUES_FILE defaults to INPUT_FILE with a "_schema_issues" suffix, as Parquet, or CSV for a .csv name.
 
 ## Options
 
@@ -29,7 +29,7 @@ Checks that admin levels can be detected with none skipped, that every level has
 
 ## Examples
 
-Basic run, CSV report named automatically:
+Basic run, report named automatically:
 
 ```sh
 topo-tools schema-detect admin3.parquet
@@ -38,6 +38,6 @@ topo-tools schema-detect admin3.parquet
 Explicit level columns:
 
 ```sh
-topo-tools schema-detect admin3.parquet admin3_schema_issues.csv \
+topo-tools schema-detect admin3.parquet admin3_schema_issues.parquet \
   --name-field adm{n}_name --code-field adm{n}_pcode
 ```

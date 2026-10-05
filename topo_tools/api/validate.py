@@ -40,10 +40,10 @@ def validate(  # noqa: PLR0913
     input_path = resolve_input_path(input_path)
     output_dir = Path(output_dir) if output_dir is not None else None
     reports = {
-        "schema": _path(input_path, output_dir, "_schema_issues.csv"),
+        "schema": _path(input_path, output_dir, "_schema_issues.parquet"),
         "topo": _path(input_path, output_dir, "_topo_issues.parquet"),
-        "code": _path(input_path, output_dir, "_code_issues.csv"),
-        "name": _path(input_path, output_dir, "_name_issues.csv"),
+        "code": _path(input_path, output_dir, "_code_issues.parquet"),
+        "name": _path(input_path, output_dir, "_name_issues.parquet"),
     }
     summary_path = _path(input_path, output_dir, "_validate_summary.csv")
     for path in [*reports.values(), summary_path]:

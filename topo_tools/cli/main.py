@@ -407,16 +407,16 @@ def name_detect(  # noqa: PLR0913, PLR0917
     characters, spacing, case and mixed scripts. Writes the problems
     found without changing the layer, even when there are none.
     ISSUES_FILE defaults to INPUT_FILE with a "_name_issues" suffix, as
-    CSV; a .parquet name adds each unit's geometry.
+    Parquet with each unit's geometry, or CSV for a .csv name.
 
     \b
     Examples:
-      # Basic run, CSV report named automatically
+      # Basic run, report named automatically
       topo-tools name-detect admin3.parquet
 
     \b
-      # Explicit level columns, report with geometry
-      topo-tools name-detect admin3.parquet admin3_name_issues.parquet \\
+      # Explicit level columns, CSV report for a spreadsheet
+      topo-tools name-detect admin3.parquet admin3_name_issues.csv \\
         --name-field adm{n}_name --code-field adm{n}_code
     """
     logger.info("--debug=%s", debug)
@@ -512,18 +512,18 @@ def name_clean(  # noqa: PLR0913, PLR0917
     separate characters, and text read with the wrong encoding when the
     repair is certain. Everything else stays as it is, for review.
     OUTPUT_FILE defaults to INPUT_FILE with a "_cleaned" suffix; ISSUES_FILE
-    defaults to INPUT_FILE with a "_name_issues" suffix, as CSV, with a
-    "fixed" column marking what was fixed.
+    defaults to INPUT_FILE with a "_name_issues" suffix, as Parquet with
+    each unit's geometry, with a "fixed" column marking what was fixed.
 
     \b
     Examples:
-      # Basic run, output and CSV report named automatically
+      # Basic run, output and report named automatically
       topo-tools name-clean admin3.parquet
 
     \b
       # Explicit level columns and output names
       topo-tools name-clean admin3.parquet admin3_clean.parquet \\
-        admin3_name_issues.csv --name-field adm{n}_name --code-field adm{n}_code
+        admin3_name_issues.parquet --name-field adm{n}_name --code-field adm{n}_code
     """
     logger.info("--debug=%s", debug)
     try:
@@ -1503,16 +1503,17 @@ def code_detect(  # noqa: PLR0913, PLR0917
     not start with its parent's code, and a code shaped unlike the rest of
     its level. Writes the problems found without changing the layer, even
     when there are none. ISSUES_FILE defaults to INPUT_FILE with a
-    "_code_issues" suffix, as CSV, or Parquet for a .parquet name.
+    "_code_issues" suffix, as Parquet with each unit's geometry, or CSV for
+    a .csv name.
 
     \b
     Examples:
-      # Basic run, CSV report named automatically
+      # Basic run, report named automatically
       topo-tools code-detect admin3.parquet
 
     \b
       # Explicit level columns
-      topo-tools code-detect admin3.parquet admin3_code_issues.csv \\
+      topo-tools code-detect admin3.parquet admin3_code_issues.parquet \\
         --name-field adm{n}_name --code-field adm{n}_pcode
     """
     logger.info("--debug=%s", debug)
@@ -2559,16 +2560,16 @@ def schema_detect(  # noqa: PLR0913, PLR0917
     sits under exactly one parent code, and that no code has a blank
     parent. Writes the problems found without changing the layer, even
     when there are none. ISSUES_FILE defaults to INPUT_FILE with a
-    "_schema_issues" suffix, as CSV, or Parquet for a .parquet name.
+    "_schema_issues" suffix, as Parquet, or CSV for a .csv name.
 
     \b
     Examples:
-      # Basic run, CSV report named automatically
+      # Basic run, report named automatically
       topo-tools schema-detect admin3.parquet
 
     \b
       # Explicit level columns
-      topo-tools schema-detect admin3.parquet admin3_schema_issues.csv \\
+      topo-tools schema-detect admin3.parquet admin3_schema_issues.parquet \\
         --name-field adm{n}_name --code-field adm{n}_pcode
     """
     logger.info("--debug=%s", debug)

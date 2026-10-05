@@ -9,12 +9,12 @@ Continues from the coded output of [step 4](../4-codes/how-to.md). Fix the
 safe name problems and list the rest:
 
     topo-tools name-clean admin3_coded.parquet admin3_names.parquet \
-      admin3_name_fixes.csv --name-field adm{n}_name --code-field adm{n}_code
+      admin3_name_fixes.parquet --name-field adm{n}_name --code-field adm{n}_code
 
 This fixes spacing, invisible characters, accents stored as separate
 characters, and text read with the wrong encoding when the repair is
 certain, marking those rows `fixed`. Keep this file: it records what
-`name-clean` changed. Open the CSV in a spreadsheet and
+`name-clean` changed. Open the report in QGIS or DuckDB and
 filter out the fixed rows. Each row names the unit by its code (`code_a`,
 and `code_b` for a pair). Fix every `error` row and review each `warn` row.
 A row with no code covers a whole column.
@@ -44,7 +44,7 @@ Write the fixed names back to the cleaned file, for example in DuckDB (one
 Then check the edited file with `name-detect`, which runs the same checks
 without changing anything:
 
-    topo-tools name-detect admin3_names_edited.parquet admin3_name_issues.csv \
+    topo-tools name-detect admin3_names_edited.parquet admin3_name_issues.parquet \
       --name-field adm{n}_name --code-field adm{n}_code
 
 Repeat until no `error` row is left. Keep the last issues file: it's this

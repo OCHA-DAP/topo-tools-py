@@ -56,7 +56,11 @@ def test_cli_help():
 
 def test_clean_layer(tmp_path):
     assert not validate(_write(tmp_path / "in.parquet"), tmp_path / "out")
-    for suffix in ["schema_issues.csv", "code_issues.csv", "name_issues.csv"]:
+    for suffix in [
+        "schema_issues.parquet",
+        "code_issues.parquet",
+        "name_issues.parquet",
+    ]:
         assert (tmp_path / "out" / f"in_{suffix}").exists()
     summary = tmp_path / "out" / "in_validate_summary.csv"
     assert summary.read_bytes().startswith(b"\xef\xbb\xbf")
@@ -68,7 +72,7 @@ def test_clean_layer(tmp_path):
 def test_reports_default_beside_input(tmp_path):
     validate(_write(tmp_path / "layer.parquet"))
     assert (tmp_path / "layer_validate_summary.csv").exists()
-    assert (tmp_path / "layer_code_issues.csv").exists()
+    assert (tmp_path / "layer_code_issues.parquet").exists()
 
 
 def test_error_counted_in_summary(tmp_path):
@@ -79,7 +83,7 @@ def test_error_counted_in_summary(tmp_path):
         "kind": "duplicate-code",
         "severity": "error",
         "count": "1",
-        "report": str(tmp_path / "in_code_issues.csv"),
+        "report": str(tmp_path / "in_code_issues.parquet"),
         "reason": None,
     } in rows
 
@@ -93,7 +97,7 @@ def test_undetected_levels_skip_code_and_name(tmp_path):
     }
     assert ("schema", "levels-undetected", "error") in rows
     assert {("code", "skipped", "warn"), ("name", "skipped", "warn")} <= rows
-    assert not (tmp_path / "in_code_issues.csv").exists()
+    assert not (tmp_path / "in_code_issues.parquet").exists()
 
 
 def test_grouping_column_still_runs_code_and_name(tmp_path):
@@ -145,10 +149,10 @@ def test_failing_check_is_an_error(tmp_path, monkeypatch):
 
 def test_existing_report_without_overwrite_raises(tmp_path):
     path = _write(tmp_path / "in.parquet")
-    (tmp_path / "in_name_issues.csv").touch()
+    (tmp_path / "in_name_issues.parquet").touch()
     with pytest.raises(FileExistsError):
         validate(path, overwrite=False)
-    assert not (tmp_path / "in_schema_issues.csv").exists()
+    assert not (tmp_path / "in_schema_issues.parquet").exists()
 
 
 @pytest.mark.parametrize(

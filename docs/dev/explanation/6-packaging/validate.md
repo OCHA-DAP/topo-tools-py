@@ -17,10 +17,10 @@ checks need an overlay layer and have no place in a single-layer check.
 
 | Stage | Tool | Report |
 | --- | --- | --- |
-| schema | `schema-detect` | `{stem}_schema_issues.csv` |
+| schema | `schema-detect` | `{stem}_schema_issues.parquet` |
 | topo | `topo-detect` | `{stem}_topo_issues.parquet` |
-| code | `code-detect` | `{stem}_code_issues.csv` |
-| name | `name-detect` | `{stem}_name_issues.csv` |
+| code | `code-detect` | `{stem}_code_issues.parquet` |
+| name | `name-detect` | `{stem}_name_issues.parquet` |
 
 `code-detect` and `name-detect` need the admin levels resolved, so
 `validate` skips them when `schema-detect` reports `levels-undetected`.

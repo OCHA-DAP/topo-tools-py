@@ -31,8 +31,8 @@ sidebar:
 ## Configuration (`api.name_clean.clean()` / CLI)
 
 - `output_path` MUST default to the input path with a `_cleaned` stem
-  suffix; `issues_path` MUST default as in `name-detect`, ending in `.csv`
-  or `.parquet`, raising `ValueError` otherwise.
+  suffix; `issues_path` MUST default as in `name-detect`, ending in `.parquet`
+  or `.csv`, raising `ValueError` otherwise.
 - `name-clean` MUST raise `FileExistsError` if either output already exists
   and overwriting wasn't requested.
 - `step`, if given, MUST be one of `inputs`, `levels`, `checks`, `fix`,
@@ -40,11 +40,11 @@ sidebar:
 
 ## Examples
 
-### Example 1: basic run, output and CSV report named automatically
+### Example 1: basic run, output and report named automatically
 
     topo-tools name-clean admin3.parquet
 
 ### Example 2: explicit level columns and output names
 
     topo-tools name-clean admin3.parquet admin3_clean.parquet \
-      admin3_name_issues.csv --name-field adm{n}_name --code-field adm{n}_code
+      admin3_name_issues.parquet --name-field adm{n}_name --code-field adm{n}_code

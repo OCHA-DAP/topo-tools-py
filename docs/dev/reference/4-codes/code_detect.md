@@ -53,13 +53,15 @@ sidebar:
 - Columns: `key`, `kind`, `severity`, `level`, `column`, `code_a`,
   `name_a`, `code_b`, `name_b`, `reason`. `column` is the code column, or
   the name column for `name-conflict`; `code_b` is the parent code for
-  `prefix-mismatch`. A `.csv` report MUST be UTF-8 with a BOM.
+  `prefix-mismatch`. A `.parquet` report MUST add `geometry` as its first
+  column: the union of the units carrying `code_a`, NULL for a
+  `blank-code` row. A `.csv` report MUST be UTF-8 with a BOM.
 
 ## Configuration (`api.code_detect.detect()` / CLI)
 
 - `code-detect` MUST process exactly one input file per call.
 - `issues_path` MUST default to the input path with a `_code_issues` stem
-  suffix and a `.csv` extension, and MUST end in `.csv` or `.parquet`,
+  suffix and a `.parquet` extension, and MUST end in `.csv` or `.parquet`,
   raising `ValueError` otherwise.
 - `code-detect` MUST raise `FileExistsError` if `issues_path` already
   exists and overwriting wasn't requested.
@@ -68,7 +70,7 @@ sidebar:
 
 ## Examples
 
-### Example 1: basic run, CSV report named automatically
+### Example 1: basic run, report named automatically
 
     topo-tools code-detect admin3.parquet
 
