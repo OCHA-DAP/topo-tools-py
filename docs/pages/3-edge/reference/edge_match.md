@@ -15,7 +15,7 @@ topo-tools edge-match [OPTIONS] INPUT_FILE OVERLAY_FILE [OUTPUT_FILE]
 
 ## Description
 
-Each input file is matched to the overlay polygon it overlaps most, extended to fill gaps, clipped to that polygon, then stitched so the edges line up. OUTPUT_FILE defaults to INPUT_FILE with a "_matched" suffix. It's required when INPUT_FILE is a pattern matching more than one file, or when `--input` is given.
+Each input file (or, with `--assign` many, each input polygon) is matched to the overlay polygon it overlaps most, extended to fill gaps, clipped to that polygon, then stitched so the edges line up. OUTPUT_FILE defaults to INPUT_FILE with a "_matched" suffix. It's required when INPUT_FILE is a pattern matching more than one file, or when `--input` is given.
 
 ## Options
 
@@ -35,7 +35,7 @@ Each input file is matched to the overlay polygon it overlaps most, extended to 
 - `--input-include TEXT`: Input columns to keep, comma-separated. Needs `--merge`.
 - `--input-exclude TEXT`: Input columns to drop, comma-separated. Needs `--merge`.
 - `--prefer [overlay|input]`: When the overlay and input both have a column with the same name, keep this layer's column. Needs `--merge`. Can't be combined with `--overlay-include`, `--overlay-exclude`, `--input-include` or `--input-exclude`.
-- `--per-feature`: Match each input polygon on its own to the overlay polygon it overlaps most. By default the whole input file goes to the one overlay polygon most of it falls in. Use this when an input file spans several overlay polygons, e.g. an admin4 layer fitted into many admin3 units. Only works with a single input file.
+- `--assign [auto|one|many]`: How input polygons are assigned to overlay polygons. one: the whole input file goes to the overlay polygon most of its polygons overlap. many: each input polygon goes to the overlay polygon it overlaps most, for an input file spanning many overlay polygons, e.g. an admin4 layer fitted into many admin3 units. auto: one, switching to many when fewer than half the input polygons overlap the winner. The mode used is always logged. many only works with a single input file. [default: auto]
 - `--fill-schema`: Before writing the output, fill each row's empty finer admin columns from its coarser ones and add a column with the row's own admin level. Set the columns with `--name-field` and `--code-field`, and the level column's name with `--depth-column`.
 - `--name-field TEXT`: Name column of each level, with {n} for the level number, e.g. 'adm{n}_name'. Needs `--fill-schema` and `--code-field`. Without both, levels are detected from the data.
 - `--code-field TEXT`: Code column of each level, with {n} for the level number, e.g. 'adm{n}_code'. Needs `--fill-schema` and `--name-field`. Without both, levels are detected from the data.
@@ -84,7 +84,7 @@ topo-tools edge-match adm3.gpkg adm2.gpkg --merge --prefer overlay
 An admin4 layer whose units fall in many different admin3 units:
 
 ```sh
-topo-tools edge-match adm4.gpkg adm3.gpkg --per-feature
+topo-tools edge-match adm4.gpkg adm3.gpkg --assign many
 ```
 
 Choose the output and the issues report:

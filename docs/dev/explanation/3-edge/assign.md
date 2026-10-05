@@ -13,7 +13,8 @@ sidebar:
 overlap-area join; they differ only in how that pairing gets finalized
 once per-pair shared area is known.
 
-`assign-one` is the default for **both** `edge-mosaic` and `edge-match`:
+`assign-one` is `edge-mosaic`'s only mode and what `edge-match`'s default `auto` runs
+unless fewer than half the input polygons overlap the winner:
 every input polygon in one input file is forced onto **one** shared overlay polygon, chosen
 by majority vote of that file's input polygons, once that file has any winner at
 all. This is the safest choice for a large group of polygons resolving
@@ -23,7 +24,9 @@ a genuinely non-overlapping outlying island on raw geometry) get pulled
 onto the wrong neighbor or dropped outright, even though the rest of the
 file clearly belongs together.
 
-`assign-many` is `edge-match`'s opt-in (`--per-feature`): each input polygon
+`assign-many` is `edge-match`'s `--assign many`, also picked by the default
+`--assign auto` when fewer than half of a file's input polygons overlap the
+`assign-one` winner: each input polygon
 decides independently which overlay polygon it overlaps most, so one input file's
 input polygons MAY scatter across **many** different overlay polygons. Use it only when
 that's actually true of the input, e.g. a poorly-digitized admin4 layer
@@ -53,9 +56,9 @@ directories).
 loads its own input polygons via `core.edge_match._01_inputs` instead.
 
 `_many.py` / `_one.py` hold the actual assignment logic (see below):
-`api.edge_mosaic`, standalone `api.edge_clip`, and `api.edge_match` (by
-default) all call `core.assign.assign_one()`; `api.edge_match` calls
-`core.assign.assign_many()` only when `--per-feature` is given. All call
+`api.edge_mosaic`, standalone `api.edge_clip`, and `api.edge_match` (`one`,
+or `auto`) all call `core.assign.assign_one()`; `api.edge_match` calls
+`core.assign.assign_many()` under `--assign many`, or when `auto` switches. All call
 directly on their own already-loaded tables. `edge-mosaic` calls it once
 per run; `edge-clip`'s multi-file loop calls it once per input file,
 reusing a cached overlay-tile decomposition across every call (see below and
@@ -199,7 +202,7 @@ BY NAME`.
 
 | | `assign-many` | `assign-one` |
 | --- | --- | --- |
-| Used by | `edge-match --per-feature` only | `edge-mosaic`, `edge-clip`, `edge-match` (default) |
+| Used by | `edge-match` (`many`, or `auto`'s switch) | `edge-mosaic`, `edge-clip`, `edge-match` (`one`, or `auto`) |
 | Decision granularity | Per input polygon | Per source file |
 | Zero-overlap input polygon in an otherwise-matched file | Dropped, logged, `_02_unassigned` | Forced onto the file's winner; dropped later at clip time if it still doesn't reach it |
 | Vote signal | N/A (each input polygon stands alone) | Count of intersecting input polygons per file |
@@ -220,6 +223,6 @@ back to the lower overlay polygon id rather than any geometric signal.
 
 **`assign-one` forces every input polygon onto its file's winner, even a
 non-overlapping one.** This is intentional (see above), but it means
-`edge-match`'s default no longer drops a straggler at assign time; a
+`edge-match` under `one` or `auto` doesn't drop a straggler at assign time; a
 caller relying on `_02_unassigned` to catch every non-overlapping input polygon
 must also check the `kind='clip-empty'` issue rows produced downstream.

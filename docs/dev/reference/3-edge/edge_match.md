@@ -27,7 +27,7 @@ See [edge-extend](edge_extend.md) for the rules `edge-match` shares with it.
 
 ## Assigning input polygons to overlay polygons
 
-- By default, `edge-match` MUST assign every input polygon from the input file to a
+- Under `assign-one`, `edge-match` MUST assign every input polygon from the input file to a
   single overlay polygon shared by the whole file, chosen by majority vote
   of that file's input polygons (`assign-one`, see `docs/dev/explanation/3-edge/assign.md`);
   a tie between two candidate overlay polygons MUST be broken by the lower overlay polygon
@@ -36,16 +36,18 @@ See [edge-extend](edge_extend.md) for the rules `edge-match` shares with it.
   overlap with it; such an input polygon is not dropped here, but MAY still drop
   later at clip time if its extended geometry never reaches the overlay polygon
   (see Clipping), reported as a `kind='clip-empty'` issue row.
-- When `--per-feature` (`per_feature=True`) is given, `edge-match` MUST
-  instead assign each input polygon independently to the single overlay polygon
-  polygon it shares the largest overlapping area with (`assign-many`), so
-  one input file's input polygons MAY scatter across many different overlay polygons.
-  Use this only when input polygons genuinely belong to different overlay polygons, e.g.
-  a poorly-digitized admin4 layer fitting into many admin3 units.
-- Under `assign-one` (default), a whole input file with no input polygon
+- `edge-match` MUST accept `assign` (CLI: `--assign`) of `auto`, `one` or
+  `many`, defaulting to `auto`. `one` is `assign-one` above. `many`
+  (`assign-many`) MUST instead assign each input polygon independently to the
+  overlay polygon it shares the largest overlapping area with, so one input
+  file's input polygons MAY scatter across many overlay polygons. `auto` MUST
+  run `assign-one`, then switch to `assign-many` when fewer than half the
+  assigned input polygons overlap their winner. `edge-match` MUST log which
+  mode it ran.
+- Under `assign-one`, a whole input file with no input polygon
   overlapping any overlay polygon at all MUST be dropped, not treated as fatal, and
   `edge-match` MUST log a warning naming its input polygons. Under `assign-many`
-  (`--per-feature`), an individual input polygon with no overlap with any overlay polygon
+  (`many`), an individual input polygon with no overlap with any overlay polygon
   MUST be dropped the same way. Either case, unless `merge` is set (see
   Configuration), in which case the dropped input polygon(s) are instead
   grouped into one orphan group of their own and extended together (see
@@ -150,13 +152,7 @@ See [edge-extend](edge_extend.md) for the rules `edge-match` shares with it.
   value MUST raise `ValueError` (see `docs/adr/0084`).
 - `edge-match` MAY accept `match_column`/`overlay_match_column`/`input_match_column`
   to override spatial assignment with an exact code join (see `docs/dev/explanation/3-edge/assign.md`).
-- `edge-match` MAY accept `per_feature: bool = False` (CLI:
-  `--per-feature`): `False` (default) assigns the whole input file to one
-  majority-vote overlay polygon (`assign-one`); `True` assigns each input polygon
-  independently to whichever overlay polygon it overlaps most (`assign-many`), for
-  files whose input polygons genuinely scatter across multiple overlay polygons (see
-  `docs/dev/explanation/3-edge/assign.md`, `docs/adr/0082`). `per_feature` MUST be
-  `False` whenever more than one input file is given; any other value MUST
+- With more than one input file, `auto` MUST run `one`, and `many` MUST
   raise `ValueError` (see `docs/adr/0084`).
 - `edge-match` MAY accept `merge: bool = False` (CLI: `--merge`, a plain
   boolean flag): `False` (default) copies no overlay columns and drops

@@ -2011,15 +2011,19 @@ def code_update(  # noqa: PLR0913, PLR0917
 )
 @_add_merge_options
 @click.option(
-    "--per-feature",
-    envvar="PER_FEATURE",
-    is_flag=True,
+    "--assign",
+    envvar="ASSIGN",
+    type=click.Choice(["auto", "one", "many"]),
+    default="auto",
+    show_default=True,
     help=(
-        "Match each input polygon on its own to the overlay polygon it "
-        "overlaps most. By default the whole input file goes to the one "
-        "overlay polygon most of it falls in. Use this when an input file "
-        "spans several overlay polygons, e.g. an admin4 layer fitted into many "
-        "admin3 units. Only works with a single input file."
+        "How input polygons are assigned to overlay polygons. one: the whole "
+        "input file goes to the overlay polygon most of its polygons overlap. "
+        "many: each input polygon goes to the overlay polygon it overlaps "
+        "most, for an input file spanning many overlay polygons, e.g. an admin4 "
+        "layer fitted into many admin3 units. auto: one, switching to many "
+        "when fewer than half the input polygons overlap the winner. The mode "
+        "used is always logged. many only works with a single input file."
     ),
 )
 @_add_fill_options
@@ -2043,7 +2047,7 @@ def edge_match(  # noqa: PLR0913, PLR0917
     input_include: str | None,
     input_exclude: str | None,
     prefer: str | None,
-    per_feature: bool,  # noqa: FBT001
+    assign: str,
     fill_schema: bool,  # noqa: FBT001
     name_field: str | None,
     code_field: str | None,
@@ -2051,11 +2055,12 @@ def edge_match(  # noqa: PLR0913, PLR0917
 ) -> None:
     """Fit an input layer into the polygons of a coarser overlay layer.
 
-    Each input file is matched to the overlay polygon it overlaps most,
-    extended to fill gaps, clipped to that polygon, then stitched so the
-    edges line up. OUTPUT_FILE defaults to INPUT_FILE with a "_matched"
-    suffix. It's required when INPUT_FILE is a pattern matching more than
-    one file, or when --input is given.
+    Each input file (or, with --assign many, each input polygon) is
+    matched to the overlay polygon it overlaps most, extended to fill gaps,
+    clipped to that polygon, then stitched so the edges line up.
+    OUTPUT_FILE defaults to INPUT_FILE with a "_matched" suffix. It's
+    required when INPUT_FILE is a pattern matching more than one file, or
+    when --input is given.
 
     \b
     Examples:
@@ -2086,7 +2091,7 @@ def edge_match(  # noqa: PLR0913, PLR0917
 
     \b
       # An admin4 layer whose units fall in many different admin3 units
-      topo-tools edge-match adm4.gpkg adm3.gpkg --per-feature
+      topo-tools edge-match adm4.gpkg adm3.gpkg --assign many
 
     \b
       # Choose the output and the issues report
@@ -2130,7 +2135,7 @@ def edge_match(  # noqa: PLR0913, PLR0917
             input_include=_split_columns(input_include),
             input_exclude=_split_columns(input_exclude),
             prefer=prefer,
-            per_feature=per_feature,
+            assign=assign,
             fill_schema=fill_schema,
             name_field=name_field,
             code_field=code_field,

@@ -415,7 +415,7 @@ The two tools' input passthrough implementations differ, since their
 pipelines do: `edge-mosaic`'s passthrough geometry is already a finished,
 validated `edge_extend()` output, unioned in directly. `edge-match`'s
 passthrough groups every zero-overlap input polygon (whole file under
-`assign-one`, individual input polygon under `--per-feature`'s `assign-many`,
+`assign-one`, individual input polygon under `assign-many`,
 see `docs/dev/explanation/3-edge/assign.md`) into one orphan group of its own and
 extends it fresh, alone, with zero neighboring-overlay context and no
 majority/plurality vote to catch a bad extension, a materially weaker
