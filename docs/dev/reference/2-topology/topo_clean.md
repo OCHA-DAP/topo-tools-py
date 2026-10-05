@@ -28,8 +28,10 @@ detection stage directly rather than owning separate logic (see
   mode.
 - `topo-clean` MUST close every detected notch before the fix, moving a
   flagged segment's endpoint onto the other unit only when the gap is at
-  most `NOTCH_MAX_GAP_RATIO` of the segment's length. A notch left open
-  MUST be reported with `fixed` FALSE.
+  most `NOTCH_MAX_GAP_RATIO` of the segment's length, and merging any gap
+  those moves enclose between the two units, with no other unit inside
+  it, into the unit sharing more of its border. A notch left open MUST be
+  reported with `fixed` FALSE.
 - The default gap-fill behavior (reached by omitting `--maximum-gap-width`,
   not a named mode) MUST fill a gap only if its width is at or below
   `SNAP_TOLERANCE`, regardless of shape.
