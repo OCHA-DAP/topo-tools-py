@@ -143,6 +143,9 @@ parent codes:
   resolution named at that level, in place on the NEW-side finest table.
   NEW's own raw column at that level, if differently named, MUST be left
   untouched as an ordinary passthrough attribute.
+- With `code_field_a`, the output's level 0 code column (`code_field_a` at
+  `n=0`) MUST hold `root_code` on every row, added after level 0's name
+  column (else after level 1's columns) when missing.
 - `code-update` MUST add a `predecessor_field` (default `predecessor_code`)
   column, populated only for the finest level's own rows.
 - `code-update` MUST always write a changelog, even when it would be

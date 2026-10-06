@@ -2,6 +2,8 @@
 
 from duckdb import DuckDBPyConnection
 
+from topo_tools.core.code._columns import insert_column_after
+
 
 def seed_code_from_names(
     conn: DuckDBPyConnection, table: str, level: int, code: str, name: str | None
@@ -10,20 +12,11 @@ def seed_code_from_names(
     if name is None:
         msg = f"level {level} has neither {code!r} nor a name column in {table}"
         raise ValueError(msg)
-    columns = [r[0] for r in conn.execute(f'DESCRIBE "{table}"').fetchall()]
+    columns = {r[0] for r in conn.execute(f'DESCRIBE "{table}"').fetchall()}
     if code in columns:
         conn.execute(f'UPDATE "{table}" SET "{code}" = "{name}"::VARCHAR')
-        return
-    # A new code column goes after its level's name and numbered siblings.
-    at = columns.index(name) + 1
-    while at < len(columns) and columns[at].startswith(name):
-        at += 1
-    select = [f'"{c}"' for c in columns]
-    select.insert(at, f'"{name}"::VARCHAR AS "{code}"')
-    conn.execute(
-        f'CREATE OR REPLACE TABLE "{table}" AS SELECT {", ".join(select)} '
-        f'FROM "{table}"'
-    )
+    else:
+        insert_column_after(conn, table, code, f'"{name}"::VARCHAR', (name,))
 
 
 def check_unique_names(

@@ -759,3 +759,38 @@ def test_same_named_siblings_seeded_from_names_raise(tmp_path):
     _write_synthetic(new_path, new_rows)
     with pytest.raises(ValueError, match="repeat under one parent"):
         code_update(old_coded_path, new_path, tmp_path / "out.parquet", **_TEMPLATES_AB)
+
+
+def test_template_writes_root_code_at_level_0(tmp_path):
+    raw_rows = [
+        {
+            "adm1_code": c1,
+            "adm1_name": f"A{c1}",
+            "adm2_code": c2,
+            "adm2_name": f"B{c2}",
+            "wkt": _square(i, 0),
+        }
+        for i, (c1, c2) in enumerate([("51", "5101"), ("51", "5102"), ("52", "5201")])
+    ]
+    raw_path = tmp_path / "raw.parquet"
+    _write_synthetic(raw_path, raw_rows)
+    old_coded_path = tmp_path / "old_coded.parquet"
+    code_create(
+        raw_path,
+        old_coded_path,
+        root_code="BH",
+        delimiter="",
+        min_width="auto",
+        source_codes="embed",
+        code_field="adm{n}_code",
+        name_field="adm{n}_name",
+    )
+    output_path = tmp_path / "new_coded.parquet"
+    code_update(
+        old_coded_path, raw_path, output_path, tmp_path / "log.csv", **_TEMPLATES_AB
+    )
+    columns = [
+        r[0] for r in duckdb.sql(f"DESCRIBE SELECT * FROM '{output_path}'").fetchall()
+    ]
+    assert columns.index("adm0_code") == columns.index("adm1_name") + 1
+    assert _fetch(output_path, "DISTINCT adm0_code", "1") == [("BH",)]

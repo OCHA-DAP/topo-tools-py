@@ -13,6 +13,7 @@ from topo_tools.core.code._codes import (
     parent_prefix,
     parse_code,
 )
+from topo_tools.core.code._columns import write_root_code
 from topo_tools.core.code._constants import TABLE_COPY_OPTS
 from topo_tools.core.code._detect_format import (
     detect_code_format,
@@ -41,4 +42,5 @@ __all__ = [
     "resolve_code_format",
     "rewrite_child_code",
     "seed_code_from_names",
+    "write_root_code",
 ]

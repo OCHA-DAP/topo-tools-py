@@ -4,7 +4,12 @@ from pathlib import Path
 
 from duckdb import DuckDBPyConnection
 
-from topo_tools.core.code import TABLE_COPY_OPTS, CodeFormat, parent_prefix
+from topo_tools.core.code import (
+    TABLE_COPY_OPTS,
+    CodeFormat,
+    parent_prefix,
+    write_root_code,
+)
 from topo_tools.core.code_update._02_levels import SideLevels
 from topo_tools.core.code_update._06_assign import ChangeRow
 from topo_tools.core.io import add_csv_bom, export_geometry_table
@@ -116,6 +121,17 @@ def main(  # noqa: PLR0913
             WHERE t."{raw_col}" = m.raw_val
         """)
         conn.execute(f'DROP TABLE IF EXISTS "{mapping}"')
+
+    if side_a.schema is not None:
+        present = {r[0] for r in conn.execute(f'DESCRIBE "{finest_table}"').fetchall()}
+        root_name = side_a.schema.name_field.format(n=0)
+        after = (
+            (root_name,)
+            if root_name in present
+            else (side_a.columns[1], side_b.names.get(1))
+        )
+        root = side_a.schema.code_field.format(n=0)
+        write_root_code(conn, finest_table, root, fmt.root_code, after)
 
     export_geometry_table(conn, finest_table, dest)
 

@@ -36,12 +36,10 @@ Resolved levels are renumbered to a clean `1..N`, coarsest first,
 regardless of how many raw columns existed or what they were named. A
 genuinely constant coarsest column (a single-country file's own admin0
 code, for instance) never becomes a level; it's dropped before
-renumbering. This is why `root_code` is never stamped as its own output
-column: level 1 already has a real parent, the `root_code` string itself,
-so there's no level 0 for `root_code` to occupy. `_03_assign.py`'s `if 0
-in levels:` branch exists for a `levels` dict that could in principle
-carry a `0` key, but `_02_levels.main()` never actually produces one, so
-that branch never executes against real input.
+renumbering. In structural mode `root_code` is only level 1's parent,
+since no level 0 column name follows from the data. With a code template,
+`_02_levels.main()` always adds level 0, and `_03_assign` writes
+`root_code` into it.
 
 ## `_03_assign`: chained, not independent, per level
 

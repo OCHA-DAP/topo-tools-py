@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- code-create and code-update write the root code into level 0's code
+  column (e.g. `adm0_code`) when a code template is given.
+
 ### Changed
 
 - package-polygons, package-points, package-lines and package keep the

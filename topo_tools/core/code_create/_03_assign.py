@@ -10,6 +10,7 @@ from topo_tools.core.code import (
     assign_new_codes,
     check_unique_names,
     seed_code_from_names,
+    write_root_code,
 )
 from topo_tools.core.code_create._02_levels import Level
 from topo_tools.core.code_create._constants import SOURCE_CODES
@@ -192,7 +193,9 @@ def main(
     if source_codes == "embed":
         _strip_parent_prefixes(conn, table, levels, fmt, integers)
     if 0 in levels:
-        conn.execute(f'UPDATE "{table}" SET "{levels[0].code}" = ?', [fmt.root_code])
+        root, top = levels[0], levels[1]
+        after = (root.name,) if root.name else (top.name, top.code)
+        write_root_code(conn, table, root.code, fmt.root_code, after)
 
     parent_sql = f"'{fmt.root_code}'"
     parent_column: str | None = None
