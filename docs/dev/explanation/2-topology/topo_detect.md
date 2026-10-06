@@ -83,8 +83,10 @@ notch, a pair of units whose unshared boundary segments run within
 `NOTCH_SPACING / 8` of each other along at least `NOTCH_MIN_SCORE`
 spacings, summed over both units. `detect_notches()` (`core/coverage.py`)
 finds them with a bbox range join over unshared segments only, and each
-notch row's geometry is the buffered cluster of its close-running pieces
-(see `docs/adr/0132`).
+notch row's geometry is the buffered cluster of its close-running pieces.
+A thin gap or overlap's own tips have the same shape, so a notch that
+intersects a reported gap, or an overlap between the same two units, is
+left out of the report (see `docs/adr/0132`, `docs/adr/0136`).
 
 ## Issues table schema
 

@@ -178,7 +178,17 @@ def main(
                NULL::DOUBLE AS thinness_ratio,
                score * {NOTCH_SPACING * METERS_PER_DEGREE} AS near_length_m,
                unit_a, unit_b, geom
-        FROM "{notches_tmp}"
+        FROM "{notches_tmp}" t
+        -- A thin gap or overlap's own tips read as a notch; report it once.
+        WHERE NOT EXISTS (
+            SELECT 1 FROM "{gaps_tmp}" g WHERE ST_Intersects(t.geom, g.geom)
+        )
+          AND NOT EXISTS (
+            SELECT 1 FROM "{overlaps_tmp}" o
+            WHERE least(o.unit_a, o.unit_b) = least(t.unit_a, t.unit_b)
+              AND greatest(o.unit_a, o.unit_b) = greatest(t.unit_a, t.unit_b)
+              AND ST_Intersects(t.geom, o.geom)
+        )
     """)
 
     if not debug:

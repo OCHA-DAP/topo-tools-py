@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   numbered within their parent unless every code repeats the parent's
   code at one width.
 
+### Fixed
+
+- topo-detect: a notch on a reported gap or overlap is reported only as
+  that gap or overlap, not also as a `notch` row.
+
 ## [0.15.0] - 2026-10-05
 
 ### Added
