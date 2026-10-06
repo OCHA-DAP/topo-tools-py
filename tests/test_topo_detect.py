@@ -84,6 +84,23 @@ def test_detect_reports_notch(notch_input, tmp_path):
     assert rows[0][1] > 0
 
 
+@pytest.mark.parametrize(("dy", "kind"), [(0.0005, "gap"), (-0.0005, "overlap")])
+def test_detect_skips_notch_on_reported_gap_or_overlap(tmp_path, dy, kind):
+    """A thin lens between two units is one gap or overlap, not also notches."""
+    input_path, issues_path = tmp_path / "lens.parquet", tmp_path / "issues.parquet"
+    _write_wkt(
+        input_path,
+        [
+            (1, f"POLYGON((0 0, 0.2 0, 0.5 {dy}, 0.8 0, 1 0, 1 1, 0 1, 0 0))"),
+            (2, "POLYGON((0 0, 0 -1, 1 -1, 1 0, 0.8 0, 0.2 0, 0 0))"),
+        ],
+    )
+    detect(input_path, issues_path, overwrite=True)
+    with duckdb.connect() as conn:
+        kinds = conn.execute(f"SELECT kind FROM '{issues_path}'").fetchall()
+    assert kinds == [(kind,)]
+
+
 def test_cli_help():
     result = CliRunner().invoke(cli, ["topo-detect", "--help"])
     assert result.exit_code == 0

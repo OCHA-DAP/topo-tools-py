@@ -29,7 +29,8 @@ sidebar:
 - `topo-detect` MUST report every pair of units whose unshared boundaries
   run within `NOTCH_SPACING / 8` of each other along at least
   `NOTCH_MIN_SCORE` spacings as a `notch`, identifying both units and the
-  close-running length.
+  close-running length, except a notch that intersects a reported gap, or
+  an overlap between the same two units, which MUST NOT be reported.
 - If detecting one kind of defect fails, `topo-detect` MUST still report the
   other kinds rather than failing entirely.
 - The issues report MUST list, for every defect: a unique key, its kind
