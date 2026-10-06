@@ -58,8 +58,10 @@ Tables are named `{input}_schema_join_*`.
    name for each one that differs (`{name}_03_mismatch` records the
    differing values). Geometry passes through unchanged. The input layer's
    columns keep their order, each added sibling follows its own column,
-   and new-level columns follow in `core.admin_columns.canonical_order()`;
-   rows are sorted by the deepest level's code.
+   and every other added column goes, in
+   `core.admin_columns.canonical_order()`, into its own level's block (a
+   name before the level's code), or before the first coarser level for a
+   level the input lacks; rows are sorted by the deepest level's code.
 4. **`_04_outputs`**: builds `{name}_04` (`no-overlap`, `low-overlap`,
    `value-mismatch` rows, in the shared issues-table column schema) and
    exports the joined layer and its issues file. There is no topology

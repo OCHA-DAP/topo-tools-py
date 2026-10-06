@@ -432,3 +432,31 @@ def test_keeps_input_column_order_and_places_added_columns(join_path, tmp_path):
             "adm1_name",
             "adm1_code",
         ]
+
+
+def test_added_columns_go_within_their_level(join_path, tmp_path):
+    rows = [
+        {
+            "adm3_name": r["adm3_name"],
+            "adm3_code": r["adm3_code"],
+            "adm1_code": r["adm3_code"][:1],
+            "wkt": r["wkt"],
+        }
+        for r in _input_rows()
+    ]
+    src = tmp_path / "partial.parquet"
+    _write(src, rows)
+    out = tmp_path / "out.parquet"
+    join(src, join_path, out)
+
+    with duckdb.connect() as conn:
+        written = conn.execute(f"SELECT * FROM '{out}' LIMIT 0")
+        assert [d[0] for d in written.description] == [
+            "geometry",
+            "adm3_name",
+            "adm3_code",
+            "adm2_name",
+            "adm2_code",
+            "adm1_name",
+            "adm1_code",
+        ]

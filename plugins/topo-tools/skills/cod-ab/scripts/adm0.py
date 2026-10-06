@@ -4,9 +4,9 @@
 #     "duckdb",
 # ]
 # ///
-"""Write the admin0 name columns into the stage 4 coded file, in place.
+"""Write the admin0 name columns into the stage 5 name-checked file, in place.
 
-Run from the workspace root after code-create or code-update:
+Run from the workspace root after the final name-detect:
 
     uv run <skill-dir>/scripts/adm0.py <iso3> <version> \
         [--code-field adm{n}_code] [--name-field adm{n}_name]
@@ -52,13 +52,13 @@ def m49_row(iso3: str) -> dict[str, str] | None:
     return next((r for r in rows if r["iso3"] == iso3.upper()), None)
 
 
-def coded_file(working: Path) -> Path:
-    """Return the one non-issues parquet in 04_codes/."""
-    files = [
-        p for p in (working / "04_codes").glob("*.parquet") if "_issues" not in p.name
-    ]
+def named_file(working: Path, iso3: str) -> Path:
+    """Return the one {iso3}_admin{n}.parquet in 05_names/."""
+    folder = working / "05_names"
+    pattern = rf"{re.escape(iso3)}_admin\d+\.parquet"
+    files = [p for p in folder.glob("*.parquet") if re.fullmatch(pattern, p.name)]
     if len(files) != 1:
-        sys.exit(f"expected one coded parquet in {working / '04_codes'}, got {files}")
+        sys.exit(f"expected one {iso3}_admin{{n}}.parquet in {folder}, got {files}")
     return files[0]
 
 
@@ -90,7 +90,7 @@ def main() -> None:
     iso3 = args.iso3.lower()
     working = Path("02_working") / iso3 / args.version
     record = json.loads((working / "metadata.json").read_text(encoding="utf-8"))
-    path = coded_file(working)
+    path = named_file(working, iso3)
 
     conn = duckdb.connect()
     conn.execute("INSTALL spatial; LOAD spatial;")

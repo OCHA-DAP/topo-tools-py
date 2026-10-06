@@ -60,9 +60,13 @@ overwrite any input value (see `docs/adr/0109`).
 - The output MUST keep every input row, using `name_field`/`code_field`, or
   `adm{n}_name`/`adm{n}_code` when omitted. Columns MUST keep input order,
   each added numbered sibling right after the last existing column of its
-  family, and every column absent from the input layer after all input
-  columns, in template order (see `docs/adr/0119`). Rows MUST be sorted by
-  the deepest level's own code column, as in `schema-map`.
+  family, and every other column absent from the input layer within its
+  own level: a name after the level's last name column or else before its
+  first code column, any other column after the level's last column of its
+  own family or else its last column. A level absent from the input layer
+  goes before the first coarser input level, or after all input columns
+  when there is none, in template order (see `docs/adr/0138`). Rows MUST
+  be sorted by the deepest level's own code column, as in `schema-map`.
 - `schema-join` MUST write an issues file in the shared issues-table
   column schema, with one row per:
   - `no-overlap`: an input polygon overlapping no join polygon;

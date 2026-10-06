@@ -61,6 +61,12 @@ def _family_pattern(template: str) -> re.Pattern:
     return re.compile(rf"^{re.escape(before)}(\d+){re.escape(after)}(?:{sep}(\d+))?$")
 
 
+def family_level(column: str, template: str) -> int | None:
+    """Level of column within a template's family (`adm2_name1` -> 2), else None."""
+    match = _family_pattern(template).match(column)
+    return int(match[1]) if match else None
+
+
 def output_renames(
     columns: list[str],
     templates: tuple[str, str],
