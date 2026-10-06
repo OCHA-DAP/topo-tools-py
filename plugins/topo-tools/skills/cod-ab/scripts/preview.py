@@ -384,17 +384,21 @@ def _measure(area: float, width: float | None) -> str:
 def issues(args: argparse.Namespace) -> None:
     """Write one preview per largest issue of a kind."""
     con = _connect()
+    source = f"read_parquet({_sql_str(args.issues)})"
+    columns = {r[0] for r in con.execute(f"DESCRIBE SELECT * FROM {source}").fetchall()}
+    # Only rows a tool left unfixed, when the report says which.
+    where = "kind = ?" + (
+        " AND NOT COALESCE(fixed, FALSE)" if "fixed" in columns else ""
+    )
     rows = con.execute(
         "SELECT ST_AsGeoJSON(geometry), COALESCE(area_m2, ST_Area_Spheroid(geometry)), "
-        f"max_width_m FROM read_parquet({_sql_str(args.issues)}) WHERE kind = ? "
-        "ORDER BY 2 DESC LIMIT ?",
+        f"max_width_m FROM {source} WHERE {where} ORDER BY 2 DESC LIMIT ?",
         [args.kind, args.top],
     ).fetchall()
     if not rows:
-        log.info("No %s rows in %s", args.kind, args.issues)
+        log.info("No open %s rows in %s", args.kind, args.issues)
     (total,) = con.execute(
-        f"SELECT count(*) FROM read_parquet({_sql_str(args.issues)}) WHERE kind = ?",
-        [args.kind],
+        f"SELECT count(*) FROM {source} WHERE {where}", [args.kind]
     ).fetchone()
     stem = args.issues.stem.removesuffix("_issues")
     for rank, (geojson, area, width) in enumerate(rows, 1):

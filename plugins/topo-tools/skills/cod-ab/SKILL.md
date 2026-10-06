@@ -170,7 +170,8 @@ Keep admin columns finest level first (`adm2_*`, then `adm1_*`, then
 outside a topo-tools command.
 
 Save every rendered image in its stage's `previews/` folder (e.g.
-`02_topology/previews/`) and give the user its path. To show specific
+`02_topology/previews/`) and give the user its path, clearing that
+folder first whenever a stage reruns. To show specific
 units, run `uv run <skill-dir>/scripts/preview.py features {layer} {png} --where {sql} --label {name column}`,
 using the first name column. For any other render, run
 `preview.py basemap {xmin} {ymin} {xmax} {ymax} {stem}` and draw over its
@@ -189,21 +190,31 @@ without asking. Stage 4's answer sets `methodology_pcodes` (e.g.
 1. [Schema](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/1-schema/how-to.md)
 2. [Topology](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/2-topology/how-to.md)
 
-   Run `topo-clean` with its defaults first. When `gap` rows remain
-   unfilled, render the largest with
+   Run `topo-clean` with its defaults. For each `gap` row it leaves
+   unfilled, measure its overlap with every coarser layer the source
+   supplied (the `schema-join` join layers) and report its area per
+   parent unit. Render the largest with
    `uv run <skill-dir>/scripts/preview.py issues {issues} 02_topology/previews/ --units {input}`,
    read each PNG to judge water against land, and show the user each
-   gap's area, width and PNG path, plus whether `00a_old/` has the same
-   holes. Always ask whether they are lakes or other water bodies left
-   outside every unit. When the user calls any of them land, rerun with
-   `--maximum-gap-width thin` and show the filled gap rows for review.
-   For each land gap still open, intersect it with every coarser layer
-   the source supplied and report its area per parent unit. Then render
-   its edges coloured by neighbour, ask which neighbour's edge is the real
-   boundary (offering the parent overlap as the recommended answer), merge
-   each part into that unit with `ST_Union`, and rerun `topo-clean`. Never
-   trace a fill from OpenStreetMap, whose licence is incompatible with
-   CC BY-IGO.
+   gap's area, width, parent overlap and PNG path, plus whether
+   `00a_old/` has the same holes. Then ask once, for all of them, which
+   are lakes or other water bodies left outside every unit. Recommend
+   land for a gap fully inside one parent unit and water for a gap no
+   parent unit covers, and ask per gap when the overlap is split or no
+   coarser layer exists.
+
+   Merge each land gap into one unit with `ST_Union`, in a copy of the
+   stage 1 file saved as `02_topology/{iso3}_admin{n}_gapfill.parquet`
+   and kept as the record of these merges. A gap touching one unit goes
+   into that unit. For a gap between several units, render its edges
+   coloured by neighbour and ask which neighbour's edge is the real
+   boundary. Recommend the neighbour under the parent unit that covers
+   the gap, else the one with the longest shared boundary. Record each
+   merge's unit, area and basis in `caveats`. Then rerun `topo-clean` on
+   the gapfill file with `--maximum-gap-width thin`, overwriting the
+   stage 2 output and its issues file, and show the filled gap rows for
+   review. Never trace a fill from OpenStreetMap, whose licence is
+   incompatible with CC BY-IGO.
 3. [Edge matching](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/3-edge/how-to.md)
 
    Take the reference admin0 from the admin0 file in `00_shared/` (ask
