@@ -46,10 +46,14 @@ Source codes inside the code:
 Each level's source code follows its parent's code. Codes may be
 local to each level (`11`, `22`, `33`) or already include the parent's
 code (`11`, `1122`, `112233`); both give `XY112233`, and existing p-codes
-come out unchanged. A level with names but no code column gets sequential
-numbers under its parent, sorted by name. The run stops if a row has no
-source code, if a level's source codes differ in length, or if
-only some of a level's codes include the parent's code.
+come out unchanged. With no delimiter, whole-number codes are zero-padded
+so every level has one width: `--min-width`, or the level's widest code if
+larger. Whole-number codes count as including the parent's code only when
+every code starts with it and the rest has one width; otherwise they're
+numbered within the parent. A level with names but no code column gets
+sequential numbers under its parent, sorted by name. The run stops if a row
+has no source code, if a level's source codes still differ in length after
+padding, or if only some of a level's text codes include the parent's code.
 
 Sequential codes, source code kept alongside:
 
@@ -68,7 +72,8 @@ column.
 
 - `3`: the same width at every level.
 - `2,2,4`: one width per level, coarsest first, with one entry per level.
-  Under `embed`, a level that keeps its source code ignores its entry.
+  Under `embed`, a level that keeps its source code uses its entry only to
+  pad whole-number codes.
 - `auto`: each level gets as many digits as its largest parent needs.
 
 With a delimiter, a parent with more children than the width allows (over
