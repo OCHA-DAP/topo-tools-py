@@ -209,8 +209,14 @@ without asking. Stage 4's answer sets `methodology_pcodes` (e.g.
    into that unit. For a gap between several units, render its edges
    coloured by neighbour and ask which neighbour's edge is the real
    boundary. Recommend the neighbour under the parent unit that covers
-   the gap, else the one with the longest shared boundary. Record each
-   merge's unit, area and basis in `caveats`. Then rerun `topo-clean` on
+   the gap, else the one with the longest shared boundary. A merge the
+   source's coarser layers settle (the gap lies inside one parent and
+   touches one unit, or the parent decides between neighbours) needs no
+   caveat; note it once in `methodology_dataset` (e.g. "gaps filled to
+   match the source's province boundaries"). Record in `caveats` the
+   unit, area and basis of each merge the coarser layers don't settle:
+   no coarser layer, a split overlap, or a choice between neighbours
+   under one parent. Then rerun `topo-clean` on
    the gapfill file with `--maximum-gap-width thin`, overwriting the
    stage 2 output and its issues file, and show the filled gap rows for
    review. Never trace a fill from OpenStreetMap, whose licence is
