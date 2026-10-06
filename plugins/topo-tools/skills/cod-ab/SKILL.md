@@ -73,7 +73,8 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
      own endpoint or file link, never a query URL or viewer page), `request`
      (the exact download request), `date_fetched`, and `date_updated` from
      the layer's own metadata (an ArcGIS layer's
-     `editingInfo.lastEditDate`), null when it publishes none. Take these
+     `editingInfo.lastEditDate`, else the latest value of a per-feature
+     update-date column), null when it publishes none. Take these
      from what the user already said about where the data came from, and ask
      only when they haven't. Check the source's licence (an ArcGIS
      service's `copyrightText`, its portal item's `licenseInfo`, the
@@ -145,7 +146,9 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
    `--root-code`. State both before continuing, with the base's name, feature count, and why it qualifies,
    plus each level's concept name (Province, District, ...) suggested
    from the source's layer or column names, recorded as `admin_names`
-   (`{"1": "Province", ...}`) in `metadata.json`.
+   (`{"1": "Province", ...}`) in `metadata.json`, plus each name column's
+   language in column order as `name_languages` (ISO 639-1, e.g.
+   `["en", "ar"]`).
    Ask the user to pick a shallower base only if the deepest one looks
    partial or low quality (doesn't cover the whole country, has missing
    codes/names, or far fewer units than its parent level implies; judge
@@ -186,12 +189,21 @@ without asking. Stage 4's answer sets `methodology_pcodes` (e.g.
 1. [Schema](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/1-schema/how-to.md)
 2. [Topology](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/2-topology/how-to.md)
 
-   Always ask whether any large `topo-detect` gap is a lake or other
-   water body left outside every unit. Render the largest gaps with
+   Run `topo-clean` with its defaults first. When `gap` rows remain
+   unfilled, render the largest with
    `uv run <skill-dir>/scripts/preview.py issues {issues} 02_topology/previews/ --units {input}`,
    read each PNG to judge water against land, and show the user each
    gap's area, width and PNG path, plus whether `00a_old/` has the same
-   holes. "No" means `--maximum-gap-width all`; "yes" means no flag.
+   holes. Always ask whether they are lakes or other water bodies left
+   outside every unit. When the user calls any of them land, rerun with
+   `--maximum-gap-width thin` and show the filled gap rows for review.
+   For each land gap still open, intersect it with every coarser layer
+   the source supplied and report its area per parent unit. Then render
+   its edges coloured by neighbour, ask which neighbour's edge is the real
+   boundary (offering the parent overlap as the recommended answer), merge
+   each part into that unit with `ST_Union`, and rerun `topo-clean`. Never
+   trace a fill from OpenStreetMap, whose licence is incompatible with
+   CC BY-IGO.
 3. [Edge matching](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/3-edge/how-to.md)
 
    Take the reference admin0 from the admin0 file in `00_shared/` (ask
@@ -244,6 +256,14 @@ without asking. Stage 4's answer sets `methodology_pcodes` (e.g.
      adding `--source-codes copy` when the codes are another
      organisation's IDs.
 
+   Pass the `--code-field`/`--name-field` templates in every case, so the
+   output gets level 0's code column. Then run
+   `uv run <skill-dir>/scripts/adm0.py {iso3} {version}` with the same
+   templates. It writes the official UN M49 admin0 names for the six UN
+   languages, and takes any other language, or an area not in M49, from
+   `metadata.json`'s `adm0_names` (`{"sq": "..."}`). On a missing name,
+   ask the user for it, add it to `adm0_names`, then rerun.
+
    Code the stage 2 file in place of the stage 3 output when the user
    chose to code the full geometry first.
 5. [Names](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/5-names/how-to.md)
@@ -258,7 +278,15 @@ without asking. Stage 4's answer sets `methodology_pcodes` (e.g.
    final `name-detect`.
 6. [Packaging](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/6-packaging/how-to.md)
 
-   First run `validate` on the file to package, with the
+   Admin0 is always an output. Before packaging, ask which layout to
+   publish: edge-matched only, or the original geometry plus an
+   edge-matched supplement. For the second, drop the stage 2 file's own
+   admin columns, then run `schema-join` with the name-cleaned file as the
+   join layer. Package that file as `{iso3}_admin{n}` (polygons, points
+   and lines), package the edge-matched file with the `_em` suffix, and
+   run `validate` on both.
+
+   Run `validate` on each file to package, with the
    `--code-field`/`--name-field` templates and
    `--output-dir 06_packaging/validate/`. Show the user every `error` row
    of the summary and package only once they are fixed or the user
