@@ -48,7 +48,8 @@ def main(
         columns = {r[0] for r in conn.execute(f'DESCRIBE "{table}"').fetchall()}
         levels = detect_levels(conn, table, schema, require_codes=False)
         result = {}
-        for n in levels:
+        # Every code starts with root_code, so a template always gets level 0.
+        for n in sorted({0, *levels}):
             code, name = schema.code_field.format(n=n), schema.name_field.format(n=n)
             seeded = n >= 1 and not _has_codes(conn, table, code, columns)
             result[n] = Level(code, name if name in columns else None, seeded)

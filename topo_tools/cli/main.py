@@ -1541,7 +1541,10 @@ def code_detect(  # noqa: PLR0913, PLR0917
     "--root-code",
     envvar="ROOT_CODE",
     required=True,
-    help="Code at the start of every code, e.g. a country code.",
+    help=(
+        "Code at the start of every code, e.g. a country code. With "
+        "--code-field, also written to level 0's code column."
+    ),
 )
 @click.option(
     "--delimiter",

@@ -853,3 +853,32 @@ def test_same_named_siblings_seeded_from_names_raise(tmp_path):
     _write_synthetic(input_path, rows)
     with pytest.raises(ValueError, match="'51 > Hill'"):
         code_create(input_path, root_code="XY", delimiter="", min_width=2, **_TEMPLATES)
+
+
+def test_template_writes_root_code_at_level_0(tmp_path):
+    input_path, output_path = tmp_path / "in.parquet", tmp_path / "out.parquet"
+    rows = [{"adm3_name": r.pop("adm3_name"), **r} for r in _source_coded_rows()]
+    _write_synthetic(input_path, rows)
+    code_create(
+        input_path,
+        output_path,
+        root_code="BH",
+        delimiter=".",
+        min_width=1,
+        **_TEMPLATES,
+    )
+    columns = [
+        r[0] for r in duckdb.sql(f"DESCRIBE SELECT * FROM '{output_path}'").fetchall()
+    ]
+    assert columns.index("adm0_code") == columns.index("adm1_name") + 1
+    assert _fetch(output_path, "DISTINCT adm0_code", "1") == [("BH",)]
+
+
+def test_structural_detection_adds_no_level_0(tmp_path):
+    input_path, output_path = tmp_path / "in.parquet", tmp_path / "out.parquet"
+    _write_synthetic(input_path, _source_coded_rows())
+    code_create(input_path, output_path, root_code="BH", delimiter=".", min_width=1)
+    columns = [
+        r[0] for r in duckdb.sql(f"DESCRIBE SELECT * FROM '{output_path}'").fetchall()
+    ]
+    assert not any(c.startswith("adm0") for c in columns)

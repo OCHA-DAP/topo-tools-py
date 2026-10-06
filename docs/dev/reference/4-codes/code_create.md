@@ -48,10 +48,11 @@ sidebar:
   sequence, coarsest first; a genuinely constant coarsest column (e.g. a
   single-country file's own admin0 code) is dropped before reaching this
   step and never becomes a level.
-- A source column that never resolves into a level (including a constant
-  admin0-shaped one) MUST be left completely untouched: `code-create`
-  never stamps `root_code` into its own output column, it's used only as
-  the literal parent for level 1's own assignment.
+- A source column that never resolves into a level MUST be left
+  untouched. With `code_field`, level 0's code column MUST hold
+  `root_code` on every row, added after level 0's name column (else after
+  level 1's columns) when missing. Structural detection MUST NOT add a
+  level 0 column.
 
 ## Assignment
 
