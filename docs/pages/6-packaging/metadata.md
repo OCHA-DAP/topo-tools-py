@@ -5,8 +5,8 @@ sidebar:
   label: "Metadata"
 ---
 
-One row per country release, written as `{iso3}_metadata.csv` beside each
-candidate and as a `metadata` table inside its GDB. Columns MUST appear in this order. An empty value
+One row per country release, written as a `metadata` table inside each
+candidate GDB. Columns MUST appear in this order. An empty value
 means unknown. All COD-AB data is published under CC BY-IGO.
 
 | Column | Type | Required | Description |

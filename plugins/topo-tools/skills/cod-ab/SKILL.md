@@ -130,7 +130,7 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
    | `03_edge_matching/` | the edge-matched file |
    | `04_codes/` | the coded file |
    | `05_names/` | the name-cleaned file plus `{iso3}_admin{n}_name_issues.parquet` from the final `name-detect` check (any row count, even zero) |
-   | `06_packaging/` | one parquet per output layer, plus `{iso3}_metadata.csv` and `.parquet` |
+   | `06_packaging/` | one parquet per output layer, plus `package-*` issues reports and `{iso3}_metadata.csv` and `.parquet` |
 
    The highest-numbered stage with its defining output present marks the
    last completed stage; resume at the next one. No stage folders yet
@@ -283,12 +283,11 @@ After stage 6, export each release candidate (`rc`) sent for review:
 1. Set `{NN}` to the next candidate number after the highest in
    `03_outputs/{iso3}/{version}/`, starting at `01`. Never overwrite an
    existing candidate.
-2. Write every parquet directly in `06_packaging/` (not `validate/`) as one layer of
+2. Write every layer parquet directly in `06_packaging/` (not `validate/`
+   or any `_issues.parquet` report) as one layer of
    `03_outputs/{iso3}/{version}/{iso3}_{version}_rc{NN}.gdb` with
-   `uv run <skill-dir>/scripts/convert.py to-gdb {gdb} {parquet}...`, the
-   metadata as a `metadata` table (`metadata={iso3}_metadata.parquet`),
-   and copy `06_packaging/{iso3}_metadata.csv` beside it as
-   `{iso3}_{version}_rc{NN}_metadata.csv`.
+   `uv run <skill-dir>/scripts/convert.py to-gdb {gdb} {parquet}...`, and
+   the metadata as a `metadata` table (`metadata={iso3}_metadata.parquet`).
 3. Write `{iso3}_{version}_rc{NN}_review.gdb` alongside it with
    `convert.py to-gdb {gdb} {stage}={issues.parquet}... change={change.parquet}`:
    each stage's issues file as a layer named after its stage without the
