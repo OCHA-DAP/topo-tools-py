@@ -22,7 +22,7 @@ Use it when there is no previous release to keep codes from, or with `--source-c
 - `--root-code TEXT`: Code at the start of every code, e.g. a country code. [required]
 - `--delimiter TEXT`: One character between the parts of a code, or '' for none. [required]
 - `--min-width TEXT`: How many digits each level's number is padded to with zeros: one width for all levels (3), one per level from coarsest (2,2,4), or auto for as many as each level needs. [required]
-- `--source-codes [replace|embed|copy]`: What to do with each level's existing code: replace it with a new number, embed it as that level's part of the new code, or copy it to a new column (adm1_code to adm1_code1) and then replace it. [default: replace]
+- `--source-codes [replace|embed|copy]`: What to do with each level's existing code: replace it with a new number, embed it as that level's part of the new code (with no delimiter, whole-number codes are zero-padded to `--min-width` or the widest code), or copy it to a new column (adm1_code to adm1_code1) and then replace it. [default: replace]
 - `--name-field TEXT`: Name column of each level, with {n} for the level number, e.g. 'adm{n}_name'. Give it with `--code-field`. Without both, levels are detected from the data.
 - `--code-field TEXT`: Code column of each level, with {n} for the level number, e.g. 'adm{n}_code'. Give it with `--name-field`. Without both, levels are detected from the data.
 - `--overwrite BOOLEAN`: Replace output files that already exist. Pass `--overwrite=false` to stop with an error instead. [default: True]

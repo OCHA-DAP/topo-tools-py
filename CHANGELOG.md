@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- code-create: with `--source-codes embed` and no delimiter, whole-number
+  source codes are zero-padded so each level has one width, and are
+  numbered within their parent unless every code repeats the parent's
+  code at one width.
+
 ### Fixed
 
 - topo-detect: a notch on a reported gap or overlap is reported only as

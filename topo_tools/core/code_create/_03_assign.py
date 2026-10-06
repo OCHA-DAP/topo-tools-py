@@ -1,5 +1,7 @@
 """Top-down per-level code assignment: level 0 literal, 1..N via the shared cascade."""
 
+from logging import getLogger
+
 from duckdb import DuckDBPyConnection
 
 from topo_tools.core.admin_columns import next_free_sibling
@@ -11,6 +13,13 @@ from topo_tools.core.code import (
 )
 from topo_tools.core.code_create._02_levels import Level
 from topo_tools.core.code_create._constants import SOURCE_CODES
+
+logger = getLogger(__name__)
+
+_INTEGER_TYPES = {
+    "TINYINT", "SMALLINT", "INTEGER", "BIGINT", "HUGEINT",
+    "UTINYINT", "USMALLINT", "UINTEGER", "UBIGINT", "UHUGEINT",
+}  # fmt: skip
 
 
 def _copy_source_codes(
@@ -38,7 +47,11 @@ def _copy_source_codes(
 
 
 def _strip_parent_prefixes(
-    conn: DuckDBPyConnection, table: str, levels: dict[int, Level], fmt: CodeFormat
+    conn: DuckDBPyConnection,
+    table: str,
+    levels: dict[int, Level],
+    fmt: CodeFormat,
+    integers: set[int],
 ) -> None:
     """Strip each level's parent source code (or root) where every code repeats it."""
     numbered = sorted(n for n in levels if n >= 1)
@@ -54,19 +67,29 @@ def _strip_parent_prefixes(
         else:
             prefix_sql, params = f'"{levels[n - 1].code}"::VARCHAR', []
         code_sql = f'"{level.code}"::VARCHAR'
-        matched, total = conn.execute(
+        matched, total, rest_lengths = conn.execute(
             f"""--sql
             SELECT
                 COUNT(*) FILTER (
                     WHERE starts_with({code_sql}, {prefix_sql})
                       AND length({code_sql}) > length({prefix_sql})
                 ),
-                COUNT({code_sql})
+                COUNT({code_sql}),
+                COUNT(DISTINCT length({code_sql}) - length({prefix_sql}))
             FROM "{table}"
             """,
-            params * 2,
+            params * 3,
         ).fetchone()
         if matched == 0:
+            continue
+        mixed = fmt.delimiter == "" and rest_lengths > 1
+        if n in integers and (matched < total or mixed):
+            logger.info(
+                "level %d (%r): codes don't all repeat their parent's code at one "
+                "width; padding them as numbered within the parent",
+                n,
+                level.code,
+            )
             continue
         if matched < total:
             msg = (
@@ -83,12 +106,20 @@ def _strip_parent_prefixes(
 
 def _prepare_source_codes(
     conn: DuckDBPyConnection, table: str, levels: dict[int, Level]
-) -> None:
-    """Cast each code column to VARCHAR, blanks to NULL; raise on a missing code."""
-    columns = {r[0] for r in conn.execute(f'DESCRIBE "{table}"').fetchall()}
+) -> set[int]:
+    """Cast code columns to VARCHAR, blanks to NULL; return the integer levels."""
+    types = dict(
+        conn.execute(
+            "SELECT column_name, data_type FROM duckdb_columns() WHERE table_name = ?",
+            [table],
+        ).fetchall()
+    )
+    integers = set()
     for n, level in sorted(levels.items()):
-        if level.code not in columns:
+        if level.code not in types:
             continue
+        if types[level.code] in _INTEGER_TYPES:
+            integers.add(n)
         conn.execute(f'ALTER TABLE "{table}" ALTER "{level.code}" TYPE VARCHAR')
         conn.execute(
             f'UPDATE "{table}" SET "{level.code}" = NULL '
@@ -103,21 +134,37 @@ def _prepare_source_codes(
             # Ranking would merge every code-less unit under a parent into one.
             msg = f"level {n} ({level.code!r}) has {nulls} row(s) with no source code"
             raise ValueError(msg)
+    return integers
 
 
-def _check_embeddable(
-    conn: DuckDBPyConnection, table: str, n: int, level: Level, fmt: CodeFormat
+def _fix_width(  # noqa: PLR0913 (each param is a distinct required input)
+    conn: DuckDBPyConnection,
+    table: str,
+    n: int,
+    level: Level,
+    fmt: CodeFormat,
+    *,
+    integer: bool,
 ) -> None:
-    """Raise unless every source code is one length without a delimiter."""
+    """Without a delimiter, zero-pad integer codes to one width; raise if mixed."""
+    if fmt.delimiter != "":
+        return
     (lengths,) = conn.execute(
         f'SELECT list(DISTINCT length("{level.code}")) FROM "{table}"'
     ).fetchone()
-    if fmt.delimiter == "" and len(lengths or []) > 1:
+    lengths = sorted(lengths or [])
+    if len(lengths) > 1 and not integer:
         msg = (
             f"level {n} ({level.code!r}) source codes vary in length "
-            f"{sorted(lengths)}; without a delimiter the code can't be split"
+            f"{lengths}; without a delimiter the code can't be split"
         )
         raise ValueError(msg)
+    if integer and lengths:
+        width = max(fmt.width(n) or 0, lengths[-1])
+        conn.execute(
+            f'UPDATE "{table}" SET "{level.code}" = lpad("{level.code}", ?, \'0\')',
+            [width],
+        )
 
 
 def main(
@@ -133,7 +180,7 @@ def main(
         msg = f"source_codes must be one of {SOURCE_CODES}, got {source_codes!r}"
         raise ValueError(msg)
     fmt.check_level_count(sum(1 for n in levels if n >= 1))
-    _prepare_source_codes(conn, table, levels)
+    integers = _prepare_source_codes(conn, table, levels)
     if source_codes == "copy":
         _copy_source_codes(conn, table, levels)
     for n, level in sorted(levels.items()):
@@ -143,7 +190,7 @@ def main(
                 parent = levels[n - 1].code if n - 1 in levels else None
                 check_unique_names(conn, table, n, level.code, parent)
     if source_codes == "embed":
-        _strip_parent_prefixes(conn, table, levels, fmt)
+        _strip_parent_prefixes(conn, table, levels, fmt, integers)
     if 0 in levels:
         conn.execute(f'UPDATE "{table}" SET "{levels[0].code}" = ?', [fmt.root_code])
 
@@ -152,7 +199,14 @@ def main(
     for n in sorted(level for level in levels if level >= 1):
         code_column = levels[n].code
         if source_codes == "embed" and not levels[n].seeded:
-            _check_embeddable(conn, table, n, levels[n], fmt)
+            _fix_width(
+                conn,
+                table,
+                n,
+                levels[n],
+                fmt,
+                integer=n in integers,
+            )
             conn.execute(
                 f'UPDATE "{table}" SET "{code_column}" = '
                 f'{parent_sql} || ? || "{code_column}"::VARCHAR',

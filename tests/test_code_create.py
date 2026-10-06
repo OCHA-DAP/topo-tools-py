@@ -573,6 +573,86 @@ def test_embed_accepts_local_or_parent_prefixed_codes(tmp_path, codes):
     ]
 
 
+@pytest.mark.parametrize(
+    ("codes", "min_width", "expected"),
+    [
+        (
+            [(1, 101, 10101), (11, 1105, 110501)],
+            "auto",
+            [("XY01", "XY0101", "XY010101"), ("XY11", "XY1105", "XY110501")],
+        ),
+        (
+            [(1, 1, 1), (11, 2, 10)],
+            3,
+            [
+                ("XY001", "XY001001", "XY001001001"),
+                ("XY011", "XY011002", "XY011002010"),
+            ],
+        ),
+        (
+            [(1, 101, 10101), (11, 1105, 110501)],
+            3,
+            [
+                ("XY001", "XY001001", "XY001001001"),
+                ("XY011", "XY011005", "XY011005001"),
+            ],
+        ),
+        (
+            [(1, 1, 1), (11, 2, 10)],
+            "2,3,4",
+            [("XY01", "XY01001", "XY010010001"), ("XY11", "XY11002", "XY110020010")],
+        ),
+    ],
+    ids=["auto", "min-width", "prefixed-min-width", "per-level"],
+)
+def test_embed_pads_integer_source_codes(tmp_path, codes, min_width, expected):
+    input_path, output_path = tmp_path / "in.parquet", tmp_path / "out.parquet"
+    _write_synthetic(input_path, _government_rows(codes))
+    code_create(
+        input_path,
+        output_path,
+        root_code="XY",
+        delimiter="",
+        min_width=min_width,
+        source_codes="embed",
+        **_TEMPLATES,
+    )
+    assert _fetch(output_path, "adm1_code, adm2_code, adm3_code", "adm3_code") == (
+        expected
+    )
+
+
+@pytest.mark.parametrize(
+    ("codes", "expected"),
+    [
+        (
+            [(11, 110, 1), (11, 1100, 2)],
+            [("XY11", "XY110110", "XY1101101"), ("XY11", "XY111100", "XY1111002")],
+        ),
+        (
+            [(1, n, n) for n in range(1, 13)],
+            [("XY1", f"XY1{n:02d}", f"XY1{n:02d}{n:02d}") for n in range(1, 13)],
+        ),
+    ],
+    ids=["mixed-remainder", "some-repeat-parent"],
+)
+def test_embed_pads_integers_numbered_within_parent(tmp_path, codes, expected):
+    input_path, output_path = tmp_path / "in.parquet", tmp_path / "out.parquet"
+    _write_synthetic(input_path, _government_rows(codes))
+    code_create(
+        input_path,
+        output_path,
+        root_code="XY",
+        delimiter="",
+        min_width="auto",
+        source_codes="embed",
+        **_TEMPLATES,
+    )
+    assert _fetch(output_path, "adm1_code, adm2_code, adm3_code", "adm3_code") == (
+        expected
+    )
+
+
 def test_embed_raises_when_only_some_codes_carry_the_parent(tmp_path):
     input_path = tmp_path / "in.parquet"
     codes = [("11", "1122", "33"), ("11", "1123", "112334")]

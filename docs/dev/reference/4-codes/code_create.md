@@ -75,13 +75,17 @@ sidebar:
   it, before assignment; a seeded level gets none.
 - Under `embed`, a level with a source code column MUST be coded as its
   parent's code (or `root_code`), then `delimiter`, then its own source
-  value unchanged, and a seeded level is ranked as under `replace`. If
-  every source code at a level starts with its parent's source code (or
-  `root_code`, at level 1) and is longer than it, that prefix MUST be
-  removed before embedding; if only some do, `embed` MUST raise
-  `ValueError`. `embed` MUST also raise `ValueError` if `delimiter` is
-  empty and that level's source codes differ in length (see `docs/adr/0122`,
-  `docs/adr/0125`).
+  value, and a seeded level is ranked as under `replace`. If every source
+  code at a level starts with its parent's source code (or `root_code`, at
+  level 1) and is longer than it, that prefix MUST be removed before
+  embedding; if only some do, `embed` MUST raise `ValueError`. An integer
+  source code column is the exception: its prefix MUST be removed only
+  when every code starts with it and, with an empty `delimiter`, the
+  remainders share one width, else its codes MUST be kept whole. With an
+  empty `delimiter`, an integer level MUST then be left-padded with zeros
+  to the larger of its `min_width` and its widest value, never truncated,
+  and `embed` MUST raise `ValueError` if a text level's source codes differ
+  in length (see `docs/adr/0122`, `docs/adr/0125`, `docs/adr/0135`).
 - The sort key MUST be the resolved code column's own raw value; there is
   no COD-AB-specific multi-column tie-break (e.g. `srcid` then `name` then
   `name1`-`name3`).
