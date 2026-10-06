@@ -85,6 +85,8 @@ Run `topo-tools topo-clean --help` for the full, always-current option list.
    passes' merge rows land in `{name}_03_micro`. When `{name}_02` has a
    notch row, `close_notches()` first moves each flagged endpoint onto the
    other unit, on a copy of `{name}_01`, and the clean runs on that copy.
+   An endpoint touching a third unit stays put, since moving it would cut
+   a wedge out of one unit that no other unit fills.
 4. **`_04_outputs`**: validates overlaps are gone (hard gate), logs
    (never raises on) any gaps still unfilled by design, and exports the
    cleaned dataset plus the issues report (only when it has rows).
@@ -159,9 +161,11 @@ own `include/geos/coverage/CoverageCleaner.h`/`src/coverage/CoverageCleaner.cpp`
   cutoff with no shape concept of its own (verified live against GDAL's
   `gdal vector clean-coverage` docs), so this computes the width to feed
   into it: the widest gap's own width *among only the gaps classified as
-  thin* (`{name}_02.thinness_ratio <= DEFAULT_THINNESS_RATIO`), directly in
-  degree-space from `{name}_02`'s stored gap geometries (`max((
-  ST_MaximumInscribedCircle(geom)).radius * 2)`, GEOS's own width metric)
+  thin* (`thinness_ratio <= DEFAULT_THINNESS_RATIO`), measured on the gaps
+  of the table `ST_CoverageClean` runs on, after notch closing, since
+  closing a notch trims the sliver part off a gap (`gap_issues_sql()`'s
+  `max_width_m`, from `(ST_MaximumInscribedCircle(geom)).radius * 2`, GEOS's
+  own width metric)
   plus a small epsilon (`AUTO_GAP_WIDTH_EPSILON_FACTOR` in `_constants.py`)
   so the widest thin gap itself clears the `<=` comparison. "Thin" is a
   Polsby-Popper compactness score (`4*pi*Area/Perimeter^2`, 1.0 = circle,
@@ -291,9 +295,13 @@ change (output minus input), and `fixed` is unconditionally `TRUE`:
 overlap-free before this runs, so any overlap row reaching the issues
 file was necessarily resolved. For a gap row, `filled_area_m2` is how much
 of the gap's own area ended up covered by the cleaned output (`0` if left
-unfilled by design), and `fixed` is the same point-in-union containment
-test `_warn_on_unfilled_gaps` reports a count of
-(`ST_Contains(ST_Union_Agg({name}_03.geom), ST_PointOnSurface(gap.geom))`).
+unfilled by design), and `fixed` is TRUE only when no gap still open in
+`{name}_03` (`gap_issues_sql()`, wider than `SNAP_TOLERANCE`, the same
+gaps `topo-detect` reports) overlaps it with positive area. An open gap
+that overlaps no detected gap gets its own `gap-new-{n}` row, `fixed`
+FALSE, reason `gap opened by the fix`. `_warn_on_unfilled_gaps` counts
+the unfixed rows, which then match `topo-detect`'s gap count on the
+output.
 For a notch row, `fixed` is FALSE if `detect_notches()` on `{name}_03`
 still finds a notch between the same two units that overlaps the row's
 geometry.

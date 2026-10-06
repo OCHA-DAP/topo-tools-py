@@ -546,6 +546,32 @@ def test_close_notches_leaves_geometry_outside_the_window_unchanged():
         assert same
 
 
+def test_close_notches_keeps_a_vertex_shared_with_a_third_unit():
+    """A's notch with B starts at a vertex A shares with C, which must stay put."""
+
+    def poly(pts):
+        return "POLYGON((" + ", ".join(f"{x * M} {y * M}" for x, y in pts) + "))"
+
+    a = [(-300, 300), (0, 5), (600, 0.1), (600, 2000), (-300, 2000), (-300, 300)]
+    b = [(-2000, 0), (0, 0), (1000, 0), (1000, -2000), (-2000, -2000), (-2000, 0)]
+    c = [(-2000, 0), (0, 0), (0, 5), (-300, 300), (-300, 2000), (-2000, 2000)]
+    with duckdb.connect() as conn:
+        conn.execute("INSTALL spatial; LOAD spatial;")
+        conn.execute(f"""
+            CREATE TABLE units AS
+            SELECT 1 AS fid, ST_GeomFromText('{poly(a)}') AS geom
+            UNION ALL SELECT 2, ST_GeomFromText('{poly(b)}')
+            UNION ALL SELECT 3, ST_GeomFromText('{poly([*c, c[0]])}')
+        """)
+        assert close_notches(conn, "units") == 1
+        assert not has_gaps(conn, "units", gap_maximum_width=0)
+        overlap = conn.execute("""
+            SELECT ST_Area(ST_Intersection(a.geom, c.geom))
+            FROM units a, units c WHERE a.fid = 1 AND c.fid = 3
+        """).fetchone()[0]
+        assert overlap == pytest.approx(0, abs=1e-12)
+
+
 # A clipped Myanmar admin4 pair whose closed union leaves a line spur on unit 2.
 _SPUR_A = [
     (98.0083609620001, 23.47019279700004),

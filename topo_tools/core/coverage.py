@@ -1009,6 +1009,7 @@ def _project_notch_side_sql(  # noqa: PLR0913 (each param is a distinct required
         f"""CREATE OR REPLACE TABLE {p}_moved AS
             SELECT v.pid, v.rn, v.k,
                    CASE WHEN ST_Distance(v.g, ST_Boundary(w.win)) <= {_NOTCH_TOUCH}
+                          OR ST_DWithin(v.g, w.others, {_NOTCH_TOUCH})
                         THEN v.g
                         WHEN n.dd > {_NOTCH_TOUCH}
                          AND n.dd <= f.seglen * {NOTCH_MAX_GAP_RATIO}
@@ -1035,14 +1036,20 @@ def _project_notch_side_sql(  # noqa: PLR0913 (each param is a distinct required
 
 
 def _fill_enclosed_notch_gaps(conn: DuckDBPyConnection, ua: int, ub: int) -> None:
-    """Merge holes the fix enclosed between ua and ub into the unit with more border."""
+    """Merge holes the fix enclosed, ua and ub's neighbours included, into ua or ub."""
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE _notch_holes AS
-        WITH u AS (
-            SELECT FALSE AS before, ST_Union(na, nb) AS g FROM _notch_one
+        WITH nbr AS (
+            SELECT coalesce(ST_Union_Agg(x.geom), 'POLYGON EMPTY'::GEOMETRY) AS g
+            FROM _notch_all x, _notch_w w
+            WHERE x.rnid NOT IN ({ua}, {ub}) AND ST_Intersects(x.geom, w.win)
+        ),
+        u AS (
+            SELECT FALSE AS before, ST_Union(ST_Union(na, nb), nbr.g) AS g
+            FROM _notch_one, nbr
             UNION ALL
-            SELECT TRUE, ST_Union(a.geom, b.geom)
-            FROM _notch_all a, _notch_all b WHERE a.rnid = {ua} AND b.rnid = {ub}
+            SELECT TRUE, ST_Union(ST_Union(a.geom, b.geom), nbr.g)
+            FROM _notch_all a, _notch_all b, nbr WHERE a.rnid = {ua} AND b.rnid = {ub}
         ),
         parts AS (SELECT before, UNNEST(ST_Dump(g)).geom AS p FROM u),
         holes AS (
@@ -1140,7 +1147,10 @@ def close_notches(conn: DuckDBPyConnection, table: str) -> int:
                    ST_Intersection(a.geom, p.win) AS ai,
                    ST_Difference(a.geom, p.win) AS ao,
                    ST_Intersection(b.geom, p.win) AS bi,
-                   ST_Difference(b.geom, p.win) AS bo
+                   ST_Difference(b.geom, p.win) AS bo,
+                   (SELECT ST_Union_Agg(ST_Boundary(x.geom)) FROM _notch_all x
+                    WHERE x.rnid NOT IN ({ua}, {ub}) AND ST_Intersects(x.geom, p.win))
+                       AS others
             FROM _notch_pairs p
             JOIN _notch_all a ON a.rnid = p.ua JOIN _notch_all b ON b.rnid = p.ub
             WHERE p.ua = {ua} AND p.ub = {ub}
