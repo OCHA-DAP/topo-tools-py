@@ -146,11 +146,13 @@ def main(  # noqa: PLR0913
         )
 
     group_cols_sql = [f'"{c}"' for c in group_by]
-    kept_sql = [f'any_value("{c}") AS "{c}"' for c in kept_cols]
-    summed_sql = [f'SUM("{c}") AS "{c}"' for c in summed_cols]
-    overridden_sql = [f'{func}("{c}") AS "{c}"' for c, func in overridden_cols.items()]
+    exprs = {c: f'"{c}"' for c in group_by}
+    exprs |= {c: f'any_value("{c}") AS "{c}"' for c in kept_cols}
+    exprs |= {c: f'SUM("{c}") AS "{c}"' for c in summed_cols}
+    exprs |= {c: f'{func}("{c}") AS "{c}"' for c, func in overridden_cols.items()}
 
-    select_sql = ", ".join(group_cols_sql + kept_sql + summed_sql + overridden_sql)
+    # Input column order, so an admin hierarchy keeps its own level order.
+    select_sql = ", ".join(exprs[c] for c in column_types if c in exprs)
     group_clause = f"GROUP BY {', '.join(group_cols_sql)}" if group_by else ""
     conn.execute(f"""--sql
         CREATE OR REPLACE TABLE "{table_out}" AS

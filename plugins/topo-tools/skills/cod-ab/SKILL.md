@@ -162,6 +162,9 @@ https://astral.sh/uv/install.ps1 | iex"` on Windows).
 Work through these in order, writing each stage's own output into its
 matching `02_working/{iso3}/{version}/0N_stage/` folder (the linked guides below
 use generic placeholder filenames, substitute your own paths there).
+Keep admin columns finest level first (`adm2_*`, then `adm1_*`, then
+`adm0_*`), with names before codes within a level, in every file written
+outside a topo-tools command.
 
 Save every rendered image in its stage's `previews/` folder (e.g.
 `02_topology/previews/`) and give the user its path. To show specific

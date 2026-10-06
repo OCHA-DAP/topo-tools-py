@@ -102,6 +102,20 @@ def test_default_naming_produces_one_file_per_level(admin2_input):
     assert admin1_count == expected_admin1_count
 
 
+def test_coarser_level_keeps_input_column_order(admin2_input):
+    package_polygons(
+        admin2_input,
+        name_field="adm{n}_name",
+        code_field="adm{n}_pcode",
+        overwrite=True,
+    )
+    admin1_out = admin2_input.with_stem(admin2_input.stem + "_admin1")
+    columns = [
+        r[0] for r in duckdb.sql(f"DESCRIBE SELECT * FROM '{admin1_out}'").fetchall()
+    ]
+    assert columns == ["geometry", "adm1_pcode", "adm1_name"]
+
+
 def test_finest_level_skipped_when_path_equals_input(tmp_path):
     input_path = tmp_path / "admin2.parquet"
     _write_synthetic(input_path, _BASE_ROWS)

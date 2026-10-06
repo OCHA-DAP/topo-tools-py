@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- package-polygons, package-points, package-lines and package keep the
+  input's column order on coarser levels.
+- schema-fill keeps the input's column order, with the depth column last.
+- code-create and code-update place a code column seeded from names right
+  after its level's name columns.
+- code-create's `--source-codes copy` keeps level 0's code in a sibling
+  column only when level 1 gets one too.
+
 ## [0.15.1] - 2026-10-05
 
 ### Changed

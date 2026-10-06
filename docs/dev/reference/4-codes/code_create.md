@@ -72,7 +72,9 @@ sidebar:
   into a fresh sequential integer before formatting.
 - Under `copy`, each level's source code column MUST be copied to its next
   free numbered sibling (`adm1_code` to `adm1_code1`), placed right after
-  it, before assignment; a seeded level gets none.
+  it, before assignment; a seeded level gets none, and level 0 gets one
+  only when level 1 does. A seeded level's code column MUST be placed right
+  after its level's name columns.
 - Under `embed`, a level with a source code column MUST be coded as its
   parent's code (or `root_code`), then `delimiter`, then its own source
   value, and a seeded level is ranked as under `replace`. If every source
