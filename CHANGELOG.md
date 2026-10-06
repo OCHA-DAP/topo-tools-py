@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- schema-join places a column it adds within its own level (names before
+  the level's code), and a level the input lacks before the coarser ones.
+
 ## [0.16.0] - 2026-10-05
 
 ### Added

@@ -6,6 +6,7 @@ from duckdb import DuckDBPyConnection
 
 from topo_tools.core.admin_columns import (
     canonical_order,
+    family_level,
     next_free_sibling,
     sibling_name,
     template_families,
@@ -56,7 +57,7 @@ def _output_order(
     added: list[str],
     schema: TargetSchema,
 ) -> list[str]:
-    """Input columns in input order, each sibling after its family, new levels last."""
+    """Input columns in input order, each added column within its hierarchy level."""
     columns = list(input_columns)
     for column, sibling in siblings:
         family = {column} | {
@@ -64,7 +65,36 @@ def _output_order(
         }
         last = max(i for i, c in enumerate(columns) if c in family)
         columns.insert(last + 1, sibling)
-    new_levels, _ = canonical_order(added, schema.name_field, schema.code_field)
+    names, codes = schema.name_field, schema.code_field
+
+    def level_of(column: str) -> int | None:
+        name_level = family_level(column, names)
+        return name_level if name_level is not None else family_level(column, codes)
+
+    new_levels = []
+    for column in canonical_order(added, names, codes)[0]:
+        level = level_of(column)
+        if level is None:
+            new_levels.append(column)
+            continue
+        levels = [level_of(c) for c in columns]
+        same = [i for i, lv in enumerate(levels) if lv == level]
+        coarser = [i for i, lv in enumerate(levels) if lv is not None and lv < level]
+        own = names if family_level(column, names) is not None else codes
+        own_cols = [i for i in same if family_level(columns[i], own) == level]
+        code_cols = [i for i in same if family_level(columns[i], codes) == level]
+        if own_cols:
+            at = own_cols[-1] + 1
+        elif own == names and code_cols:
+            at = code_cols[0]
+        elif same:
+            at = same[-1] + 1
+        elif coarser:
+            at = coarser[0]
+        else:
+            new_levels.append(column)
+            continue
+        columns.insert(at, column)
     return columns + new_levels
 
 

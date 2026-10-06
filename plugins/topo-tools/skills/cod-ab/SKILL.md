@@ -274,12 +274,7 @@ without asking. Stage 4's answer sets `methodology_pcodes` (e.g.
      organisation's IDs.
 
    Pass the `--code-field`/`--name-field` templates in every case, so the
-   output gets level 0's code column. Then run
-   `uv run <skill-dir>/scripts/adm0.py {iso3} {version}` with the same
-   templates. It writes the official UN M49 admin0 names for the six UN
-   languages, and takes any other language, or an area not in M49, from
-   `metadata.json`'s `adm0_names` (`{"sq": "..."}`). On a missing name,
-   ask the user for it, add it to `adm0_names`, then rerun.
+   output gets level 0's code column.
 
    Code the stage 2 file in place of the stage 3 output when the user
    chose to code the full geometry first.
@@ -292,7 +287,12 @@ without asking. Stage 4's answer sets `methodology_pcodes` (e.g.
    code, apply the ones the user approves, then re-check with `name-detect`.
    Write both reports as `.parquet`: `{iso3}_admin{n}_name_fixes.parquet`
    from `name-clean` and `{iso3}_admin{n}_name_issues.parquet` from the
-   final `name-detect`.
+   final `name-detect`. Then run
+   `uv run <skill-dir>/scripts/adm0.py {iso3} {version}` with the stage 4
+   templates. It writes the official UN M49 admin0 names for the six UN
+   languages, and takes any other language, or an area not in M49, from
+   `metadata.json`'s `adm0_names` (`{"sq": "..."}`). On a missing name,
+   ask the user for it, add it to `adm0_names`, then rerun.
 6. [Packaging](https://raw.githubusercontent.com/OCHA-DAP/topo-tools-py/main/docs/pages/6-packaging/how-to.md)
 
    Admin0 is always an output. Before packaging, ask which layout to
