@@ -62,30 +62,23 @@ def main(  # noqa: PLR0913
 
     code_columns, families = _families(conn, table_in, columns, levels, schema)
 
-    filled_columns: set[str] = set()
-    filled_select_parts: list[str] = []
+    filled: dict[str, str] = {}
     for per_level in families:
-        filled_columns.update(per_level.values())
         if len(per_level) == 1:
-            (only_column,) = per_level.values()
-            filled_select_parts.append(f'"{only_column}"')
             continue
         fallback_cases = "\n".join(
             f'WHEN "{depth_column}" >= {lvl} THEN "{per_level[lvl]}"'
             for lvl in sorted(per_level, reverse=True)
         )
         fallback = f"CASE {fallback_cases} END"
-        for level, column in sorted(per_level.items()):
-            filled_select_parts.append(
+        for level, column in per_level.items():
+            filled[column] = (
                 f'CASE WHEN "{depth_column}" >= {level} '
                 f'THEN "{column}" ELSE ({fallback}) END AS "{column}"'
             )
 
-    select_parts = (
-        [f'"{c}"' for c in columns if c not in filled_columns]
-        + filled_select_parts
-        + [f'"{depth_column}"']
-    )
+    # Input column order, so an admin hierarchy keeps its own level order.
+    select_parts = [filled.get(c, f'"{c}"') for c in columns] + [f'"{depth_column}"']
 
     select_sql = ", ".join(select_parts)
     conn.execute(f"""--sql

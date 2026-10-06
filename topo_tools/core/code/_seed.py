@@ -10,8 +10,20 @@ def seed_code_from_names(
     if name is None:
         msg = f"level {level} has neither {code!r} nor a name column in {table}"
         raise ValueError(msg)
-    conn.execute(f'ALTER TABLE "{table}" ADD COLUMN IF NOT EXISTS "{code}" VARCHAR')
-    conn.execute(f'UPDATE "{table}" SET "{code}" = "{name}"::VARCHAR')
+    columns = [r[0] for r in conn.execute(f'DESCRIBE "{table}"').fetchall()]
+    if code in columns:
+        conn.execute(f'UPDATE "{table}" SET "{code}" = "{name}"::VARCHAR')
+        return
+    # A new code column goes after its level's name and numbered siblings.
+    at = columns.index(name) + 1
+    while at < len(columns) and columns[at].startswith(name):
+        at += 1
+    select = [f'"{c}"' for c in columns]
+    select.insert(at, f'"{name}"::VARCHAR AS "{code}"')
+    conn.execute(
+        f'CREATE OR REPLACE TABLE "{table}" AS SELECT {", ".join(select)} '
+        f'FROM "{table}"'
+    )
 
 
 def check_unique_names(

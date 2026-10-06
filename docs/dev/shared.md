@@ -90,6 +90,12 @@ in sync.
   place each numbered sibling it adds right after the last existing column
   of that sibling's family, and every column absent from the input layer
   after all input columns, in template order (see `docs/adr/0119`).
+- Every other tool MUST keep its input's column order. A column it adds
+  MUST go next to its own level's columns: a code column seeded from names
+  right after that level's name columns, and a numbered sibling right after
+  its source column. A layer in `schema-map`'s order (levels finest first,
+  names before codes within a level) stays in that order through every
+  later tool.
 - A numbered sibling of a column (a second same-level name, or a join layer's
   differing value in `schema-join`) MUST be named by appending an integer
   starting at 1, separated by `_` when the column ends in a digit

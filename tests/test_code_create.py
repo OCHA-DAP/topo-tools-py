@@ -695,6 +695,29 @@ def test_copy_keeps_source_codes_in_numbered_siblings(tmp_path):
     ]
     for code in ("adm1_code", "adm3_code"):
         assert columns.index(f"{code}1") == columns.index(code) + 1
+    assert columns.index("adm2_code") == columns.index("adm2_name") + 1
+
+
+@pytest.mark.parametrize(("adm1_code", "expected"), [("51", True), (None, False)])
+def test_copy_keeps_adm0_code_only_alongside_adm1(tmp_path, adm1_code, expected):
+    input_path, output_path = tmp_path / "in.parquet", tmp_path / "out.parquet"
+    rows = _source_coded_rows()
+    for row in rows:
+        row.update(adm0_code="BH", adm0_name="Bahrain", adm1_code=adm1_code)
+    _write_synthetic(input_path, rows)
+    code_create(
+        input_path,
+        output_path,
+        root_code="BHR",
+        delimiter=".",
+        min_width=3,
+        source_codes="copy",
+        **_TEMPLATES,
+    )
+    columns = [
+        r[0] for r in duckdb.sql(f"DESCRIBE SELECT * FROM '{output_path}'").fetchall()
+    ]
+    assert ("adm0_code1" in columns) is expected
 
 
 def test_min_width_per_level_and_auto(tmp_path):

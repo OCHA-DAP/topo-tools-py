@@ -86,7 +86,8 @@ def _fetch(path):
             "adm2_code, adm3_code"
         ).fetchall()
         cols = [d[0] for d in conn.description]
-    return cols, {r[0:3]: r for r in rows}
+    keys = [cols.index(c) for c in ("adm1_code", "adm2_code", "adm3_code")]
+    return cols, {tuple(r[i] for i in keys): r for r in rows}
 
 
 @pytest.fixture
@@ -132,6 +133,18 @@ def test_fills_down_and_stamps_depth(leaf_input, tmp_path):
     row_bb = by_code[("BB", "BB", "BB")]
     assert row_bb[lvl] == _LEVEL_1
     assert row_bb[name3] == "Country B"
+
+
+def test_keeps_input_column_order(tmp_path):
+    input_path, output_path = tmp_path / "in.parquet", tmp_path / "out.parquet"
+    order = ["adm3_name", "adm3_code", "adm2_name", "adm2_code", "adm1_name"]
+    _write_synthetic(
+        input_path,
+        [{c: r[c] for c in [*order, "adm1_code", "wkt"]} for r in _LEAF_ROWS],
+    )
+    fill(input_path, output_path=output_path, overwrite=True)
+    cols, _ = _fetch(output_path)
+    assert cols == [*order, "adm1_code", "adm_lvl"]
 
 
 def test_extends_to_a_single_level(admin1_only_input, tmp_path):

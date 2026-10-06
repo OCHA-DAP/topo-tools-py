@@ -31,7 +31,7 @@ def _copy_source_codes(
     siblings: dict[str, str] = {}
     for n in sorted(levels):
         level = levels[n]
-        if level.seeded:
+        if level.seeded or (n == 0 and (1 not in levels or levels[1].seeded)):
             continue
         siblings[level.code] = next_free_sibling(level.code, taken)
         taken.add(siblings[level.code])
