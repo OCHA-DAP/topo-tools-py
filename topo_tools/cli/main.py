@@ -1564,8 +1564,10 @@ def code_detect(  # noqa: PLR0913, PLR0917
     default="replace",
     show_default=True,
     help="What to do with each level's existing code: replace it with a new "
-    "number, embed it as that level's part of the new code, or copy it to a "
-    "new column (adm1_code to adm1_code1) and then replace it.",
+    "number, embed it as that level's part of the new code (with no "
+    "delimiter, whole-number codes are zero-padded to --min-width or the "
+    "widest code), or copy it to a new column (adm1_code to adm1_code1) and "
+    "then replace it.",
 )
 @click.option(
     "--name-field",
