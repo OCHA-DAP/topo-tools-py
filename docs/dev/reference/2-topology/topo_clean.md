@@ -28,14 +28,16 @@ detection stage directly rather than owning separate logic (see
   mode.
 - `topo-clean` MUST close every detected notch before the fix, moving a
   flagged segment's endpoint onto the other unit only when the gap is at
-  most `NOTCH_MAX_GAP_RATIO` of the segment's length, and merging any gap
-  those moves enclose between the two units, with no other unit inside
-  it, into the unit sharing more of its border. A notch left open MUST be
-  reported with `fixed` FALSE.
+  most `NOTCH_MAX_GAP_RATIO` of the segment's length and the endpoint
+  touches no third unit, and merging any gap those moves enclose (bounded
+  by the two units and their neighbours, with no other unit inside it)
+  into whichever of the two shares more of its border (see
+  `docs/adr/0139`). A notch left open MUST be reported with `fixed` FALSE.
 - The default gap-fill behavior (reached by omitting `--maximum-gap-width`,
   not a named mode) MUST fill a gap only if its width is at or below
   `SNAP_TOLERANCE`, regardless of shape.
-- The `thin` mode MUST fill a gap only if its compactness score marks it as
+- The `thin` mode MUST fill a gap only if its compactness score, measured
+  after notch closing, marks it as
   a thin, elongated digitization sliver rather than a plausible real
   feature (e.g. a pond or a strait), regardless of the gap's absolute size.
 - The `all` mode MUST fill every detected gap, regardless of shape.
@@ -83,10 +85,13 @@ detection stage directly rather than owning separate logic (see
   empty, no file MUST be written (and a stale file from a previous run at
   that path MUST be removed).
 - The issues report MUST also state each issue's actual measured outcome,
-  not just the defect as originally detected: whether it was fixed; for
-  an overlap, how much each of its two named units' own area actually
-  changed; for a gap, how much of the gap's own area ended up covered
-  (zero if left unfilled).
+  not just the defect as originally detected: whether it was fixed (for a
+  gap, no gap still open in the output overlaps it); for an overlap, how
+  much each of its two named units' own area actually changed; for a gap,
+  how much of the gap's own area ended up covered (zero if left unfilled).
+  A gap open in the output that overlaps no detected gap MUST get its own
+  unfixed `gap` row, so the unfixed gap rows match `topo-detect` on the
+  output.
 - `topo-clean` MUST report the fixed output's total area change (gained or
   lost) relative to the input.
 

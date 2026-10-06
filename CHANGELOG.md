@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- topo-clean, edge-extend and edge-match: closing a notch keeps a vertex
+  the unit shares with a third unit in place, so it never cuts a hole
+  out of a unit, and fills a gap it encloses against a neighbouring unit.
+- topo-clean marks a gap fixed only when no part of it stays open, reports
+  any gap the fix opens, and measures `thin` mode's width after closing
+  notches.
+
+### Fixed
+
 - schema-join places a column it adds within its own level (names before
   the level's code), and a level the input lacks before the coarser ones.
 

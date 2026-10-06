@@ -11,6 +11,7 @@ from click.testing import CliRunner
 import topo_tools.core.topo_clean._03_clean as clean_stage
 import topo_tools.core.topo_clean._04_outputs as outputs_stage
 from topo_tools.api.topo_clean import clean
+from topo_tools.api.topo_detect import detect
 from topo_tools.cli.main import cli
 from topo_tools.core.constants import SNAP_TOLERANCE
 
@@ -359,6 +360,34 @@ def test_clean_maximum_gap_width_thin_fills_only_thin_gap(synthetic_input, tmp_p
     assert thin_fixed is True
 
 
+@pytest.mark.parametrize("mode", [None, "thin", "all"])
+def test_clean_reports_every_gap_topo_detect_finds(mode, synthetic_input, tmp_path):
+    output_path = tmp_path / "clean.parquet"
+    issues_path = tmp_path / "clean_issues.parquet"
+    clean(
+        synthetic_input,
+        output_path,
+        issues_path,
+        maximum_gap_width=mode,
+        overwrite=True,
+    )
+    detect_path = tmp_path / "detect_issues.parquet"
+    detect(output_path, detect_path, overwrite=True)
+
+    with duckdb.connect() as conn:
+        unfilled = conn.execute(
+            f"SELECT count(*) FROM '{issues_path}' WHERE kind = 'gap' AND NOT fixed"
+        ).fetchone()[0]
+        found = (
+            conn.execute(
+                f"SELECT count(*) FROM '{detect_path}' WHERE kind = 'gap'"
+            ).fetchone()[0]
+            if detect_path.exists()
+            else 0
+        )
+    assert unfilled == found
+
+
 def test_clean_maximum_gap_width_default_leaves_real_gap_unfilled(
     scaled_gap_input, tmp_path
 ):
@@ -442,6 +471,35 @@ def _empty_issues_table_sql(name: str) -> str:
                NULL::GEOMETRY AS geom
         WHERE FALSE
     """
+
+
+def test_partly_filled_gap_is_not_fixed(tmp_path):
+    """The fill covers the gap's interior point but leaves 40% of it open."""
+    left = "POLYGON((0 0, 1 0, 1 1, 1 1.6, 1 2, 1 3, 0 3, 0 0))"
+    right = "POLYGON((2 0, 3 0, 3 3, 2 3, 2 2, 2 1.6, 2 1, 2 0))"
+    top = "POLYGON((1 2, 2 2, 2 3, 1 3, 1 2))"
+    bottoms = {
+        "stage_01": "POLYGON((1 0, 2 0, 2 1, 1 1, 1 0))",
+        "stage_03": "POLYGON((1 0, 2 0, 2 1, 2 1.6, 1 1.6, 1 1, 1 0))",
+    }
+    with duckdb.connect() as conn:
+        conn.execute("INSTALL spatial; LOAD spatial;")
+        for table, bottom in bottoms.items():
+            values = ", ".join(
+                f"({fid}, ST_GeomFromText('{wkt}'))"
+                for fid, wkt in enumerate((left, right, top, bottom), start=1)
+            )
+            conn.execute(f"CREATE TABLE {table} AS FROM (VALUES {values}) t(fid, geom)")
+        conn.execute(_empty_issues_table_sql("stage_02"))
+        conn.execute("""
+            INSERT INTO stage_02 (key, kind, geom)
+            VALUES ('gap-1', 'gap', ST_MakeEnvelope(1, 1, 2, 2))
+        """)
+        conn.execute("CREATE TABLE stage_03_micro AS FROM stage_02 WHERE FALSE")
+        issues_path = tmp_path / "issues.parquet"
+        outputs_stage.main(conn, "stage", tmp_path / "out.parquet", issues_path)
+        rows = conn.execute(f"SELECT key, fixed FROM '{issues_path}'").fetchall()
+    assert rows == [("gap-1", False)]
 
 
 def test_notch_fixed_matches_location_not_just_unit_pair(tmp_path):
